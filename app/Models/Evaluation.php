@@ -94,4 +94,9 @@ class Evaluation extends Model
 	{
 		return $this->hasMany(Note::class);
 	}
+
+	public function anonymousCodes(): HasMany
+	{
+		return $this->hasMany(EvaluationAnonymous::class);
+	}
 }

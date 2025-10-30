@@ -13,6 +13,7 @@ use App\Http\Controllers\{
 
 };
 use App\Http\Controllers\Admin\{
+	AnonymousSheetController,
 	ContactController,
 	EmploiDuTempController,
 	EventController,
@@ -207,8 +208,15 @@ Route::prefix('evaluations')->name('evaluations.')->group(function () {
 		Route::put('publier-les-notes', 'publishNotes')->name('publish-notes');
 		Route::post('changer-note', 'ChangeNotes')->name('change-notes');
 		Route::get('export', 'export')->name('export');
+	});
 
-
+	// Routes pour les fiches d'anonymes
+	Route::controller(AnonymousSheetController::class)->prefix('{evaluation}/anonymous')->name('anonymous.')->group(function () {
+		Route::post('generate', 'generateCodes')->name('generate');
+		Route::get('codes', 'showCodes')->name('codes');
+		Route::get('print', 'printSheet')->name('print');
+		Route::get('export.csv', 'exportCsv')->name('export');
+		Route::delete('delete', 'deleteCodes')->name('delete');
 	});
 
 	//	Route::get('index', 'index')->name('index');

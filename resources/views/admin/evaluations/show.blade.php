@@ -34,7 +34,54 @@
             <hr />
             <div class="d-flex justify-content-between align-items-center">
                 <div id="allocation-summary"></div>
-                <a class="btn btn-outline-secondary ms-3" href="{{ route('admin.evaluations.rooms.export', $evaluation) }}">Exporter CSV</a>
+                <div class="btn-group">
+                    <a class="btn btn-outline-secondary" href="{{ route('admin.evaluations.rooms.export', $evaluation) }}">
+                        <i class="fas fa-download"></i> Exporter CSV
+                    </a>
+                    
+                    <!-- Boutons pour les fiches d'anonymes -->
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-info dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-secret"></i> Fiches Anonymes
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <form method="POST" action="{{ route('admin.evaluations.anonymous.generate', $evaluation) }}" style="display: inline;">
+                                    @csrf
+                                    <button type="submit" class="dropdown-item" onclick="return confirm('Générer les codes anonymes pour cette évaluation ?')">
+                                        <i class="fas fa-plus-circle text-success"></i> Générer les codes
+                                    </button>
+                                </form>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('admin.evaluations.anonymous.codes', $evaluation) }}">
+                                    <i class="fas fa-list text-primary"></i> Voir les codes
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('admin.evaluations.anonymous.print', $evaluation) }}" target="_blank">
+                                    <i class="fas fa-print text-info"></i> Imprimer PDF
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('admin.evaluations.anonymous.export', $evaluation) }}">
+                                    <i class="fas fa-file-csv text-success"></i> Export CSV
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form method="POST" action="{{ route('admin.evaluations.anonymous.delete', $evaluation) }}" style="display: inline;">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="dropdown-item text-danger" onclick="return confirm('Supprimer tous les codes anonymes ?')">
+                                        <i class="fas fa-trash"></i> Supprimer les codes
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
