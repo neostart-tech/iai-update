@@ -7,25 +7,25 @@ class ConfigHelper
 {
     public static function getAppName()
     {
-        $AppName = Configuration::where('key', 'Nom de l\'établissement')->first()->getAttribute('value');
-        return $AppName;
+        $config = Configuration::where('key', 'Nom de l\'établissement')->first();
+        return $config ? $config->getAttribute('value') : 'Nom de l\'établissement non configuré';
     }
 
     public static function getAppLogo()
     {
-        $AppLogo = Configuration::where('key', 'Logo de l\'établissement')->first()->getAttribute('value');
-        return $AppLogo;
+        $config = Configuration::where('key', 'Logo de l\'établissement')->first();
+        return $config ? $config->getAttribute('value') : null;
     }
 
     public static function getAppTitreDe()
     {
-        $AppTitreDe = Configuration::where('key', 'Titre du Chargé des études et de la scolarité')->first()->getAttribute('value');
-        return $AppTitreDe;
+        $config = Configuration::where('key', 'Titre du Chargé des études et de la scolarité')->first();
+        return $config ? $config->getAttribute('value') : 'Titre non configuré';
     }
 
     public static function getAppDe()
     {
-        $AppDe = Configuration::where('key', 'Nom complet du Chargé des études et de la scolarité')->first()->getAttribute('value');
-        return $AppDe;
+        $config = Configuration::where('key', 'Nom complet du Chargé des études et de la scolarité')->first();
+        return $config ? $config->getAttribute('value') : 'Nom non configuré';
     }
 }
