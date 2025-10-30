@@ -28,12 +28,15 @@ class EvaluationAnonymous extends Model
     }
 
     /**
-     * Générer un code anonyme unique
+     * Générer un code anonyme unique (2 lettres + 3 chiffres)
      */
     public static function generateUniqueCode(): string
     {
         do {
-            $code = strtoupper(substr(uniqid(), -8));
+            // 2 lettres majuscules + 3 chiffres (ex: AB123)
+            $letters = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 0, 2));
+            $digits = str_pad((string) random_int(0, 999), 3, '0', STR_PAD_LEFT);
+            $code = $letters . $digits;
         } while (self::where('anonymous_code', $code)->exists());
         
         return $code;

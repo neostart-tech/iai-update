@@ -1,13 +1,13 @@
 @extends('base', [
-    'title' => 'Fiche d\'anonymat',
-    'page_name' => 'Fiche d\'anonymat',
+    'title' => 'Gestion d\'anonymat',
+    'page_name' => 'Gestion d\'anonymat',
     'breadcrumbs' => [
         [
             'text' => 'Évaluation',
             'url' => route('admin.evaluations.index'),
         ],
         $evaluation->matiere->nom,
-        'Fiche d\'anonymat',
+        'Gestion d\'anonymat',
     ],
 ])
 
