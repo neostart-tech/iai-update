@@ -53,6 +53,22 @@
 	</div>
 
 	<div class="form-group">
+		<label class="form-label" for="supervisor_type">Type de Surveillant</label>
+		<select class="mb-3 form-select form-select-lg" name="supervisor_type" id="supervisor_type">
+			<option value="non_surveillant" @selected(old('supervisor_type', $user->supervisor_type ?? 'non_surveillant') === 'non_surveillant')>Non surveillant</option>
+			<option value="interne" @selected(old('supervisor_type', $user->supervisor_type) === 'interne')>Surveillant Interne</option>
+			<option value="externe" @selected(old('supervisor_type', $user->supervisor_type) === 'externe')>Surveillant Externe</option>
+		</select>
+		{!! errorAlert($errors->first('supervisor_type'), 'supervisor_type') !!}
+	</div>
+
+	<div class="form-group" id="supervisor-notes-group" style="{{ old('supervisor_type', $user->supervisor_type ?? 'non_surveillant') === 'non_surveillant' ? 'display: none;' : '' }}">
+		<label class="form-label" for="supervisor_notes">Notes sur la surveillance</label>
+		<textarea class="form-control" id="supervisor_notes" name="supervisor_notes" rows="3" placeholder="Notes concernant les aptitudes de surveillance, disponibilités, etc.">{{ old('supervisor_notes', $user->supervisor_notes) }}</textarea>
+		{!! errorAlert($errors->first('supervisor_notes'), 'supervisor_notes') !!}
+	</div>
+
+	<div class="form-group">
 		<label class="form-label" for="pc-tinymce-2">Biographie</label>
 		<textarea id="pc-tinymce-2" name="biographie" class="tox-target">{{ old('biographie', $user->biographie) }}</textarea>
 	</div>
@@ -92,6 +108,16 @@
 			selector: '#pc-tinymce-2',
 			height: '400',
 			content_style: 'body { font-family: "Inter", sans-serif; }'
+		});
+
+		// Gestion de l'affichage conditionnel des notes de surveillance
+		document.getElementById('supervisor_type').addEventListener('change', function() {
+			const notesGroup = document.getElementById('supervisor-notes-group');
+			if (this.value === 'non_surveillant') {
+				notesGroup.style.display = 'none';
+			} else {
+				notesGroup.style.display = 'block';
+			}
 		});
 	</script>
 	@include('layouts._select-search-script')

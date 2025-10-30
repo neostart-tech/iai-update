@@ -24,7 +24,9 @@ class UserRequest extends FormRequest
 			'genre' => ['required', Rule::enum(GenreEnum::class)],
 			'email' => ['required', 'email', 'unique:users,email'],
 			'roles' => ['nullable', 'array', 'min:1'],
-			'tel' => ['required']
+			'tel' => ['required'],
+			'supervisor_type' => ['required', 'in:interne,externe,non_surveillant'],
+			'supervisor_notes' => ['nullable', 'string']
 		];
 
 	}
@@ -38,7 +40,8 @@ class UserRequest extends FormRequest
 			"prenom.required" => "Le prénom est requis",
 			"genre.required" => "Le genre est requis",
 			"tel.required" => "Le numéro de téléphone est requis",
-
+			"supervisor_type.required" => "Le type de surveillant est requis",
+			"supervisor_type.in" => "Type de surveillant invalide"
 		];
 	}
 
@@ -53,7 +56,9 @@ class UserRequest extends FormRequest
 			'genre' => 'Le genre',
 			'email' => 'L\'adresse mail',
 			'roles' => 'Le rôle',
-			'tel' => 'Le numero de téléphone'
+			'tel' => 'Le numero de téléphone',
+			'supervisor_type' => 'Le type de surveillant',
+			'supervisor_notes' => 'Les notes de surveillance'
 		];
 	}
 

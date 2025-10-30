@@ -101,21 +101,27 @@ class UserController extends Controller
 			'genre' => ['required', 'string'],
 			'email' => ['required', 'email',],
 			'roles' => ['nullable', 'array', 'min:1'],
-			'tel' => ['required']
+			'tel' => ['required'],
+			'supervisor_type' => ['required', 'in:interne,externe,non_surveillant'],
+			'supervisor_notes' => ['nullable', 'string']
 		], [
 			'nom.required' => "Le nom est requis",
 			'prenom.required' => "Le prénom est requis",
 			'genre.required' => "Le genre est requis",
 			'email.required' => "L'adresse mail est requise",
 			'roles.min' => "Veuillez choisir au moins un rôle",
-			'tel.required' => "Le numéro de téléphone est requis"
+			'tel.required' => "Le numéro de téléphone est requis",
+			'supervisor_type.required' => "Le type de surveillant est requis",
+			'supervisor_type.in' => "Type de surveillant invalide"
 		], [
 			'nom' => 'Le nom',
 			'prenom' => 'Le prénom',
 			'genre' => 'Le genre',
 			'email' => 'L\'adresse mail',
 			'roles' => 'Le rôle',
-			'tel' => 'Le numero de téléphone'
+			'tel' => 'Le numero de téléphone',
+			'supervisor_type' => 'Le type de surveillant',
+			'supervisor_notes' => 'Les notes de surveillance'
 		]);
 		$user->update($request->all());
 		$user->roles()->sync($request->get('roles'));

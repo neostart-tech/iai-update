@@ -114,25 +114,28 @@ Route::controller(RoleController::class)->prefix('roles')->name('roles.')->group
 });
 
 // Gestion des Utilisateurs par l'administration
-Route::controller(UserController::class)->prefix('utilisateurs')->name('users.')->group(function () {
-	Route::get('liste/{profil?}', 'index')->name('index');
-	Route::get('ajouter-un-utilisateur', 'create')->name('create');
-	Route::get('{user}/a-propos', 'show')->name('show');
-	Route::get('{user}/modifier', 'edit')->name('edit');
-	Route::post('ajouter-un-utilisateur', 'store')->name('store');
-	Route::put('{user}/modifier-le-profil', 'update')->name('update');
-	Route::delete('/supprimer', 'destroy')->name('delete');
-
-	// Résumé des heures effectuées par enseignant
-	Route::get('enseignants/heures', 'hoursSummary')->name('teachers.hours-summary');
-
-	// Emploi du temps des profs
+Route::controller(UserController::class)->prefix('users')->name('users.')->group(function () {
+	Route::get('liste', 'index')->name('index');
+	Route::get('create', 'create')->name('create');
+	Route::post('create', 'store')->name('store');
+	Route::get('{user}/edit', 'edit')->name('edit');
+	Route::put('{user}/update', 'update')->name('update');
 	Route::get('{user}/load-edt', 'loadEmploiDuTemps')->name('load-edt'); // charge les edt de l'utilisateur
 	Route::get('{user}/emploi-du-temps', 'ShowEmploiDuTemps')->name('show-edt'); // charge les edt de l'utilisateur
 	Route::post('{user}/add-edt', 'storeEmploiDuTemps')->name('store-edt'); // charge les edt de l'utilisateur
 
 	Route::put('/update-edt', 'updateEmploiDuTemps')->name('update-edt'); // charge les edt de l'utilisateur
 
+});
+
+// Routes pour la gestion des surveillants
+Route::controller(SurveillantController::class)->prefix('surveillants')->name('surveillants.')->group(function () {
+	Route::get('/', 'index')->name('index');
+	Route::get('{user}', 'show')->name('show');
+	Route::post('{user}/update-type', 'updateType')->name('update-type');
+	Route::post('{user}/make-interne', 'makeInterne')->name('make-interne');
+	Route::post('{user}/make-externe', 'makeExterne')->name('make-externe');
+	Route::post('{user}/remove-surveillance', 'removeSurveillance')->name('remove');
 });
 
 Route::controller(CandidatureController::class)->prefix('candidature')->name('candidatures.')->group(function () {

@@ -190,21 +190,13 @@
 					enseignants</a>
 			</li>
 			<li class="pc-item">
+				<a class="pc-link" href="{{ route('admin.surveillants.index') }}">
+					<i class="ti ti-shield"></i> Gestion Surveillants
+				</a>
+			</li>
+			<li class="pc-item">
 				<a class="pc-link" href="{{ route('admin.users.teachers.hours-summary') }}">Récap heures enseignants</a>
 			</li>
-			{{--							<li class="pc-item"> --}}
-			{{--								<a class="pc-link" href="{{ route('admin.users.create') }}">Ajouter un Utilisateur</a> --}}
-			{{--							</li> --}}
-			{{--							<li class="pc-item"> --}}
-			{{--								<a class="pc-link" href="{{ route('admin.users.create') }}">Ajouter un Utilisateur</a> --}}
-			{{--							</li> --}}
-			{{--							<li class="pc-item"> --}}
-			{{--								<a class="pc-link" href="{{ route('admin.users.create') }}">Ajouter un Utilisateur</a> --}}
-			{{--							</li> --}}
-			{{--							<li class="pc-item"> --}}
-			{{--								<a class="pc-link" href="{{ route('admin.users.create') }}">Ajouter un Utilisateur</a> --}}
-			{{--							</li> --}}
-
 		</ul>
 	</li>
 
