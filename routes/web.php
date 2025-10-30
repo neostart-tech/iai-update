@@ -19,6 +19,15 @@ Route::get('', fn() => to_route('home'));
 // Informations urgentes (page publique)
 Route::get('/informations-urgentes', [UrgentInfoPublicController::class, 'index'])->name('urgent.info');
 
+// Vérification publique des relevés de notes via QR Code
+use App\Http\Controllers\PublicReleveVerificationController;
+Route::controller(PublicReleveVerificationController::class)->prefix('verifier-releve')->name('public.releve.')->group(function () {
+    Route::get('/', 'index')->name('verify');
+    Route::post('/verification', 'verify')->name('verify.form');
+    Route::get('/verification/{hash}', 'verify')->name('verify.hash');
+    Route::post('/api/verification', 'verifyApi')->name('verify.api');
+});
+
 Route::get('dashboard', function () {
 	return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');

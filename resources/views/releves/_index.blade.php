@@ -431,10 +431,24 @@
 
            
             <div style="width: 100%; margin-top: 80px;">
-                <div style="float: right; text-align: right;">
-                    <p style="margin: 0; font-size: 14px;"><strong>Fait à Lomé, le <?php echo date('d/m/Y'); ?></strong></p>
-                    <p style="margin: 30px 0 0 0; font-size: 14px;"><strong>{{AppGetters::getAppTitreDe()}}</strong></p>
-                    <p style="margin: 2px 0 0 0; font-size: 14px;"><strong><u>{{AppGetters::getAppDe()}}</u></strong></p>
+                <!-- Section signature avec QR Code -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                    <!-- QR Code à gauche -->
+                    @if(isset($qrCode))
+                    <div style="text-align: left; margin-right: 20px;">
+                        <img src="{{ $qrCode }}" alt="QR Code de vérification" style="width: 100px; height: 100px; border: 1px solid #ccc; border-radius: 4px;">
+                        <p style="margin: 5px 0 0 0; font-size: 10px; color: #666; text-align: center;">
+                            Code de vérification
+                        </p>
+                    </div>
+                    @endif
+                    
+                    <!-- Signature à droite -->
+                    <div style="text-align: right; flex-grow: 1;">
+                        <p style="margin: 0; font-size: 14px;"><strong>Fait à Lomé, le <?php echo date('d/m/Y'); ?></strong></p>
+                        <p style="margin: 30px 0 0 0; font-size: 14px;"><strong>{{AppGetters::getAppTitreDe()}}</strong></p>
+                        <p style="margin: 2px 0 0 0; font-size: 14px;"><strong><u>{{AppGetters::getAppDe()}}</u></strong></p>
+                    </div>
                 </div>
             </div>
             <div style="clear: both;"></div>

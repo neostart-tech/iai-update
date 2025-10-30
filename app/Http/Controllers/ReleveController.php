@@ -16,6 +16,7 @@ use App\Models\AnneeScolaire;
 use App\Jobs\GenererRelevesGroupeJob;
 use App\Models\Periode;
 use App\Models\Releve;
+use App\Services\QRCodeService;
 use Auth;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Cache;
@@ -181,36 +182,36 @@ class ReleveController extends Controller
     $unite = UniteEnseignement::where('nom', $ue)->first();
     $filiere = $unite?->filiere?->nom ?? 'Filière non trouvée';
 
+    // Génération du code QR avec le service
+    $qrCodeService = new QRCodeService();
+    $qrCode = $qrCodeService->generateReleveQRCode($etudiant, $data, $filiere);
+
     // Nom du fichier
     $fileName = 'releve_' . $etudiant->id . '_' . time() . '.pdf';
     $relativePath = 'releves/' . $fileName; 
     $storagePath = storage_path('app/public/' . $relativePath);
 
-    // Générer le PDF
+    // Générer le PDF avec le QR Code
     $pdf = Pdf::loadView('releves._index', [
         'releves' => $data,
         'user' => $etudiant,
-        'filiere' => $filiere
+        'filiere' => $filiere,
+        'qrCode' => $qrCode
     ])->setPaper('A4');
 
    
     FacadesStorage::disk('public')->put($relativePath, $pdf->output());
 
+    // Mettre à jour le relevé avec le chemin PDF
+    $releve = Releve::where('etudiant_id', $etudiant->id)
+        ->whereHas('periode', function($query) use ($data) {
+            $query->where('nom', $data['periode_nom']);
+        })
+        ->first();
 
-    $annee = AnneeScolaire::where('active', true)->first();
-
-   
-    $periode =Periode::where('nom', $data['periode_nom'])->first();
-
-
-    Releve::create([
-        'etudiant_id' => $etudiant->id,
-        'annee_scolaire_id' => $annee?->id,
-        'periode_id' => $periode?->id,
-        'chemin_pdf' => 'storage/' . $relativePath,
-        'est_publie' => false, 
-        'date_publication' => null,
-    ]);
+    if ($releve) {
+        $releve->update(['chemin_pdf' => 'storage/' . $relativePath]);
+    }
 
     return redirect()->back()->with('success','Relevé de note générer avec succes');
     

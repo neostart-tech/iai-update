@@ -16,6 +16,7 @@
         "maatwebsite/excel": "^3.1",
         "mercuryseries/flashy": "^1.0",
         "monarobase/country-list": "^3.4",
+        "simplesoftwareio/simple-qrcode": "^4.2",
         "spatie/browsershot": "^5.0"
     },
     "require-dev": {

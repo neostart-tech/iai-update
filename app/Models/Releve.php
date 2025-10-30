@@ -15,7 +15,8 @@ class Releve extends Model
         'chemin_pdf',
            'est_publie',
             'date_publication',
-           
+            'qr_hash',
+            'verification_data',
     ];
 
     public function etudiant(){
@@ -29,4 +30,9 @@ class Releve extends Model
      public function anneeScolaire(){
         return $this->belongsTo(AnneeScolaire::class);
     }
+
+    protected $casts = [
+        'verification_data' => 'array',
+        'date_publication' => 'datetime',
+    ];
 }
