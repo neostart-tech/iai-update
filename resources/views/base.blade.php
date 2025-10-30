@@ -16,6 +16,7 @@
         $user = request()->user();
         $is_admin = false;
         $is_candidat = false;
+        $is_daf = false;
        
         if ($is_etudiant = get_class($user) === App\Models\Etudiant::class) {
             $logoutFormId = 'etudiant-logout-form';
@@ -25,6 +26,8 @@
          else {
             $is_admin = true;
             $logoutFormId = 'logout-form';
+            // Vérifier si c'est un DAF
+            $is_daf = $user && $user->roles && $user->roles->contains('nom', 'Directeur des Affaires Financières');
         }
     @endphp
 

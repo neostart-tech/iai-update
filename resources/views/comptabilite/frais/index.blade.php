@@ -30,8 +30,22 @@
                             </select>
                         </div>
                         <div class="mb-3">
+                            <label for="genre" class="form-label">Genre <span class="text-danger">*</span></label>
+                            <select name="genre" class="form-control" required>
+                                <option value="">-- Sélectionner --</option>
+                                <option value="Tous">Tous (Hommes et Femmes)</option>
+                                <option value="Masculin">Hommes uniquement</option>
+                                <option value="Féminin">Femmes uniquement</option>
+                            </select>
+                            <small class="form-text text-muted">Définissez si ces frais s'appliquent à un genre spécifique</small>
+                        </div>
+                        <div class="mb-3">
                             <label for="montant" class="form-label">Montant</label>
                             <input type="number" name="montant" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description (optionnel)</label>
+                            <textarea name="description" class="form-control" rows="2" placeholder="Ex: Frais spéciaux pour les étudiantes..."></textarea>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -95,8 +109,21 @@
                             </select>
                         </div>
                         <div class="mb-3">
+                            <label for="edit_genre" class="form-label">Genre <span class="text-danger">*</span></label>
+                            <select name="genre" id="edit_genre" class="form-control" required>
+                                <option value="">-- Sélectionner --</option>
+                                <option value="Tous">Tous (Hommes et Femmes)</option>
+                                <option value="Masculin">Hommes uniquement</option>
+                                <option value="Féminin">Femmes uniquement</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
                             <label for="edit_montant" class="form-label">Montant</label>
                             <input type="number" name="montant" id="edit_montant" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_description" class="form-label">Description (optionnel)</label>
+                            <textarea name="description" id="edit_description" class="form-control" rows="2"></textarea>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -123,7 +150,9 @@
                         <th>#</th>
                         <th>Année scolaire</th>
                         <th>Niveau</th>
+                        <th>Genre</th>
                         <th>Montant</th>
+                        <th>Description</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -133,12 +162,18 @@
                             <td>{{ $loop->iteration }}</td>
                             <td>{{ $f->anneeScolaire->nom ?? '' }}</td>
                             <td>{{ $f->niveau->libelle ?? '' }}</td>
+                            <td>
+                                <span class="badge {{ $f->genre == 'Masculin' ? 'bg-primary' : ($f->genre == 'Féminin' ? 'bg-pink' : 'bg-secondary') }}">
+                                    {{ $f->genre == 'Masculin' ? '👨 Hommes' : ($f->genre == 'Féminin' ? '👩 Femmes' : '👥 Tous') }}
+                                </span>
+                            </td>
                             <td>{{ number_format($f->montant, 0, ',', ' ') }} F</td>
+                            <td>{{ $f->description ?? '-' }}</td>
                             <td class="text-center">
                                 <ul class="list-inline me-auto mb-0">
                                     <li class="list-inline-item align-bottom" data-bs-toggle="tooltip" title="Edit">
                                         <a href="#" class="avtar avtar-xs btn-link-success btn-pc-default"
-                                            onclick="editFrais({{ $f->id }}, {{ $f->annee_scolaire_id }}, {{ $f->niveau_id }}, {{ $f->montant }})">
+                                            onclick="editFrais({{ $f->id }}, {{ $f->annee_scolaire_id }}, {{ $f->niveau_id }}, '{{ $f->genre }}', {{ $f->montant }}, '{{ addslashes($f->description ?? '') }}')"
                                             <i class="ti ti-edit-circle f-18"></i>
                                         </a>
                                     </li>
@@ -174,12 +209,14 @@
         form.action = "{{ url('espace-comptable/frais/destroy') }}/" + id;
     }
 
-    function editFrais(id, annee_id, niveau_id, montant) {
+    function editFrais(id, annee_id, niveau_id, genre, montant, description) {
         let form = document.getElementById('editFraisForm');
         form.action = "{{ url('espace-comptable/frais/update') }}/" + id;
         document.getElementById('edit_annee_scolaire_id').value = annee_id;
         document.getElementById('edit_niveau_id').value = niveau_id;
+        document.getElementById('edit_genre').value = genre;
         document.getElementById('edit_montant').value = montant;
+        document.getElementById('edit_description').value = description;
         new bootstrap.Modal(document.getElementById('editFraisModal')).show();
     }
 </script>

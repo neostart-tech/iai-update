@@ -7,6 +7,7 @@ use App\Models\Candidature;
 use App\Models\TranchePaiement;
 use App\Models\FraisScolarite;
 use App\Models\AnneeScolaire;
+use App\Enums\GenreEnum;
 use Illuminate\Http\Request;
 use Spatie\Browsershot\Browsershot;
 use Carbon\Carbon;
@@ -85,8 +86,17 @@ public function getTranches($etudiantId)
         return response()->json([]);
     }
 
+    // Récupérer l'étudiant pour connaître son genre
+    $etudiant = Etudiant::findOrFail($etudiantId);
+    
+    // Récupérer les frais appropriés selon le genre
     $frais = FraisScolarite::with('tranchepaiement')
         ->where('niveau_id', $candidature->niveau_id)
+        ->where(function ($query) use ($etudiant) {
+            $query->where('genre', $etudiant->genre->value)
+                  ->orWhere('genre', 'Tous');
+        })
+        ->orderBy('genre', 'desc') // Priorité aux frais spécifiques au genre
         ->get();
 
   
@@ -142,8 +152,14 @@ public function store(Request $request)
         return redirect()->back()->with('error', 'Aucune candidature trouvée pour cet étudiant.');
     }
 
+    // Récupérer les frais appropriés selon le genre de l'étudiant
     $frais = FraisScolarite::with('tranchepaiement')
         ->where('niveau_id', $candidature->niveau_id)
+        ->where(function ($query) use ($etudiant) {
+            $query->where('genre', $etudiant->genre->value)
+                  ->orWhere('genre', 'Tous');
+        })
+        ->orderBy('genre', 'desc') // Priorité aux frais spécifiques au genre
         ->get();
 
     $tranches =collect($frais->flatMap->tranchepaiement);

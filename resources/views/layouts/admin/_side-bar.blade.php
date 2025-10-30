@@ -50,6 +50,7 @@
                 </div>
             </div>
             @includeWhen($is_candidat, 'layouts.sidebars._candidature-side-bar')
+            @includeWhen($is_daf, 'layouts.sidebars._daf-side-bar')
             @includeWhen($is_admin, 'layouts.sidebars._admin-side-bar')
             @includeWhen($is_etudiant, 'layouts.sidebars._etudiants-sidebar')
            

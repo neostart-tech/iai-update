@@ -75,6 +75,15 @@ Route::middleware('auth:web,etudiants')->group(function () {
 	});
 });
 
+// Routes DAF (Directeur des Affaires Financières)
+Route::middleware(['auth', App\Http\Middleware\CheckDAFRole::class])->prefix('daf')->name('daf.')->group(function () {
+	Route::controller(App\Http\Controllers\DAFController::class)->group(function () {
+		Route::get('frais-genre', 'configureFraisGenre')->name('frais-genre.index');
+		Route::post('frais-genre', 'storeFraisGenre')->name('frais-genre.store');
+		Route::get('frais-genre/rapport', 'rapportFraisGenre')->name('frais-genre.rapport');
+	});
+});
+
 
 
 // Routes de l'espace enseignant sont chargées via RouteServiceProvider (routes/professeur.php)
