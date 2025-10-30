@@ -52,7 +52,8 @@ class User extends Authenticatable
 		'lieu_naissance',
 		'nationalite',
 		'group_id',
-
+		'supervisor_type',
+		'supervisor_notes',
 	];
 
 	protected $hidden = [
@@ -112,6 +113,42 @@ class User extends Authenticatable
 	public static function enseignants(): Builder
 	{
 		return static::query()->whereRelation('roles', fn(Builder $builder) => $builder->whereIn('role_id', static::$enseignantRolesId));
+	}
+
+	public static function surveillants(): Builder
+	{
+		return static::query()->whereIn('supervisor_type', ['interne', 'externe']);
+	}
+
+	public static function surveillantsInternes(): Builder
+	{
+		return static::query()->where('supervisor_type', 'interne');
+	}
+
+	public static function surveillantsExternes(): Builder
+	{
+		return static::query()->where('supervisor_type', 'externe');
+	}
+
+	public function isSurveillant(): bool
+	{
+		return in_array($this->supervisor_type, ['interne', 'externe']);
+	}
+
+	/**
+	 * Accesseur pour afficher le nom en majuscule
+	 */
+	public function getNomCompletAttribute(): string
+	{
+		return strtoupper($this->nom) . ' ' . $this->prenom;
+	}
+
+	/**
+	 * Accesseur pour le nom en majuscule seul
+	 */
+	public function getNomUpperAttribute(): string
+	{
+		return strtoupper($this->nom);
 	}
 
 	public function emploiDuTemps(): MorphMany

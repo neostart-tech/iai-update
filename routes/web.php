@@ -28,6 +28,15 @@ Route::controller(PublicReleveVerificationController::class)->prefix('verifier-r
     Route::post('/api/verification', 'verifyApi')->name('verify.api');
 });
 
+// Système de connexion unifiée
+use App\Http\Controllers\Auth\UnifiedLoginController;
+Route::controller(UnifiedLoginController::class)->prefix('connexion')->name('unified.')->group(function () {
+    Route::get('/', 'showLoginForm')->name('login');
+    Route::post('/', 'login')->name('login.post');
+    Route::post('/logout', 'logout')->name('logout');
+    Route::post('/check-user-type', 'checkUserType')->name('check-user-type');
+});
+
 Route::get('dashboard', function () {
 	return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');

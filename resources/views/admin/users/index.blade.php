@@ -17,6 +17,8 @@
                                 <th scope="col">#</th>
                                 <th scope="col">Nom</th>
                                 <th scope="col">Prénoms</th>
+                                <th scope="col">Rôles</th>
+                                <th scope="col">Type Surveillant</th>
                                 <th scope="col" class="text-center">Actions</th>
                             </tr>
                         </thead>
@@ -24,8 +26,22 @@
                             @foreach ($users as $key => $user)
                                 <tr>
                                     <th scope="row">{{ $key += 1 }}</th>
-                                    <td>{{ $user->nom }}</td>
+                                    <td>{{ $user->nom_upper }}</td>
                                     <td>{{ $user->prenom }}</td>
+                                    <td>
+                                        @foreach($user->roles as $role)
+                                            <span class="badge bg-primary me-1">{{ $role->nom }}</span>
+                                        @endforeach
+                                    </td>
+                                    <td>
+                                        @if($user->supervisor_type === 'interne')
+                                            <span class="badge bg-success">Surveillant Interne</span>
+                                        @elseif($user->supervisor_type === 'externe')
+                                            <span class="badge bg-warning text-dark">Surveillant Externe</span>
+                                        @else
+                                            <span class="text-muted">Non surveillant</span>
+                                        @endif
+                                    </td>
                                     <td class="text-center">
                                         <ul class="list-inline me-auto mb-0">
                                             <li class="list-inline-item align-bottom" data-bs-toggle="tooltip"
@@ -76,6 +92,8 @@
                                 <th scope="col">#</th>
                                 <th scope="col">Nom</th>
                                 <th scope="col">Prénoms</th>
+                                <th scope="col">Rôles</th>
+                                <th scope="col">Type Surveillant</th>
                                 <th scope="col" class="text-center">Actions</th>
                             </tr>
                         </tfoot>

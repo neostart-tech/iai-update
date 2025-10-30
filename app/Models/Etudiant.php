@@ -189,8 +189,19 @@ public function estAjour() {
 				return $this->hasMany(Paiement::class);
 			}
 
+	/**
+	 * Accesseur pour afficher le nom complet en majuscule
+	 */
+	public function getNomCompletAttribute(): string
+	{
+		return strtoupper($this->nom) . ' ' . $this->prenom;
+	}
 
-	
-
-
+	/**
+	 * Accesseur pour le nom en majuscule seul
+	 */
+	public function getNomUpperAttribute(): string
+	{
+		return strtoupper($this->nom);
+	}
 }
