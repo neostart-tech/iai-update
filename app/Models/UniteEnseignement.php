@@ -40,4 +40,9 @@ class UniteEnseignement extends Model
 	{
 		return $this->belongsTo(Filiere::class);
 	}
+
+	public function gratifications(): HasMany
+	{
+		return $this->hasMany(Gratification::class);
+	}
 }

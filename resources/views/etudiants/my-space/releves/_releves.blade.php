@@ -137,9 +137,22 @@
 
             const credit = uvs[0]?.credit || 0;
             const moyenne_ue = uvs[0]?.moyenne_ue || 0;
-            const validation = moyenne_ue >= 10 ?
-                `<span class="text-success fw-bold">Validé</span>` :
-                `<span class="text-danger fw-bold">Non Validé</span>`;
+            
+            // Vérifier s'il y a des matières bloquées (< 5/20)
+            const hasBlockedUV = uvs.some(uv => parseFloat(uv.moyenne_uv) < 5);
+            const gratification = uvs[0]?.gratification;
+            
+            let validation;
+            if (gratification) {
+                validation = `<span class="text-success fw-bold">Validé par gratification</span>
+                             <br><small class="text-muted">Type: ${gratification.type}</small>`;
+            } else if (hasBlockedUV) {
+                validation = `<span class="text-danger fw-bold">Bloqué (matière < 5/20)</span>`;
+            } else if (moyenne_ue >= 10) {
+                validation = `<span class="text-success fw-bold">Validé</span>`;
+            } else {
+                validation = `<span class="text-warning fw-bold">Non Validé</span>`;
+            }
 
             html += `<p class="mt-2 fw-bold text-primary">UE : ${ueNom} (${credit} crédits)</p>`;
             html += `

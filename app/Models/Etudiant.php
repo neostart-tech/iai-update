@@ -189,6 +189,11 @@ public function estAjour() {
 				return $this->hasMany(Paiement::class);
 			}
 
+			public function gratifications(): HasMany
+			{
+				return $this->hasMany(Gratification::class);
+			}
+
 	/**
 	 * Accesseur pour afficher le nom complet en majuscule
 	 */

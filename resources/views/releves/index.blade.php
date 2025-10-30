@@ -370,6 +370,8 @@
                                     <td>
                                         @if ($uv['validation'] === 'Validé')
                                             <span class="text-valid">Validé</span>
+                                        @elseif (str_contains($uv['validation'], 'Bloqué'))
+                                            <span class="text-blocked" style="color: #dc3545; font-weight: bold;">{{ $uv['validation'] }}</span>
                                         @else
                                             <span class="text-non-valid">Non Validé</span>
                                         @endif

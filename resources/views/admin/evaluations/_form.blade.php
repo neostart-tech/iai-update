@@ -30,6 +30,7 @@
 					<option value="{{ $type->value }}" @selected($evaluation->type === $type)>{{ $type->value }}</option>
 				@endforeach
 			</select>
+			<small class="text-muted">⚠️ Limite : maximum 2 évaluations par type par matière</small>
 			{!! errorAlert($errors->first('type'), 'type') !!}
 		</div>
 

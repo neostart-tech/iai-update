@@ -6,6 +6,7 @@ use App\Models\Etudiant;
 use App\Models\EtudiantGroup;
 use App\Models\Evaluation;
 use App\Models\Filiere;
+use App\Models\Gratification;
 use App\Models\Group;
 use App\Models\Note;
 use App\Models\UniteValeur;
@@ -101,8 +102,12 @@ class ReleveController extends Controller
             ($notes_by_type['Exposé'] * ($wexp/100))
         );
 
-        if ($moyenne_uv < 10)
-            $ue_validee = false;
+        // Blocage si une matière a moins de 5/20
+        if ($moyenne_uv < 5) {
+            $ue_validee = false; // Blocage immédiat de l'UE
+        } elseif ($moyenne_uv < 10) {
+            $ue_validee = false; // Règle existante maintenue
+        }
 
         $releve_grouped[$ue->nom][] = [
             'uv' => $uv->nom,
@@ -113,7 +118,7 @@ class ReleveController extends Controller
             'expose' => number_format($notes_by_type['Exposé'], 2),
             'weights_label' => sprintf('%d/%d/%d/%d/%d', (int)$wd, (int)$wi, (int)$we, (int)$wtp, (int)$wexp),
             'moyenne_uv' => number_format($moyenne_uv, 2),
-            'validation' => $moyenne_uv >= 10 ? 'Validé' : 'Non validé',
+            'validation' => $moyenne_uv >= 10 ? 'Validé' : ($moyenne_uv < 5 ? 'Bloqué (< 5/20)' : 'Non validé'),
             'coefficient' => $uv->coefficient
         ];
 
@@ -125,7 +130,22 @@ class ReleveController extends Controller
     $releve_grouped[$ue->nom][0]['moyenne_ue'] = number_format($moyenne_ue, 2);
     $releve_grouped[$ue->nom][0]['credit'] = $ue->credit;
 
-    if ($moyenne_ue >= 10) {
+    // Vérifier s'il existe une gratification validée pour cette UE
+    $gratification = Gratification::where('etudiant_id', $etudiant_id)
+        ->where('unite_enseignement_id', $ue->id)
+        ->where('validee', true)
+        ->first();
+
+    // Validation avec gratification ou validation normale
+    $ue_validee_avec_gratification = $gratification || ($moyenne_ue >= 10 && $ue_validee);
+    
+    $releve_grouped[$ue->nom][0]['gratification'] = $gratification ? [
+        'type' => $gratification->type,
+        'motif' => $gratification->motif,
+        'date_approbation' => $gratification->date_approbation
+    ] : null;
+
+    if ($ue_validee_avec_gratification) {
         $total_credits_valides += $ue->credit;
     } else {
         $total_credits_non_valides += $ue->credit;

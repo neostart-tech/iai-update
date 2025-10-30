@@ -54,14 +54,17 @@ Route::prefix('espace-etudiant')->name('etudiants.')->group(function () {
 			Route::get('download', 'download')->name('download');
 		});
 
-		Route::middleware('paiement.ajour')->group(function(){
-         Route::controller(NoteController::class)->prefix('mes-notes')->name('notes.')->group(function () {
+		  Route::controller(NoteController::class)->prefix('mes-notes')->name('notes.')->group(function () {
 			Route::get('/', 'index')->name('index');
 		});
+
 		Route::controller(ReleveController::class)->prefix('mes-releves')->name('releves.')->group(function () {
 			Route::get('/view', 'showViewReleveForAuthStudent')->name('auth.view');
 			Route::get('', 'showReleveForAuthStudent')->name('auth.index');
 		});
+		Route::middleware('paiement.ajour')->group(function(){
+       
+		
 				Route::controller(ReclamationController::class)->prefix('reclamations')->name('reclamations.')->group(function () {
 					// Anti-spam: throttle to 3 reclamations per minute per student
 					Route::post('{note}', 'store')->middleware('throttle:3,1')->name('store');
