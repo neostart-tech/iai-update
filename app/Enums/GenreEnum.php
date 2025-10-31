@@ -17,6 +17,7 @@ enum GenreEnum: string
 	// Définition des valeurs de l'énumération avec leurs représentations
 	case M = 'Masculin';
 	case F = 'Féminin';
+	case T ='Tous';
 
 	// Méthode pour saluer en fonction du genre
 	public function greeting(): string

@@ -383,4 +383,45 @@
 			</li>
 		</ul>
 	</li>
+
+	  {{-- Comptabilité --}}
+    <li class="pc-item pc-caption">
+        <label>Comptabilité</label>
+    </li>
+
+    <li class="pc-item">
+        <a href="{{route('comptable.frais.index')}}" class="pc-link">
+            <span class="pc-micon">
+                <i class="fa fa-money-bill-wave"></i>
+            </span>
+            <span class="pc-mtext">Frais de scolarité</span>
+        </a>
+    </li>
+
+
+    <li class="pc-item">
+        <a href="{{ route('comptable.paiement.index') }}" class="pc-link">
+            <span class="pc-micon">
+                <i class="fa fa-receipt"></i>
+            </span>
+            <span class="pc-mtext">Paiements étudiants</span>
+        </a>
+    </li>
+     <li class="pc-item">
+        <a href="{{ route('comptable.paiement.detail') }}" class="pc-link">
+            <span class="pc-micon">
+                <i class="fa fa-receipt"></i>
+            </span>
+            <span class="pc-mtext">Etat des paiements</span>
+        </a>
+    </li>
+     <li class="pc-item">
+        <a href="{{ route('comptable.dashboard') }}" class="pc-link">
+            <span class="pc-micon">
+                <i class="fa fa-receipt"></i>
+            </span>
+            <span class="pc-mtext">Tableau de bord</span>
+        </a>
+    </li>
+
 </ul>
