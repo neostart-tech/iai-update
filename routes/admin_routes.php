@@ -26,6 +26,7 @@ use App\Http\Controllers\Admin\{
 	PeriodeController,
 	RoleController,
 	SalleController,
+	SurveillantController,
 	UniteEnseignementController,
 	UniteValeurController,
 	UserController,
@@ -120,9 +121,11 @@ Route::controller(UserController::class)->prefix('users')->name('users.')->group
 	Route::post('create', 'store')->name('store');
 	Route::get('{user}/edit', 'edit')->name('edit');
 	Route::put('{user}/update', 'update')->name('update');
+	Route::delete('delete', 'destroy')->name('delete'); // suppression d'utilisateur
 	Route::get('{user}/load-edt', 'loadEmploiDuTemps')->name('load-edt'); // charge les edt de l'utilisateur
 	Route::get('{user}/emploi-du-temps', 'ShowEmploiDuTemps')->name('show-edt'); // charge les edt de l'utilisateur
 	Route::post('{user}/add-edt', 'storeEmploiDuTemps')->name('store-edt'); // charge les edt de l'utilisateur
+	Route::get('teachers/hours-summary', 'hoursSummary')->name('teachers.hours-summary'); // récapitulatif heures enseignants
 
 	Route::put('/update-edt', 'updateEmploiDuTemps')->name('update-edt'); // charge les edt de l'utilisateur
 

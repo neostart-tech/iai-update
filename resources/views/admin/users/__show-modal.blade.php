@@ -14,7 +14,7 @@
                 <form action="{{route('admin.users.delete')}}" method="POST"> 
                     @csrf
                     @method('DELETE')
-                   <input type="text"  id="uderId"  name="userId" hidden>
+                   <input type="hidden" id="userId" name="userId">
                     <button class="btn btn-warning" type="submit" >Continuer la suppression</button>
                 </form>
                 <button class="btn btn-secondary" data-bs-target="#exampleModalToggle"

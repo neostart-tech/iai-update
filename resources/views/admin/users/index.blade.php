@@ -134,7 +134,7 @@
         })
 
         function deleteUser(id) {
-            document.getElementById('uderId').value = id;
+            document.getElementById('userId').value = id;
         }
     </script>
 @endsection
