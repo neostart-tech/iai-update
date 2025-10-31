@@ -61,12 +61,17 @@
                             </li>
                             <li>
                                 <a class="dropdown-item" href="{{ route('admin.evaluations.anonymous.print', $evaluation) }}" target="_blank">
-                                    <i class="fas fa-print text-info"></i> Imprimer PDF
+                                    <i class="fas fa-file-pdf text-danger"></i> Export PDF
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('admin.evaluations.anonymous.export.excel', $evaluation) }}">
+                                    <i class="fas fa-file-excel text-success"></i> Export Excel
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item" href="{{ route('admin.evaluations.anonymous.export', $evaluation) }}">
-                                    <i class="fas fa-file-csv text-success"></i> Export CSV
+                                    <i class="fas fa-file-csv text-info"></i> Export CSV
                                 </a>
                             </li>
                             <li><hr class="dropdown-divider"></li>

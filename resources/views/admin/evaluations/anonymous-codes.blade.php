@@ -19,17 +19,25 @@
                         {{ $evaluation->matiere->nom }} - {{ $evaluation->debut->format('d/m/Y H:i') }}
                     </small>
                 </div>
-                <div class="btn-group">
+                <div class="d-flex gap-2">
+                    <!-- Boutons d'export avec icônes et texte -->
                     <a href="{{ route('admin.evaluations.anonymous.print', $evaluation) }}" 
-                       class="btn btn-primary" target="_blank">
-                        <i class="fas fa-print"></i> Imprimer PDF
+                       class="btn btn-danger" target="_blank">
+                        <i class="fas fa-file-pdf"></i> PDF
                     </a>
-                    <a href="{{ route('admin.evaluations.anonymous.export', $evaluation) }}" 
+                    
+                    <a href="{{ route('admin.evaluations.anonymous.export.excel', $evaluation) }}" 
                        class="btn btn-success">
-                        <i class="fas fa-download"></i> Export CSV
+                        <i class="fas fa-file-excel"></i> Excel
                     </a>
+                    
+                    <a href="{{ route('admin.evaluations.anonymous.export', $evaluation) }}" 
+                       class="btn btn-info">
+                        <i class="fas fa-file-csv"></i> CSV
+                    </a>
+
                     <a href="{{ route('admin.evaluations.show', $evaluation) }}" 
-                       class="btn btn-secondary">
+                       class="btn btn-secondary ms-2">
                         <i class="fas fa-arrow-left"></i> Retour
                     </a>
                 </div>
@@ -107,6 +115,31 @@
     padding: 15px;
     border-radius: 8px;
     border-left: 4px solid #007bff;
+}
+
+/* Styles pour les boutons d'export */
+.btn i {
+    margin-right: 5px;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+.btn-success {
+    background-color: #198754;
+    border-color: #198754;
+}
+
+.btn-info {
+    background-color: #0dcaf0;
+    border-color: #0dcaf0;
+}
+
+/* Espacements */
+.d-flex.gap-2 > * {
+    margin-right: 0.5rem;
 }
 </style>
 @endpush

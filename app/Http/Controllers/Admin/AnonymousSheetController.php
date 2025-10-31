@@ -10,6 +10,9 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class AnonymousSheetController extends Controller
 {
@@ -144,6 +147,92 @@ class AnonymousSheetController extends Controller
             
             fclose($out);
         }, 200, $headers);
+    }
+
+    /**
+     * Exporter en Excel (.xlsx)
+     */
+    public function exportExcel(Evaluation $evaluation): Response
+    {
+        $anonymousCodes = EvaluationAnonymous::with(['etudiant', 'evaluation.matiere'])
+            ->where('evaluation_id', $evaluation->id)
+            ->orderBy('salle_nom')
+            ->orderBy('anonymous_code')
+            ->get();
+
+        if ($anonymousCodes->isEmpty()) {
+            return abort(404, 'Aucun code anonyme trouvé. Générez d\'abord les codes.');
+        }
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        
+        // Configuration de la feuille
+        $sheet->setTitle('Codes Anonymes');
+        
+        // En-têtes avec style
+        $headers = [
+            'A1' => 'Code Anonyme',
+            'B1' => 'Matricule Étudiant', 
+            'C1' => 'Nom',
+            'D1' => 'Prénom',
+            'E1' => 'Salle',
+            'F1' => 'Évaluation',
+            'G1' => 'Matière',
+            'H1' => 'Date'
+        ];
+
+        foreach ($headers as $cell => $header) {
+            $sheet->setCellValue($cell, $header);
+        }
+
+        // Style des en-têtes
+        $sheet->getStyle('A1:H1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:H1')->getFill()
+            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+            ->getStartColor()->setRGB('E3F2FD');
+
+        // Données
+        $row = 2;
+        foreach ($anonymousCodes as $code) {
+            $sheet->setCellValue('A' . $row, $code->anonymous_code);
+            $sheet->setCellValue('B' . $row, $code->etudiant->id ?? '');
+            $sheet->setCellValue('C' . $row, $code->etudiant->nom ?? '');
+            $sheet->setCellValue('D' . $row, $code->etudiant->prenom ?? '');
+            $sheet->setCellValue('E' . $row, $code->salle_nom);
+            $sheet->setCellValue('F' . $row, $evaluation->type ?? '');
+            $sheet->setCellValue('G' . $row, $evaluation->matiere->nom ?? '');
+            $sheet->setCellValue('H' . $row, $evaluation->debut->format('d/m/Y H:i'));
+            $row++;
+        }
+
+        // Ajustement automatique des colonnes
+        foreach (range('A', 'H') as $column) {
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+
+        // Bordures du tableau
+        $styleArray = [
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                ],
+            ],
+        ];
+        $sheet->getStyle('A1:H' . ($row - 1))->applyFromArray($styleArray);
+
+        // Génération du fichier
+        $filename = "fiches_anonymes_{$evaluation->id}_" . date('Ymd_His') . '.xlsx';
+        
+        $writer = new Xlsx($spreadsheet);
+        
+        return response()->stream(function() use ($writer) {
+            $writer->save('php://output');
+        }, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => "attachment; filename=\"$filename\"",
+            'Cache-Control' => 'max-age=0',
+        ]);
     }
 
     /**

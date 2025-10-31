@@ -222,6 +222,7 @@ Route::prefix('evaluations')->name('evaluations.')->group(function () {
 		Route::get('codes', 'showCodes')->name('codes');
 		Route::get('print', 'printSheet')->name('print');
 		Route::get('export.csv', 'exportCsv')->name('export');
+		Route::get('export.excel', 'exportExcel')->name('export.excel');
 		Route::delete('delete', 'deleteCodes')->name('delete');
 	});
 
