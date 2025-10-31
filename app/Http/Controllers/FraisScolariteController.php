@@ -61,6 +61,7 @@ class FraisScolariteController extends Controller
         ]);
         
         $frais = FraisScolarite::findOrFail($id);
+        
         $frais->update($request->all());
         
         return redirect()->route('comptable.frais.index')->with('success', 'Frais modifié avec succès');

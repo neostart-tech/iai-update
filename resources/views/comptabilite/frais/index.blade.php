@@ -33,9 +33,8 @@
                             <label for="genre" class="form-label">Genre <span class="text-danger">*</span></label>
                             <select name="genre" class="form-control" required>
                                 <option value="">-- Sélectionner --</option>
-                                {{-- <option value="Tous">Tous (Hommes et Femmes)</option> --}}
-                                <option value="Masculin">Hommes uniquement</option>
-                                <option value="Féminin">Femmes uniquement</option>
+                                <option value="Masculin">Masculin</option>
+                                <option value="Féminin">Féminin</option>
                             </select>
                             <small class="form-text text-muted">Définissez si ces frais s'appliquent à un genre spécifique</small>
                         </div>
@@ -157,9 +156,7 @@
                             <td>{{ $f->niveau->libelle ?? '' }}</td>
                             <td>
                                 {{ $f->genre ?? "--"  }}
-                                {{-- <span class="badge {{ $f->genre == 'Masculin' ? 'bg-primary' : 'bg-pink' }}">
-                                    {{ $f->genre == 'Masculin' ? 'Masculin' : 'Féminin'}}
-                                </span> --}}
+                               
                             </td>
                             <td>{{ number_format($f->montant, 0, ',', ' ') }} F</td>
                             <td>{{ $f->description ?? '-' }}</td>
@@ -167,7 +164,8 @@
                                 <ul class="list-inline me-auto mb-0">
                                     <li class="list-inline-item align-bottom" data-bs-toggle="tooltip" title="Edit">
                                         <a href="#" class="avtar avtar-xs btn-link-secondary btn-pc-default"
-                                            onclick="editFrais({{ $f->id }}, {{ $f->annee_scolaire_id }}, {{ $f->niveau_id }}, '{{ $f->genre }}', {{ $f->montant }}, '{{ addslashes($f->description ?? '') }}')"
+                                            onclick="editFrais({{ $f->id }}, {{ $f->niveau_id }}, '{{ $f->genre }}', {{ $f->montant }}, '{{ addslashes($f->description ?? '') }}')"
+                                            >
                                             <i class="ti ti-edit-circle f-18"></i>
                                         </a>
                                     </li>
@@ -203,10 +201,9 @@
         form.action = "{{ url('espace-comptable/frais/destroy') }}/" + id;
     }
 
-    function editFrais(id, annee_id, niveau_id, genre, montant, description) {
+    function editFrais(id, niveau_id, genre, montant, description) {
         let form = document.getElementById('editFraisForm');
         form.action = "{{ url('espace-comptable/frais/update') }}/" + id;
-        document.getElementById('edit_annee_scolaire_id').value = annee_id;
         document.getElementById('edit_niveau_id').value = niveau_id;
         document.getElementById('edit_genre').value = genre;
         document.getElementById('edit_montant').value = montant;

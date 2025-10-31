@@ -43,7 +43,7 @@ class TranchePaiementController extends Controller
     if ($total > $frais->montant) {
         $reste = $frais->montant - $sommeExistante;
 
-        return back()->with('error', "La somme des tranches dépasse le montant du frais. Il vous reste seulement $reste F disponible.");
+        return back()->withErrors(['error'=> "La somme des tranches dépasse le montant du frais. Il vous reste seulement $reste F disponible."]);
     }
 
    
