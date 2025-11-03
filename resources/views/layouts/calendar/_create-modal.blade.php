@@ -118,7 +118,8 @@
                 <h5 class="modal-title h4" id="calendar-create_event">Modification d'une programmation</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
+            
+             <div class="modal-body">
                 <form id="new-event-form">
                     @csrf
                     <div class="row">
@@ -127,8 +128,7 @@
                             <input type="text" id="salle-nom" class="form-control" value="{{ $salle->nom }}"
                                 readonly>
                         </div>
-                        <input type="text" id='edtId'>
-                        <input type="hidden" name="salle_id" value="{{ $salle->slug }}" id="create-salle-id">
+                        <input type="text" name="salle_id" value="{{ $salle->slug }}" id="create-salle-id">
                         <div class="form-group col-md-6">
                             <label class="form-label" for="create-date">Début</label>
                             <input type="date" value="{{ today()->format('Y-m-d') }}" class="form-control"
@@ -138,11 +138,18 @@
                     <div class="row">
                         <div class="form-group col-12 col-md-6">
                             <label class="form-label" for="create-debut">Début</label>
-                            <input type="time" class="form-control" name="create_debut" id="create-debut" value="{{ $salle->debut }}">
+                            <input type="time" class="form-control" name="create_debut" id="create-debut">
                         </div>
                         <div class="form-group m-0 col-12 col-md-6">
                             <label class="form-label" for="create-fin">Fin</label>
-                            <input type="time" class="form-control" id="create-fin" name="create_fin" value="{{ $salle->fin }}">
+                            <input type="time" class="form-control" id="create-fin" name="create_fin">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-12 text-end">
+                            <button type="button" id="check-availability-btn" class="btn btn-outline-secondary btn-sm">
+                                Vérifier la disponibilité de la salle
+                            </button>
                         </div>
                     </div>
                     <div class="row">

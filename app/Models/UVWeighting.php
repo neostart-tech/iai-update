@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class UVWeighting extends Model
 {
+
+    protected $table="uv_weightings";
     public $timestamps = false;
     protected $guarded = false;
 

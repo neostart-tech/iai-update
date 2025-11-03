@@ -161,6 +161,18 @@ Route::controller(CandidatureController::class)->prefix('candidature')->name('ca
     
 });
 
+Route::controller(AnneeScolaireController::class)->prefix('annee-scolaire')->name('annescolaire.')->group(function(){
+Route::get('/liste','index')->name('liste');
+Route::post('/create','store')->name('store');
+Route::put('/{id}/activate','activer')->name('activer');
+Route::put('/desactivate','desactiver')->name('desactiver');
+});
+
+Route::controller(ConfigurationController::class)->prefix('parametre')->name('configuration.')->group(function () {
+	Route::get('configuration', 'index')->name('index');
+	Route::put('parametre/modification', 'update')->name('update');
+});
+
 Route::controller(GroupController::class)->prefix('groups')->name('groups.')->group(function () {
 	Route::get('{group}/get-matieres', 'getMatieres')->name('get-matieres');
 	Route::get('liste', 'index')->name('index');
@@ -179,6 +191,8 @@ Route::controller(EtudiantController::class)->prefix('etudiants')->name('etudian
 	Route::get('{etudiant}/details', 'show')->name('show');
 	Route::put('{etudiant}/changer-de-groupe', 'changeGroup')->name('change-group');
 });
+
+
 
 // Gestion du comité de classe
 Route::controller(ClassCommitteeController::class)->prefix('comite-de-classe')->name('committee.')->group(function(){
@@ -353,6 +367,8 @@ Route::prefix('galerie')->name('gallery.')->middleware('can:manage-gallery')->gr
 // Routes pour les relevés de notes
 Route::controller(ReleveController::class)->prefix('releves')->name('releves.')->group(function () {
     Route::get('generer/{etudiant}', 'generateReleveForStudent')->name('generer');
+		Route::get('/{etudiant_id}', 'genererReleve')->name('detail');
+
     Route::get('telecharger/{etudiant}', 'generateReleveForStudent')->name('telecharger');
     Route::get('download/{filename}', 'download')->name('download');
     Route::get('checked', 'checked')->name('checked');

@@ -1,7 +1,8 @@
+
 @extends('base', [
-    'title' => 'Page des années scolaires',
-    'breadcrumbs' => ['Administration', 'Année scolaire'],
-    'page_name' => 'Liste des années scolaires',
+'title' => 'Page des années scolaires',
+'breadcrumbs' => ['Administration', 'Année scolaire'],
+'page_name' => 'Liste des années scolaires',
 ])
 
 @section('content')
@@ -62,20 +63,22 @@
                         <td>{{ $annee->code }}</td>
                         <td>
                             @if ($annee->active)
-                                <span class="badge bg-success">En cours</span>
+                            <span class="badge bg-success">En cours</span>
                             @else
-                                <span class="badge bg-secondary">Terminée</span>
+                            <span class="badge bg-secondary">Terminée</span>
                             @endif
                         </td>
                         <td>
                             @if ($annee->active)
-                                <a href="#" class="text-danger btn-desactiver" data-id="{{ $annee->id }}" title="Clôturer l'année">
-                                    <i class="fas fa-times-circle fa-lg"></i>
-                                </a>
+                            <a href="#" class="text-danger btn-desactiver" data-id="{{ $annee->id }}"
+                                title="Clôturer l'année">
+                                <i class="fas fa-times-circle fa-lg"></i>
+                            </a>
                             @else
-                                <a href="#" class="text-success btn-activer" data-id="{{ $annee->id }}" title="Activer l'année">
-                                    <i class="fas fa-check-circle fa-lg"></i>
-                                </a>
+                            <a href="#" class="text-success btn-activer" data-id="{{ $annee->id }}"
+                                title="Activer l'année">
+                                <i class="fas fa-check-circle fa-lg"></i>
+                            </a>
                             @endif
                         </td>
                     </tr>
@@ -136,21 +139,52 @@
             const id = this.dataset.id;
 
             Swal.fire({
-                title: 'Clôturer cette année ?',
-                text: "Elle ne sera plus active mais restera enregistrée.",
+                title: 'Désactiver cette année ?',
+                text: "Cela mettra fin a l'année mais restera quand meme enrégistré.",
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonColor: '#dc3545',
+                confirmButtonColor: '#198754',
                 cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Oui, clôturer'
+                confirmButtonText: 'Oui, désactiver'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    window.location.href = `/administration/annee-scolaire/desactivate?id=${id}`;
+                Swal.fire({
+                text: "Traitement en cours...",
+                icon: 'info',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+
+            })
+
+                  fetch(`/administration/annee-scolaire/${id}/desactivate`, {
+    method: 'PUT',
+    headers: {
+        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({})
+})
+.then(response => {
+    Swal.close();
+    if (response.ok) {
+        Swal.fire('Succès', 'Année désactivée avec succès', 'success')
+        .then(() => {
+            location.reload();
+        });
+           
+    } else {
+        Swal.fire('Erreur', 'Impossible de désactiver l\'année', 'error');
+    }
+    
+});
+
                 }
             });
         });
     });
-
+// 
     // SweetAlert pour messages de session
     @if(session('success'))
         Swal.fire({

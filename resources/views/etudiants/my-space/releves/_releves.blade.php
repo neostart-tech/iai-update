@@ -159,11 +159,11 @@
         <table class="table table-bordered table-sm align-middle">
           <thead class="table-light">
             <tr>
-              <th>MATIERE</th>
+              <th>Eléments Constitutifs</th>
               <th>Devoir</th>
               <th>Interro</th>
               <th>Examen</th>
-              <th>Moy. UV</th>
+              <th>Moy. EC</th>
               <th>Coef.</th>
               <th>Valid.</th>
             </tr>

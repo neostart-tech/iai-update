@@ -84,12 +84,12 @@
                             <i class="ti ti-trash f-18"></i>
                         </a>
                     </li>
-                    <li class="list-inline-item align-bottom">
+                    {{-- <li class="list-inline-item align-bottom">
                         <a href="#" id="pc_event_edit" class="avtar avtar-s btn-link-success btn-pc-default"
                            data-bs-toggle="modal" data-bs-target="#exampleModal" title="Edit">
                             <i class="ti ti-edit-circle f-18"></i>
                         </a>
-                    </li>
+                    </li> --}}
                 </ul>
                 <div class="flex-grow-1 text-end">
                     <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Fermer</button>

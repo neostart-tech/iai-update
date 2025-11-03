@@ -1,5 +1,14 @@
 <ul class="pc-navbar">
-
+<li class="pc-item">
+        <a href="{{ route('admin.configuration.index') }}" class="pc-link">
+            <span class="pc-micon">
+                <i class="material-icons-two-tone">settings</i>
+            </span>
+            <span class="pc-mtext">
+                Parametre
+            </span>
+        </a>
+    </li>
 	{{-- Emploi du temps	--}}
 	<li class="pc-item">
 		<a href="{{ route('my-calendar') }}" class="pc-link">
@@ -387,6 +396,14 @@
 	  {{-- Comptabilité --}}
     <li class="pc-item pc-caption">
         <label>Comptabilité</label>
+    </li>
+	 <li class="pc-item">
+        <a href="{{ route('admin.annescolaire.liste') }}" class="pc-link">
+            <span class="pc-micon">
+                <i class="fa fa-calendar"></i>
+            </span>
+            <span class="pc-mtext">Années scolaires</span>
+        </a>
     </li>
 
     <li class="pc-item">

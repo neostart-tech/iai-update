@@ -140,7 +140,7 @@
 	if (pc_event_edit) {
 		pc_event_edit.addEventListener('click', function () {
 			const props = selectedEvent.extendedProps;
-			console.log(selectedEvent.extendedProps);
+			console.log(props);
 			document.getElementById('create-debut').setAttribute("value", `${props.start.slice(11)}`)
 			document.getElementById('create-fin').setAttribute("value", `${props.end.slice(11)}`)
 			document.getElementById('create-grade-id').value = (props.groupId ?? props.grade_id);

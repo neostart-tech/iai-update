@@ -24,8 +24,10 @@ return new class extends Migration
             $table->text('observation')->nullable(); // Commentaires additionnels
             $table->timestamps();
             
-            // Un étudiant ne peut avoir qu'une gratification par UE par année
-            $table->unique(['etudiant_id', 'unite_enseignement_id', 'annee_scolaire_id']);
+            $table->unique(
+                ['etudiant_id', 'unite_enseignement_id', 'annee_scolaire_id'],
+                'gratifications_unique'
+            );
         });
     }
 
