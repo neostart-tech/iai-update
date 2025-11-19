@@ -99,4 +99,18 @@ class Evaluation extends Model
 	{
 		return $this->hasMany(EvaluationAnonymous::class);
 	}
+
+	public function questions()
+{
+    return $this->hasMany(EvaluationQuestion::class);
 }
+
+public function submissions()
+{
+    return $this->hasMany(EvaluationSubmission::class);
+}
+
+}
+
+
+

@@ -54,7 +54,7 @@ class PresenceValidationController extends Controller
         $presence->update([
             'needs_validation' => false,
             'validated_by' => $request->user()->id,
-            'validated_at' => now(),
+            'validated_at' => now(), 
         ]);
         return back()->with('success', 'Absence validée');
     }
@@ -79,3 +79,14 @@ class PresenceValidationController extends Controller
         return back()->with('success', 'Absences validées');
     }
 }
+
+
+
+
+
+
+
+
+
+
+

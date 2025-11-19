@@ -17,17 +17,16 @@
         $is_admin = false;
         $is_candidat = false;
         $is_daf = false;
-       
+
         if ($is_etudiant = get_class($user) === App\Models\Etudiant::class) {
             $logoutFormId = 'etudiant-logout-form';
         } elseif ($is_candidat = get_class($user) === App\Models\Candidature::class) {
             $logoutFormId = 'officiel-logout-form';
-        } 
-         else {
+        } else {
             $is_admin = true;
             $logoutFormId = 'logout-form';
             // Vérifier si c'est un DAF
-            $is_daf = $user && $user->roles && $user->roles->contains('nom', 'Directeur des Affaires Financières');
+    $is_daf = $user && $user->roles && $user->roles->contains('nom', 'Directeur des Affaires Financières');
         }
     @endphp
 
@@ -90,50 +89,49 @@
 
     @include('layouts._scripts')
     <!-- Select2 JS -->
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-<script src="{{ asset('admin/assets/js/plugins/sweetalert2.all.min.js') }}"></script>
-<script src="{{ asset('admin/assets/js/plugins/choices.min.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="{{ asset('admin/assets/js/plugins/sweetalert2.all.min.js') }}"></script>
+    <script src="{{ asset('admin/assets/js/plugins/choices.min.js') }}"></script>
 
-<script src="{{ asset('tel/build/js/intlTelInput.js') }}"></script>
-<script>
-	let indicatif = document.getElementById('indicatif');
+    <script src="{{ asset('tel/build/js/intlTelInput.js') }}"></script>
+    <script>
+        let indicatif = document.getElementById('indicatif');
 
-	let input = document.getElementById('tel-input');
+        let input = document.getElementById('tel-input');
 
-	let flag = document.getElementsByClassName('iti__flag-container');
+        let flag = document.getElementsByClassName('iti__flag-container');
 
 
-	const updateIndicatif = () => {
-		let elements = document.getElementsByClassName('iti__country iti__standard iti__active');
+        const updateIndicatif = () => {
+            let elements = document.getElementsByClassName('iti__country iti__standard iti__active');
 
-		if (elements.length > 0) {
-			indicatif.value = elements[0].getAttribute('data-dial-code');
-		} else {
-			indicatif.value = '228';
-		}
-	}
+            if (elements.length > 0) {
+                indicatif.value = elements[0].getAttribute('data-dial-code');
+            } else {
+                indicatif.value = '228';
+            }
+        }
 
-	window.intlTelInput(input, {
-		utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
-		initialCountry: 'auto',
-		geoIpLookup: callback => {
-			fetch("https://ipapi.co/json")
-				.then(res => res.json())
-				.then(data => callback(data.country_code))
-				.catch(() => callback("us"));
-		},
-	})
+        window.intlTelInput(input, {
+            utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
+            initialCountry: 'auto',
+            geoIpLookup: callback => {
+                fetch("https://ipapi.co/json")
+                    .then(res => res.json())
+                    .then(data => callback(data.country_code))
+                    .catch(() => callback("us"));
+            },
+        })
 
-	input.addEventListener('input', updateIndicatif);
+        input.addEventListener('input', updateIndicatif);
 
-	input.addEventListener('paste', () => {
-		setTimeout(updateIndicatif);
-	});
-	input.addEventListener('cut', () => {
-		setTimeout(updateIndicatif);
-	});
-
-</script>
+        input.addEventListener('paste', () => {
+            setTimeout(updateIndicatif);
+        });
+        input.addEventListener('cut', () => {
+            setTimeout(updateIndicatif);
+        });
+    </script>
 
 </body>
 

@@ -87,6 +87,14 @@
 				value="{{ old('correction_end_date', $evaluation->correction_end_date->translatedFormat('Y-m-d')) }}">
 			{!! errorAlert($errors->first('correction_end_date'), 'correction_end_date') !!}
 		</div>
+		<div class="form-group col-lg-4">
+			<x-forms.label for='duration_minutes' content="Durée en minutes" required="0"/>
+			<input class="form-control" type="number" min="1" name='duration_minutes' id='duration_minutes'
+				value="{{ old('duration_minutes', $evaluation->duration_minutes) }}">
+			{!! errorAlert($errors->first('duration_minutes'), 'duration_minutes') !!}
+		</div>
+		
+		
 		<div class="form-group">
 			<input type="checkbox" @checked(old('published')) class="form-check-input" name="published" id="published">
 			<x-forms.label for="published" required="{{0}}" class="form-check-label" content="Publier la programmation auprès des étudiants concernés ?"/>

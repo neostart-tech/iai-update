@@ -20,7 +20,7 @@ return new class extends Migration {
             $table->boolean('needs_validation')->default(false);
             $table->unsignedBigInteger('validated_by')->nullable();
             $table->timestamp('validated_at')->nullable();
-            $table->unsignedBigInteger('sanction_id')->nullable();
+            $table->string('sanction')->nullable();
             $table->timestamps();
 
             $table->unique(['cours_id', 'etudiant_id'], 'cours_etudiant_unique_presence');

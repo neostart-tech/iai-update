@@ -67,6 +67,7 @@ class EvaluationController extends Controller
 				'date',
 				'debut',
 				'fin',
+				'duration_minutes',
 				'published',
 				'correction_end_date'
 			]),
@@ -119,6 +120,7 @@ class EvaluationController extends Controller
 				'date',
 				'debut',
 				'fin',
+				'duration_minutes',
 				'published',
 				'correction_end_date'
 			])
@@ -162,4 +164,78 @@ class EvaluationController extends Controller
 	{
 		return (new NoteController())->evaluationNotesIndex($evaluation);
 	}
+
+
+	//Gestion de
+
+
+ public function editEvaluation(Evaluation $evaluation)
+    {
+        // Seulement les examens (pas les cours)
+        if ($evaluation->type === 'Cours') abort(403);
+
+        // return view('enseignants.evaluations.config', compact('evaluation'));
+    }
+
+    public function updateEvaluation(Request $request, Evaluation $evaluation)
+    {
+        $request->validate([
+            'is_online' => 'boolean',
+            'duration_minutes' => 'nullable|integer',
+            'security_level' => 'in:none,medium,strict',
+            'autosave_enabled' => 'boolean',
+            'disable_copy_paste' => 'boolean',
+            'disable_right_click' => 'boolean',
+            'disable_printscreen' => 'boolean',
+            'forbid_tab_switch' => 'boolean',
+            'max_focus_lost' => 'nullable|integer',
+            'auto_submit_on_time_end' => 'boolean',
+        ]);
+
+        $evaluation->update($request->all());
+
+        return redirect()->back()->with('success', 'Paramètres mis à jour !');
+    }
+
+    public function showQuestions(Evaluation $evaluation)
+    {
+        $evaluation->load('questions.options');
+        // return view('enseignants.evaluations.questions', compact('evaluation'));
+    }
+
+    public function submissions(Evaluation $evaluation)
+    {
+        $evaluation->load(['submissions.etudiant', 'questions.options']);
+        // return view('enseignants.evaluations.submissions', compact('evaluation'));
+    }
+
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

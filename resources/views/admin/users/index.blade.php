@@ -17,7 +17,6 @@
                                 <th scope="col">#</th>
                                 <th scope="col">Nom</th>
                                 <th scope="col">Prénoms</th>
-                                <th scope="col">Rôles</th>
                                 <th scope="col">Type Surveillant</th>
                                 <th scope="col" class="text-center">Actions</th>
                             </tr>
@@ -28,11 +27,7 @@
                                     <th scope="row">{{ $key += 1 }}</th>
                                     <td>{{ $user->nom_upper }}</td>
                                     <td>{{ $user->prenom }}</td>
-                                    <td>
-                                        @foreach($user->roles as $role)
-                                            <span class="badge bg-primary me-1">{{ $role->nom }}</span>
-                                        @endforeach
-                                    </td>
+                                    
                                     <td>
                                         @if($user->supervisor_type === 'interne')
                                             <span class="badge bg-success">Surveillant Interne</span>
@@ -92,7 +87,6 @@
                                 <th scope="col">#</th>
                                 <th scope="col">Nom</th>
                                 <th scope="col">Prénoms</th>
-                                <th scope="col">Rôles</th>
                                 <th scope="col">Type Surveillant</th>
                                 <th scope="col" class="text-center">Actions</th>
                             </tr>

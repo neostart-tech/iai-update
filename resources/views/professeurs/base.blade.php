@@ -121,10 +121,56 @@
     @include('layouts._delete-form-js')
     @include('layouts._delete-form')
     @include('layouts._toasts')
+    @include('layouts.admin._dt-scripts')
+
 
     @include('layouts.admin._settings')
 
     @include('layouts._scripts')
+    <!-- Select2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="{{ asset('admin/assets/js/plugins/sweetalert2.all.min.js') }}"></script>
+    <script src="{{ asset('admin/assets/js/plugins/choices.min.js') }}"></script>
+
+    <script src="{{ asset('tel/build/js/intlTelInput.js') }}"></script>
+    <script>
+        let indicatif = document.getElementById('indicatif');
+
+        let input = document.getElementById('tel-input');
+
+        let flag = document.getElementsByClassName('iti__flag-container');
+
+
+        const updateIndicatif = () => {
+            let elements = document.getElementsByClassName('iti__country iti__standard iti__active');
+
+            if (elements.length > 0) {
+                indicatif.value = elements[0].getAttribute('data-dial-code');
+            } else {
+                indicatif.value = '228';
+            }
+        }
+
+        window.intlTelInput(input, {
+            utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
+            initialCountry: 'auto',
+            geoIpLookup: callback => {
+                fetch("https://ipapi.co/json")
+                    .then(res => res.json())
+                    .then(data => callback(data.country_code))
+                    .catch(() => callback("us"));
+            },
+        })
+
+        input.addEventListener('input', updateIndicatif);
+
+        input.addEventListener('paste', () => {
+            setTimeout(updateIndicatif);
+        });
+        input.addEventListener('cut', () => {
+            setTimeout(updateIndicatif);
+        });
+    </script>
 </body>
 
 </html>

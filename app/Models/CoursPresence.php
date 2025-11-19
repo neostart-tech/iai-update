@@ -16,7 +16,7 @@ class CoursPresence extends Model
         'needs_validation',
         'validated_by',
         'validated_at',
-        'sanction_id',
+        'sanction',
     ];
 
     protected $casts = [
@@ -39,8 +39,5 @@ class CoursPresence extends Model
         return $this->belongsTo(EmploiDuTemp::class, 'emploi_du_temps_id');
     }
 
-    public function sanction(): BelongsTo
-    {
-        return $this->belongsTo(Sanction::class);
-    }
+   
 }

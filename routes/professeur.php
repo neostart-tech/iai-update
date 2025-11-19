@@ -1,9 +1,10 @@
 <?php
 
-use App\Http\Controllers\EspaceProfesseurControleur;
-use App\Http\Controllers\enseignantAuth\AuthentificationSessionController;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Enseignant\NoteEntryController;
+use App\Http\Controllers\enseignantAuth\AuthentificationSessionController;
+use App\Http\Controllers\EspaceProfesseurControleur;
+use App\http\Controllers\EvaluationController;
+use Illuminate\Support\Facades\Route;
 
 // NOTE: This file is loaded by RouteServiceProvider with prefix('espace-enseignant') and name('enseignants.')
 
@@ -17,6 +18,11 @@ Route::middleware('guest:enseignants')
         Route::delete('/se-déconnecter', 'destroy')->name('logout');
     });
 
+Route::middleware('auth:enseignants')->controller(EvaluationController::class)->group(function () {
+    Route::get('/enseignant/evaluations/create', 'create');
+    Route::post('/enseignant/evaluations', 'store');
+});
+
 Route::middleware('auth:enseignants')
     ->controller(EspaceProfesseurControleur::class)
     ->group(function () {
@@ -27,7 +33,10 @@ Route::middleware('auth:enseignants')
         // Presence views
         Route::get('presence/vue/{emploi_du_temps_id}', 'vuePresence')->name('presence.view');
         Route::get('presence/{cours_id}/{date}', 'listePresence')->name('presence.list');
-    Route::get('presence/{emploi_du_temps_id}/stats', 'presenceStats')->name('presence.stats');
+        Route::get('presence/{emploi_du_temps_id}/stats', 'presenceStats')->name('presence.stats');
+
+        //Cours du professeur connectté
+        Route::get('cours-du-jour', 'mesCoursShow')->name('cours.du.jour');
 
         // Legacy endpoints with {group} param
         Route::post('enregistrement/{group}/presence', 'storePresence')->name('presence.store');
@@ -37,18 +46,19 @@ Route::middleware('auth:enseignants')
         // New simplified endpoints used by the frontend
         Route::post('enregistrement-absences', 'enregistrerAbsences')->name('absences.store');
 
-    // Teacher presence endpoints
-    Route::post('presence/enseignant', 'saveTeacherPresence')->name('presence.teacher.save');
-    Route::get('presence/enseignant/{emploi_du_temps_id}', 'getTeacherPresence')->name('presence.teacher.get');
+        // Teacher presence endpoints
+        Route::post('presence/enseignant', 'saveTeacherPresence')->name('presence.teacher.save');
+        Route::get('presence/enseignant/{emploi_du_temps_id}', 'getTeacherPresence')->name('presence.teacher.get');
 
         // Export recap presence file
-        Route::get('presence/{emploi_du_temps_id}/export', function($emploi_du_temps_id){
+        Route::get('presence/{emploi_du_temps_id}/export', function ($emploi_du_temps_id) {
             $emploi = \App\Models\EmploiDuTemp::findOrFail($emploi_du_temps_id);
             $date = $emploi->debut ? date('Y-m-d', strtotime($emploi->debut)) : now()->toDateString();
             $cours = \App\Models\Cours::where('uv_id', $emploi->uv_id)
                 ->where('groupe_id', $emploi->group_id)
                 ->whereDate('date_cours', $date)
                 ->firstOrFail();
+
             return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\CoursAttendanceExport($cours, $emploi), 'recap_presence.xlsx');
         })->name('presence.export');
         Route::post('enregistrement-cahier-texte', 'enregistrerCahierTexte')->name('cahier.store');
@@ -80,4 +90,3 @@ Route::middleware('auth:enseignants')
         Route::get('mes-cours', 'myCourses')->name('my-courses');
         Route::get('mes-etudiants', 'myStudents')->name('my-students');
     });
-

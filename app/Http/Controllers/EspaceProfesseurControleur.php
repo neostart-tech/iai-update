@@ -3,17 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\Absence;
+use App\Models\AnneeScolaire;
 use App\Models\CahierTexte;
 use App\Models\Cours;
-use App\Models\EmploiDuTemp;
-use App\Models\Etudiant;
-use App\Models\Devoir;
 use App\Models\CoursPresence;
-use App\Models\Sanction;
+use App\Models\Devoir;
+use App\Models\EmploiDuTemp;
 use App\Models\EnseignantPresence;
+use App\Models\Etudiant;
+use App\Models\EtudiantGroup;
+use App\Models\Group;
+use App\Services\AttendanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Services\AttendanceService;
 
 class EspaceProfesseurControleur extends Controller
 {
@@ -30,7 +32,7 @@ class EspaceProfesseurControleur extends Controller
 
         $formatted = $cours->map(function ($c) {
             return [
-                'title' => ($c->uv?->uniteEnseignement?->nom ?? $c->uv?->nom ?? $c->details ?? 'Cours') . ' - ' . ($c->salle->nom ?? 'Salle ?'),
+                'title' => ($c->uv?->uniteEnseignement?->nom ?? $c->uv?->nom ?? $c->details ?? 'Cours').' - '.($c->salle->nom ?? 'Salle ?'),
                 'start' => $c->debut,
                 'end' => $c->fin,
                 'extendedProps' => [
@@ -41,7 +43,17 @@ class EspaceProfesseurControleur extends Controller
                     'uv_id' => $c->uv_id,
                     'emploi_du_temps_id' => $c->id,
                     'matiere' => $c->uv?->nom ?? $c->uv?->code ?? null,
-                    'creneau' => ($c->debut?->format('H:i') ?? '') . ' - ' . ($c->fin?->format('H:i') ?? ''),
+                    'creneau' => ($c->debut?->format('H:i') ?? '').' - '.($c->fin?->format('H:i') ?? ''),
+                    'is_online' => $c->is_online,
+                    "duration_minutes" => $c->duration_minutes ?? null,
+                    "security_level" => $c->security_level ?? null,
+                    "autosave_enabled" => $c->autosave_enabled ?? null,
+                    "disable_copy_paste" => $c->disable_copy_paste ?? null,
+                    "disable_right_click" => $c->disable_right_click ?? null,
+                    "disable_printscreen" => $c->disable_printscreen ?? null,
+                    "forbid_tab_switch" => $c->forbid_tab_switch ?? null,
+                    "max_focus_lost" => $c->max_focus_lost ?? null,
+                    "auto_submit_on_time_end" => $c->auto_submit_on_time_end ?? null,
                 ],
             ];
         });
@@ -53,6 +65,13 @@ class EspaceProfesseurControleur extends Controller
     public function myCourses()
     {
         return $this->mescours();
+    }
+
+
+    public function mesCoursShow(){
+        
+
+        return view('professeurs.mes-cours');
     }
 
     // Backward-compatible stub; can be enhanced to return students by teacher's groups
@@ -67,7 +86,7 @@ class EspaceProfesseurControleur extends Controller
             ->where('group_id', $group)
             ->first();
 
-        if (!$group) {
+        if (! $group) {
             return response()->json(['message' => 'Groupe non trouvé'], 404);
         }
 
@@ -76,24 +95,23 @@ class EspaceProfesseurControleur extends Controller
         return response()->json($etudiants);
     }
 
-    // Enregistrer les absences (POST)
     public function enregistrerAbsences(Request $request)
     {
         try {
             $payload = $request->all();
 
-            // Déterminer la séance et en déduire le cours + la date de la séance
             $emploiId = $payload['emploi_du_temps_id'] ?? null;
-            $coursId = $payload['cours_id'] ?? null; // si fourni directement
+            $coursId = $payload['cours_id'] ?? null;
             $sessionDate = now()->toDateString();
 
             if ($emploiId) {
                 $emploi = EmploiDuTemp::find($emploiId);
-                if (!$emploi) {
+                if (! $emploi) {
                     return response()->json(['message' => 'Séance introuvable'], 404);
                 }
+
                 $sessionDate = $emploi->debut ? date('Y-m-d', strtotime($emploi->debut)) : $sessionDate;
-                // Relier la séance à un Cours du jour (uv + groupe + date)
+
                 $cours = Cours::firstOrCreate(
                     [
                         'uv_id' => $emploi->uv_id,
@@ -104,96 +122,73 @@ class EspaceProfesseurControleur extends Controller
                         'titre' => $emploi->details ?? 'Cours',
                     ]
                 );
+
                 $coursId = $cours->id;
             }
 
-            if (!$coursId) {
+            if (! $coursId) {
                 return response()->json(['message' => 'Le cours lié à la séance est introuvable'], 422);
             }
 
-            // Nouveau schéma: presences tri-state. Fallback: absents[]
-            if (isset($payload['presences'])) {
-                $request->validate([
-                    'presences' => 'required|array',
-                    'presences.*.etudiant_id' => 'required|exists:etudiants,id',
-                    'presences.*.statut' => 'required|string|in:present,retard,absent,justifie',
-                    'presences.*.commentaire' => 'nullable|string|max:500',
-                    'presences.*.sanction' => 'nullable|string|max:500',
-                ]);
+            $request->validate([
+                'presences' => 'required|array',
+                'presences.*.etudiant_id' => 'required|exists:etudiants,id',
+                'presences.*.statut' => 'required|string|in:present,retard,absent,justifie',
+                'presences.*.commentaire' => 'nullable|string|max:500',
+                'presences.*.sanction' => 'nullable|string|max:500',
+            ]);
 
-                // Effacer toutes les entrées existantes de la journée pour ce cours afin de simplifier
-                CoursPresence::where('cours_id', $coursId)->delete();
+            $exceptions = [];
+            $presentIds = [];
 
-                foreach ($payload['presences'] as $pr) {
-                    $sanctionId = null;
-                    if (($pr['statut'] ?? null) === 'retard' && !empty($pr['sanction'])) {
-                        $sanction = Sanction::create([
-                            'cours_id' => $coursId,
-                            'etudiant_id' => (int)$pr['etudiant_id'],
-                            'enseignant_id' => Auth::guard('enseignants')->id() ?? Auth::id(),
-                            'description' => $pr['sanction'],
-                        ]);
-                        $sanctionId = $sanction->id;
-                    }
-
-                    CoursPresence::updateOrCreate(
-                        [
-                            'cours_id' => $coursId,
-                            'etudiant_id' => (int)$pr['etudiant_id'],
-                        ],
-                        [
-                            'emploi_du_temps_id' => $emploiId,
-                            'statut' => $pr['statut'],
-                            'commentaire' => $pr['commentaire'] ?? null,
-                            'needs_validation' => $pr['statut'] === 'absent', // absence nécessite validation
-                            'sanction_id' => $sanctionId,
-                        ]
-                    );
+            foreach ($payload['presences'] as $pr) {
+                if ($pr['statut'] !== 'present') {
+                    $exceptions[] = [
+                        'cours_id' => $coursId,
+                        'etudiant_id' => (int) $pr['etudiant_id'],
+                        'emploi_du_temps_id' => $emploiId,
+                        'statut' => $pr['statut'],
+                        'commentaire' => $pr['commentaire'] ?? null,
+                        'needs_validation' => $pr['statut'] === 'absent',
+                        'sanction' => $pr['sanction'] ?? null,
+                    ];
+                } else {
+                    $presentIds[] = (int) $pr['etudiant_id'];
                 }
-                // Recompute absence thresholds and notifications
-                try {
-                    (new AttendanceService())->updateStatusesForCours($cours);
-                } catch (\Throwable $e) {
-                    // silently ignore; logging could be added
-                }
-
-                return response()->json(['message' => 'Présences enregistrées avec succès']);
-            } else {
-                // Compat: ancienne API absents[]
-                $request->validate([
-                    'absents' => 'required|array',
-                    'absents.*.etudiant_id' => 'required|exists:etudiants,id',
-                    'absents.*.motif' => 'nullable|string',
-                ]);
-
-                $absentIds = collect($payload['absents'] ?? [])->pluck('etudiant_id')->map(fn($v) => (int)$v)->all();
-
-                // Supprimer les absences décochées pour cette séance
-                $deleteQuery = Absence::where('cours_id', $coursId)->whereDate('date_absence', $sessionDate);
-                if (count($absentIds) > 0) {
-                    $deleteQuery->whereNotIn('etudiant_id', $absentIds);
-                }
-                $deleteQuery->delete();
-
-                // Créer/mettre à jour les absences soumises
-                foreach ($payload['absents'] as $absent) {
-                    Absence::updateOrCreate(
-                        [
-                            'etudiant_id' => (int)$absent['etudiant_id'],
-                            'cours_id' => (int)$coursId,
-                            'date_absence' => $sessionDate,
-                        ],
-                        [
-                            'motif' => $absent['motif'] ?? null,
-                        ]
-                    );
-                }
-
-                return response()->json(['message' => 'Absences enregistrées avec succès']);
             }
+
+            // Supprimer les enregistrements pour ceux qui sont redevenus "present"
+            if (count($presentIds) > 0) {
+                CoursPresence::where('cours_id', $coursId)
+                    ->whereIn('etudiant_id', $presentIds)
+                    ->delete();
+            }
+
+            // Upsert des exceptions pour ceux qui ne sont pas présents
+            if (count($exceptions) > 0) {
+                CoursPresence::upsert(
+                    $exceptions,
+                    ['cours_id', 'etudiant_id'],
+                    ['statut', 'commentaire', 'needs_validation', 'sanction']
+                );
+            }
+
+            // Mettre à jour les statuts globaux si nécessaire
+            try {
+                (new AttendanceService)->updateStatusesForCours($cours);
+            } catch (\Throwable $e) {
+                // Optionnel: loguer l'erreur
+            }
+
+            return response()->json([
+                'message' => 'Présences enregistrées avec succès',
+            ]);
+
         } catch (\Illuminate\Validation\ValidationException $e) {
-            // Retourne les erreurs de validation
-            return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422);
+            return response()->json([
+                'message' => $e->getMessage(),
+                'errors' => $e->errors(),
+            ], 422);
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 500);
         }
@@ -207,10 +202,12 @@ class EspaceProfesseurControleur extends Controller
             ->where('groupe_id', $emploi->group_id)
             ->whereDate('date_cours', $date)
             ->first();
-        if (!$cours) return response()->json(['present' => 0, 'retard' => 0, 'absent' => 0, 'justifie' => 0]);
+        if (! $cours) {
+            return response()->json(['present' => 0, 'retard' => 0, 'absent' => 0, 'justifie' => 0]);
+        }
 
         $counts = CoursPresence::where('cours_id', $cours->id)
-            ->selectRaw("statut, COUNT(*) as c")
+            ->selectRaw('statut, COUNT(*) as c')
             ->groupBy('statut')
             ->pluck('c', 'statut');
 
@@ -219,10 +216,10 @@ class EspaceProfesseurControleur extends Controller
             ->first();
 
         return response()->json([
-            'present' => (int)($counts['present'] ?? 0),
-            'retard' => (int)($counts['retard'] ?? 0),
-            'absent' => (int)($counts['absent'] ?? 0),
-            'justifie' => (int)($counts['justifie'] ?? 0),
+            'present' => (int) ($counts['present'] ?? 0),
+            'retard' => (int) ($counts['retard'] ?? 0),
+            'absent' => (int) ($counts['absent'] ?? 0),
+            'justifie' => (int) ($counts['justifie'] ?? 0),
             'teacher' => $teacher ? ['statut' => $teacher->statut, 'commentaire' => $teacher->commentaire] : null,
         ]);
     }
@@ -232,7 +229,7 @@ class EspaceProfesseurControleur extends Controller
         $request->validate([
             'emploi_du_temps_id' => 'required|exists:emploi_du_temps,id',
             'statut' => 'required|in:present,retard,absent',
-            'commentaire' => 'nullable|string|max:500'
+            'commentaire' => 'nullable|string|max:500',
         ]);
         $enseignantId = Auth::guard('enseignants')->id() ?? Auth::id();
         EnseignantPresence::updateOrCreate(
@@ -245,6 +242,7 @@ class EspaceProfesseurControleur extends Controller
                 'commentaire' => $request->commentaire,
             ]
         );
+
         return response()->json(['message' => 'Présence enseignant enregistrée']);
     }
 
@@ -254,6 +252,7 @@ class EspaceProfesseurControleur extends Controller
         $p = EnseignantPresence::where('emploi_du_temps_id', $emploi_du_temps_id)
             ->where('enseignant_id', $enseignantId)
             ->first();
+
         return response()->json($p);
     }
 
@@ -269,23 +268,50 @@ class EspaceProfesseurControleur extends Controller
     }
 
     // Récupérer absents et présents pour un cours à une date
-    public function listePresence($cours_id, $date)
+    // public function listePresence($cours_id, $date)
+    // {
+    //     $cours = Cours::findOrFail($cours_id);
+    //     $groupe_id = $cours->groupe_id;
+
+    //     $etudiants = Etudiant::where('groupe_id', $groupe_id)->get();
+    //     $absents = Absence::where('cours_id', $cours_id)
+    //         ->whereDate('date_absence', $date)
+    //         ->pluck('etudiant_id')
+    //         ->toArray();
+
+    //     $liste_absents = $etudiants->whereIn('id', $absents)->values();
+    //     $liste_presents = $etudiants->whereNotIn('id', $absents)->values();
+
+    //     return response()->json([
+    //         'absents' => $liste_absents,
+    //         'presents' => $liste_presents,
+    //     ]);
+    // }
+    public function listePresence($cours_id)
     {
         $cours = Cours::findOrFail($cours_id);
         $groupe_id = $cours->groupe_id;
 
-        $etudiants = Etudiant::where('groupe_id', $groupe_id)->get();
-        $absents = Absence::where('cours_id', $cours_id)
-            ->whereDate('date_absence', $date)
-            ->pluck('etudiant_id')
-            ->toArray();
+        // Étudiants avec un statut enregistré (≠ present)
+        $absents = Etudiant::where('groupe_id', $groupe_id)
+            ->whereHas('coursPresences', function ($q) use ($cours_id) {
+                $q->where('cours_id', $cours_id);
+            })
+            ->with(['coursPresences' => function ($q) use ($cours_id) {
+                $q->where('cours_id', $cours_id);
+            }])
+            ->get();
 
-        $liste_absents = $etudiants->whereIn('id', $absents)->values();
-        $liste_presents = $etudiants->whereNotIn('id', $absents)->values();
+        // Étudiants non enregistrés => considérés présents
+        $presents = Etudiant::where('groupe_id', $groupe_id)
+            ->whereDoesntHave('coursPresences', function ($q) use ($cours_id) {
+                $q->where('cours_id', $cours_id);
+            })
+            ->get();
 
         return response()->json([
-            'absents' => $liste_absents,
-            'presents' => $liste_presents,
+            'absents' => $absents,
+            'presents' => $presents,
         ]);
     }
 
@@ -327,12 +353,15 @@ class EspaceProfesseurControleur extends Controller
             'remarks' => 'nullable|string',
         ]);
         $cahier = \App\Models\CahierTexte::where('emploi_du_temps_id', $request->emploi_du_temps_id)->first();
-        if (!$cahier) return response()->json(['message' => 'Cahier introuvable'], 404);
+        if (! $cahier) {
+            return response()->json(['message' => 'Cahier introuvable'], 404);
+        }
         $cahier->update([
             'approved_by_user_id' => Auth::id(),
             'approved_at' => now(),
             'remarks' => $request->remarks,
         ]);
+
         return response()->json(['message' => 'Cahier approuvé']);
     }
 
@@ -341,14 +370,17 @@ class EspaceProfesseurControleur extends Controller
     {
         $request->validate([
             'emploi_du_temps_id' => 'required|exists:emploi_du_temps,id',
-            'notes' => 'required|string'
+            'notes' => 'required|string',
         ]);
         $cahier = \App\Models\CahierTexte::where('emploi_du_temps_id', $request->emploi_du_temps_id)->first();
-        if (!$cahier) return response()->json(['message' => 'Cahier introuvable'], 404);
+        if (! $cahier) {
+            return response()->json(['message' => 'Cahier introuvable'], 404);
+        }
         $cahier->update([
             'incoherent' => true,
             'incoherence_notes' => $request->notes,
         ]);
+
         return response()->json(['message' => 'Incohérence marquée']);
     }
 
@@ -361,10 +393,26 @@ class EspaceProfesseurControleur extends Controller
     // Vue pour afficher absents et présents d'un cours à une date
     public function vuePresence($emploi_du_temps_id)
     {
+        // Récupération de l'emploi du temps
         $emploi = EmploiDuTemp::findOrFail($emploi_du_temps_id);
         $groupe_id = $emploi->group_id;
-        $etudiants = Etudiant::where('groupe_id', $groupe_id)->get();
-        $sessionDate = $emploi->debut ? date('Y-m-d', strtotime($emploi->debut)) : now()->toDateString();
+
+        // Récupérer l'année académique active
+        $annee = AnneeScolaire::where('active', 1)->first()?->id;
+
+        // Récupérer les étudiants du groupe via EtudiantGroup
+        $etudiants = EtudiantGroup::where('group_id', $groupe_id)
+            ->where('annee_scolaire_id', $annee)
+            ->with('etudiant')
+            ->get()
+            ->pluck('etudiant');
+
+        // Gestion de la date
+        $sessionDate = $emploi->debut
+            ? date('Y-m-d', strtotime($emploi->debut))
+            : now()->toDateString();
+
+        // Récupération ou création du cours du jour
         $cours = Cours::firstOrCreate(
             [
                 'uv_id' => $emploi->uv_id,
@@ -375,6 +423,8 @@ class EspaceProfesseurControleur extends Controller
                 'titre' => $emploi->details ?? 'Cours',
             ]
         );
+
+        // Récupération des absents pour cette date
         $absents = Absence::where('cours_id', $cours->id)
             ->whereDate('date_absence', $sessionDate)
             ->pluck('etudiant_id')
@@ -419,7 +469,7 @@ class EspaceProfesseurControleur extends Controller
     public function getCahierTexte($emploi_du_temps_id)
     {
         $cahier = CahierTexte::where('emploi_du_temps_id', $emploi_du_temps_id)->first();
-        $emploi = EmploiDuTemp::with(['group','owner'])->find($emploi_du_temps_id);
+        $emploi = EmploiDuTemp::with(['group', 'owner'])->find($emploi_du_temps_id);
         $profName = method_exists($emploi?->owner, 'completName') ? $emploi->owner->completName() : ($emploi?->owner?->name ?? null);
         $niveau = $emploi?->group?->niveau?->libelle ?? null;
         $etudiantName = null;
@@ -427,6 +477,7 @@ class EspaceProfesseurControleur extends Controller
             $et = \App\Models\Etudiant::find($cahier->etudiant_id);
             $etudiantName = $et?->completName();
         }
+
         return response()->json([
             'cahier' => $cahier,
             'professeur' => $profName,
@@ -438,32 +489,38 @@ class EspaceProfesseurControleur extends Controller
     public function getDevoir($emploi_du_temps_id)
     {
         $devoir = Devoir::where('emploi_du_temps_id', $emploi_du_temps_id)->first();
+
         return response()->json($devoir);
     }
 
     public function getAbsences($emploi_du_temps_id)
     {
         $emploi = EmploiDuTemp::find($emploi_du_temps_id);
-        if (!$emploi) return response()->json([]);
+        if (! $emploi) {
+            return response()->json([]);
+        }
         $date = $emploi->debut ? date('Y-m-d', strtotime($emploi->debut)) : now()->toDateString();
         $cours = Cours::where('uv_id', $emploi->uv_id)
             ->where('groupe_id', $emploi->group_id)
             ->whereDate('date_cours', $date)
             ->first();
-        if (!$cours) return response()->json([]);
+        if (! $cours) {
+            return response()->json([]);
+        }
 
         // Prefer new tri-state presence data if exists
         $pres = CoursPresence::where('cours_id', $cours->id)->get();
         if ($pres->isNotEmpty()) {
-            $data = $pres->map(function($p){
+            $data = $pres->map(function ($p) {
                 return [
                     'etudiant_id' => $p->etudiant_id,
                     'statut' => $p->statut,
                     'commentaire' => $p->commentaire,
                     'sanction' => optional($p->sanction)->description,
-                    'needs_validation' => (bool)$p->needs_validation,
+                    'needs_validation' => (bool) $p->needs_validation,
                 ];
             });
+
             return response()->json($data);
         }
 
@@ -472,7 +529,7 @@ class EspaceProfesseurControleur extends Controller
             ->whereDate('date_absence', $date)
             ->get(['etudiant_id', 'motif']);
 
-        $data = $absences->map(fn($a) => [
+        $data = $absences->map(fn ($a) => [
             'etudiant_id' => $a->etudiant_id,
             'statut' => 'absent',
             'commentaire' => $a->motif,

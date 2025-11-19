@@ -22,7 +22,7 @@ class Authenticate extends Middleware
 		elseif (Str::contains($request->route()->uri(), 'administration'))
 			return route('login');
 		elseif (Str::contains($request->route()->uri(), 'espace-enseignant'))
-			return route('enseignant.auth.login');
+			return route('enseignants.auth.login');
 		elseif (Str::contains($request->route()->uri(), 'espace-comptable'))
 			return route('comptable.auth.logincompta');
 		else

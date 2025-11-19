@@ -1,7 +1,7 @@
 @extends('auth.etudiants.base', ['title' => 'Me connecter'])
 @section('content')
 
-	<form action="{{ route('enseignant.auth.store') }}" method="post">
+	<form action="{{ route('enseignants.auth.store') }}" method="post">
 		@csrf
 		<div class="text-center mb-3">
 			<a href="{{ route('home') }}" class="b-brand mx-auto">
