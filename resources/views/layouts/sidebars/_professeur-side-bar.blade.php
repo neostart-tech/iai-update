@@ -26,7 +26,7 @@
                 </a>
             </li>
             <li class="pc-item">
-                <a class="pc-link" href="">
+                <a class="pc-link" href="{{ route('enseignants.mes-evaluations') }}">
                     Liste des évaluations
                 </a>
             </li>

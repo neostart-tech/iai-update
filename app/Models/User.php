@@ -115,6 +115,8 @@ class User extends Authenticatable
 		return static::query()->whereRelation('roles', fn(Builder $builder) => $builder->whereIn('role_id', static::$enseignantRolesId));
 	}
 
+	
+
 	public static function surveillants(): Builder
 	{
 		return static::query()->whereIn('supervisor_type', ['interne', 'externe']);

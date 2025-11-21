@@ -30,6 +30,13 @@
 	</a>
 </li>
 
+<li class="pc-item">
+	<a href="{{ route('etudiants.evaluation.liste') }}" class="pc-link">
+		<span class="pc-micon"><i data-feather="book-open"></i></span>
+		<span class="pc-mtext">Devoirs/Examen</span>
+	</a>
+</li>
+
 
 	<li class="pc-item pc-caption">
 		<label>Mon dossier</label>

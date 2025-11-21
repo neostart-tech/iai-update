@@ -35,8 +35,11 @@ Route::middleware('auth:enseignants')
         Route::get('presence/{cours_id}/{date}', 'listePresence')->name('presence.list');
         Route::get('presence/{emploi_du_temps_id}/stats', 'presenceStats')->name('presence.stats');
 
-        //Cours du professeur connectté
+        // Cours du professeur connectté
         Route::get('cours-du-jour', 'mesCoursShow')->name('cours.du.jour');
+        Route::get('mes-evaluations', 'mesEvaluationsShow')->name('mes-evaluations');
+
+        // Routes de gestion des evalautions
 
         // Legacy endpoints with {group} param
         Route::post('enregistrement/{group}/presence', 'storePresence')->name('presence.store');
@@ -89,4 +92,17 @@ Route::middleware('auth:enseignants')
         Route::get('', 'show')->name('index');
         Route::get('mes-cours', 'myCourses')->name('my-courses');
         Route::get('mes-etudiants', 'myStudents')->name('my-students');
+    });
+
+Route::middleware('auth:enseignants')
+    ->controller(EvaluationController::class)
+    ->name('evaluation.')
+    ->group(function () {
+
+        Route::get('evaluations/{emploiDuTemp}/config', 'editEvaluation')->name('config');
+        Route::put('evaluations/{emploiDuTemp}', 'updateEvaluation')->name('update');
+        Route::get('evaluations/{id}/questions', 'showQuestions')->name('questions');
+        Route::get('evaluations/{emploiDuTemp}/submissions', 'submissions')->name('submissions');
+        route::get('evaluations/{id}/create-question-evaluation', 'createQuestionEvaluation')->name('create-question-evaluation');
+        route::post('evaluations/{id}/store-evaluation-question', 'StoreEvaluationQuestion')->name('store-evaluation-question');
     });

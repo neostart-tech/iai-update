@@ -5,9 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class EvaluationOptions extends Model
+class EvaluationQuestionOption  extends Model
 {
     use HasFactory;
+     protected $table = 'evaluation_question_options'; 
 
       protected $guarded = [];
 

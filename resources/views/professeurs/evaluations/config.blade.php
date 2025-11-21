@@ -3,7 +3,7 @@
 @section('content')
 <h3>Paramètres de l'évaluation : {{ $evaluation->title }}</h3>
 
-<form action="{{ route('enseignants.evaluations.update', $evaluation) }}" method="POST">
+<form action="" method="POST">
     @csrf
     @method('PUT')
     <label>

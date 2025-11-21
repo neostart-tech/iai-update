@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class EvaluationQuestion extends Model
@@ -19,9 +18,3 @@ class EvaluationQuestion extends Model
         return $this->hasMany(EvaluationQuestionOption::class, 'question_id');
     }
 }
-
-
-
-
-
-
