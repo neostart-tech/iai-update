@@ -83,9 +83,6 @@ class EspaceProfesseurControleur extends Controller
 
     public function mesEvaluationsShow()
     {
-        
-
-
         return view('professeurs.evaluations.mes-evaluations');
     }
 

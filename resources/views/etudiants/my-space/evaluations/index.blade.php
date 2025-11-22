@@ -3,7 +3,6 @@
     'breadcrumbs' => ['Administration', 'Évaluations', 'Liste'],
     'page_name' => 'Liste des Évaluations',
 ])
-
 @section('content')
     <div class="card">
         <div class="card-body">
@@ -12,37 +11,59 @@
                     <table id="dom-jquery" class="table table-hover">
                         <thead>
                             <tr>
-                                <th scope="col">#</th>
-                                <th scope="col">Type</th>
-                                <th scope="col">Matière</th>
-                                <th scope="col">Jour</th>
-                                 <th scope="col">Début</th>
-                                <th scope="col">Fin</th>
-                                <th scope="col" class="text-center">Action</th>
+                                <th>#</th>
+                                <th>Type</th>
+                                <th>Matière</th>
+                                <th>Jour</th>
+                                <th>Début</th>
+                                <th>Fin</th>
+                                <th class="text-center">Action</th>
                             </tr>
                         </thead>
+
                         <tbody>
                             @foreach ($evaluations as $key => $evaluation)
-                                <tr
-                                    class="{{ \Carbon\Carbon::parse($evaluation['fin'])->isBefore(now()) ? 'table-secondary' : '' }}">
-                                    <th scope="row">{{ $key + 1 }}</th>
-                                    <td>{{ $evaluation['type'] }}</td>
-                                    <td>{{ $evaluation['matiere']['nom'] }}</td>
-                                    <td>{{ \Carbon\Carbon::parse($evaluation['date'])->format('d/m/Y') }}</td>
-                                    <td>{{ $evaluation->debut->format("h:i:s")}}</td>
-                                    <td>{{ $evaluation->fin->format("h:i:s")}}</td>
+
+                                @php
+
+                                    $now = now();
+                                    $dateDebut = Carbon\Carbon::parse($evaluation->debut);
+                                    $dateFin   = Carbon\Carbon::parse($evaluation->fin);
+                                @endphp
+
+                                <tr class="{{ $dateFin->isBefore($now) ? 'table-secondary' : '' }}">
+                                    <th>{{ $key + 1 }}</th>
+                                    <td>{{ $evaluation->type }}</td>
+                                    <td>{{ $evaluation->matiere->nom }}</td>
+                                    <td>{{ Carbon\Carbon::parse($evaluation->date)->format('d/m/Y') }}</td>
+                                    <td>{{ Carbon\Carbon::parse($evaluation->debut)->format('H:i') }}</td>
+                                    <td>{{ Carbon\Carbon::parse($evaluation->fin)->format('H:i') }}</td>
+
                                     <td class="text-center">
-                                        <ul class="list-inline me-auto mb-0">
-                                            <li class="list-inline-item align-bottom">
-                                                <a href="{{ route('etudiants.evaluation.start-view',$evaluation->id) }}" class="btn btn-success">
-                                                    <i class="fa fa-play"></i>
-                                                </a>
-                                            </li>
-                                        </ul>
+
+                
+                                        @if ($now->lt($dateDebut))
+                                            <a href="{{ route('etudiants.evaluation.start-view', $evaluation->id) }}" class="btn btn-outline-secondary btn-sm" disabled>
+                                                <i class="fa fa-clock"></i> À venir
+                                            </a>
+                            
+                                        @elseif ($now->between($dateDebut, $dateFin))
+                                            <a href="{{ route('etudiants.evaluation.start-view', $evaluation->id) }}"
+                                               class="btn btn-success btn-sm">
+                                                <i class="fa fa-play"></i> Commencer
+                                            </a>
+                                        @else
+                                            <a  href="{{ route('etudiants.evaluation.start-view', $evaluation->id) }}" class="btn btn-primary btn-sm" disabled>
+                                                <i class="fa fa-check"></i> Terminé
+                                            </a>
+                                        @endif
+
                                     </td>
                                 </tr>
+
                             @endforeach
                         </tbody>
+
                     </table>
                 </div>
             @else
@@ -52,12 +73,10 @@
     </div>
 @endsection
 
-@section('other-js')
-    <script>
-        // Si tu veux ajouter un peu de JS supplémentaire pour tes boutons, par exemple.
-    </script>
-@endsection
 
 @section('other-css')
-    <link rel="stylesheet" href="{{ asset('admin/assets/css/plugins/dataTables.bootstrap5.min.css') }}">
+<link rel="stylesheet" href="{{ asset('admin/assets/css/plugins/dataTables.bootstrap5.min.css') }}">
+@endsection
+
+@section('other-js')
 @endsection

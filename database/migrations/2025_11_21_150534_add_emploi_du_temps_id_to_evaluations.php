@@ -6,24 +6,20 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-    public function up()
+    public function up(): void
     {
         Schema::table('evaluations', function (Blueprint $table) {
-            $table->boolean('is_online')->default(false);
-            $table->integer('duration_minutes')->nullable();
+            $table->unsignedBigInteger('emploi_du_temps_id')
+                ->nullable()
+                ->after('slug');
+            $table->foreign('emploi_du_temps_id')->references('id')->on('emploi_du_temps');
         });
     }
 
-    public function down()
+    public function down(): void
     {
         Schema::table('evaluations', function (Blueprint $table) {
-            $table->dropColumn([
-                'is_online',
-                'duration_minutes',
-            ]);
+            $table->dropColumn('emploi_du_temps_id');
         });
     }
 };

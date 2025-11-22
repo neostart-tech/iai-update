@@ -105,4 +105,7 @@ Route::middleware('auth:enseignants')
         Route::get('evaluations/{emploiDuTemp}/submissions', 'submissions')->name('submissions');
         route::get('evaluations/{id}/create-question-evaluation', 'createQuestionEvaluation')->name('create-question-evaluation');
         route::post('evaluations/{id}/store-evaluation-question', 'StoreEvaluationQuestion')->name('store-evaluation-question');
+        route::get('evaluations/{id}/student-evaluation-submission', 'getStudentEvaluationSubmission')->name('student-evaluation-submission');
+        route::get('evaluations/{id}/student-evaluation-submission/index', 'getStudentEvaluationSubmissionview')->name('student-evaluation-submission-view');
+
     });
