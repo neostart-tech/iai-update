@@ -4,7 +4,6 @@
     'breadcrumbs' => ['Administration', 'Unités de valeur', 'Liste'],
     'page_name' => 'Liste des Unités de valeur',
 ])
-
 @section('content')
     <div class="card">
         <div class="text-end p-4 pb-sm-2 mb-2">
