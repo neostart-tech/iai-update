@@ -4,10 +4,8 @@ namespace App\Services;
 
 use App\Models\Etudiant;
 use App\Models\Releve;
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\URL;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class QRCodeService
 {
@@ -18,12 +16,12 @@ class QRCodeService
     {
         // Génération d'un hash unique pour ce relevé
         $uniqueHash = $this->generateUniqueHash($etudiant, $releveData);
-        
+
         // Création des données à encoder dans le QR
         $qrData = [
             'type' => 'releve_notes',
             'etudiant_id' => $etudiant->id,
-            'nom_complet' => $etudiant->nom . ' ' . $etudiant->prenom,
+            'nom_complet' => $etudiant->nom.' '.$etudiant->prenom,
             'filiere' => $filiere,
             'anne_academique' => $releveData['anne'],
             'periode' => $releveData['periode_nom'],
@@ -31,15 +29,23 @@ class QRCodeService
             'total_credits_valides' => $releveData['total_credits_valides'],
             'date_generation' => now()->format('Y-m-d H:i:s'),
             'hash' => $uniqueHash,
-            'verification_url' => route('public.releve.verify.hash', ['hash' => $uniqueHash])
+            'verification_url' => route('public.releve.verify.hash', ['hash' => $uniqueHash]),
         ];
 
         // Conversion en JSON pour le QR Code
         $qrContent = json_encode($qrData);
-        
+
         // Génération du QR Code en base64 pour intégration dans le PDF
+        // $qrCodeBase64 = base64_encode(
+        //     QrCode::format('png')
+        //         ->size(120)
+        //         ->margin(1)
+        //         ->errorCorrection('M')
+        //         ->generate($qrContent)
+        // );
         $qrCodeBase64 = base64_encode(
             QrCode::format('png')
+                ->backend('gd')
                 ->size(120)
                 ->margin(1)
                 ->errorCorrection('M')
@@ -49,7 +55,7 @@ class QRCodeService
         // Sauvegarde du hash dans la base de données pour vérification ultérieure
         $this->saveVerificationData($uniqueHash, $etudiant, $releveData, $filiere);
 
-        return 'data:image/png;base64,' . $qrCodeBase64;
+        return 'data:image/png;base64,'.$qrCodeBase64;
     }
 
     /**
@@ -65,10 +71,10 @@ class QRCodeService
             $releveData['periode_nom'],
             $releveData['moyenne_generale'],
             $releveData['total_credits_valides'],
-            now()->timestamp
+            now()->timestamp,
         ]);
 
-        return hash('sha256', $dataString . config('app.key'));
+        return hash('sha256', $dataString.config('app.key'));
     }
 
     /**
@@ -78,12 +84,12 @@ class QRCodeService
     {
         // Créer un enregistrement dans la table releves si pas déjà existant
         $existingReleve = Releve::where('etudiant_id', $etudiant->id)
-            ->whereHas('periode', function($query) use ($releveData) {
+            ->whereHas('periode', function ($query) use ($releveData) {
                 $query->where('nom', $releveData['periode_nom']);
             })
             ->first();
 
-        if (!$existingReleve) {
+        if (! $existingReleve) {
             // Récupérer l'année scolaire active et la période
             $anneeScolaire = \App\Models\AnneeScolaire::where('active', true)->first();
             $periode = \App\Models\Periode::where('nom', $releveData['periode_nom'])->first();
@@ -102,8 +108,8 @@ class QRCodeService
                     'moyenne_generale' => $releveData['moyenne_generale'],
                     'total_credits_valides' => $releveData['total_credits_valides'],
                     'total_credits_non_valides' => $releveData['total_credits_non_valides'],
-                    'date_generation' => now()->format('Y-m-d H:i:s')
-                ])
+                    'date_generation' => now()->format('Y-m-d H:i:s'),
+                ]),
             ]);
         } else {
             // Mettre à jour l'enregistrement existant avec les nouvelles données QR
@@ -115,8 +121,8 @@ class QRCodeService
                     'moyenne_generale' => $releveData['moyenne_generale'],
                     'total_credits_valides' => $releveData['total_credits_valides'],
                     'total_credits_non_valides' => $releveData['total_credits_non_valides'],
-                    'date_generation' => now()->format('Y-m-d H:i:s')
-                ])
+                    'date_generation' => now()->format('Y-m-d H:i:s'),
+                ]),
             ]);
         }
     }
@@ -128,7 +134,7 @@ class QRCodeService
     {
         $releve = Releve::where('qr_hash', $hash)->with(['etudiant', 'periode'])->first();
 
-        if (!$releve || !$releve->est_publie) {
+        if (! $releve || ! $releve->est_publie) {
             return null;
         }
 
@@ -148,7 +154,7 @@ class QRCodeService
             'total_credits_valides' => $verificationData['total_credits_valides'] ?? 0,
             'total_credits_non_valides' => $verificationData['total_credits_non_valides'] ?? 0,
             'date_generation' => $verificationData['date_generation'] ?? 'Non spécifiée',
-            'date_publication' => $releve->date_publication?->format('d/m/Y H:i') ?? 'Non spécifiée'
+            'date_publication' => $releve->date_publication?->format('d/m/Y H:i') ?? 'Non spécifiée',
         ];
     }
 }

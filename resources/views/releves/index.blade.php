@@ -351,7 +351,7 @@
                             <tr>
                                 <th>Matière</th>
                                 <th>Devoir</th>
-                                <th>Interro</th>
+                              
                                 <th>Examen</th>
                                 <th>Moy. UV</th>
                                 <th>Coef.</th>
@@ -363,7 +363,6 @@
                                 <tr>
                                     <td>{{ $uv['uv'] }}</td>
                                     <td>{{ $uv['devoir'] }}</td>
-                                    <td>{{ $uv['interrogation'] }}</td>
                                     <td>{{ $uv['examen'] }}</td>
                                     <td>{{ $uv['moyenne_uv'] }}</td>
                                     <td>{{ $uv['coefficient'] }}</td>

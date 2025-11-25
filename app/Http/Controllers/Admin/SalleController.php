@@ -57,6 +57,7 @@ class SalleController extends Controller
 
 	public function displayCalendar(Salle $salle): View
 	{
+		
 		return view('admin.salles.calendar', compact('salle'))->with([
 			'uvs' => Uv::all(),
 			'types' => TypeProgrammeEnum::cases(),
