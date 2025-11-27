@@ -290,7 +290,7 @@ class EvaluationController extends Controller
             abort(403, 'Étudiant non connecté');
         }
 
-        // 🔒 BLOCAGE SI TEMPS ÉCOULÉ
+        //  BLOCAGE SI TEMPS ÉCOULÉ
         if (now()->greaterThan($evaluation->fin)) {
             return redirect()->back()->withErrors([
                 'error' => 'Le temps est écoulé, vous ne pouvez plus soumettre l\'évaluation.',
@@ -624,7 +624,7 @@ class EvaluationController extends Controller
                 } else {
                     // Créer la nouvelle évaluation
                     $evaluation = Evaluation::create([
-                        'type' => $emploiDuTemp->type_programme ?? "Examen",
+                        'type' => "Examen",
                         'group_id' => $emploiDuTemp->group_id,
                         'emploi_du_temps_id' => $emploiDuTemp->id,
                         'unite_valeur_id' => $emploiDuTemp->uv_id,
