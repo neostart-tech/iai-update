@@ -27,10 +27,10 @@ class UserPolicy
 		return $user->hasRoles(13, 14) or $user->getAttribute('id') === $model->getAttribute('id');
 	}
 
-	public function delete(?User $user, User $model): bool
-	{
-		return $user->hasRoles(13, 14);
-	}
+	// public function delete(?User $user, User $model): bool
+	// {
+	// 	return $user->hasRoles(13, 14);
+	// }
 
 	public function restore(User $user, User $model): bool
 	{

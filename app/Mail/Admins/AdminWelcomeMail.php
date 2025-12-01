@@ -28,7 +28,7 @@ class AdminWelcomeMail extends Mailable implements ShouldQueue
 
 	public function content(): Content
 	{
-		dump(url(route('login')));
+		// dump(url(route('login')));
 		return new Content(
 			view: 'mails.base',
 			with: [

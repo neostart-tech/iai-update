@@ -426,7 +426,7 @@
             </div>
 
            
-            <div style="width: 100%; margin-top: 80px;">
+            {{-- <div style="width: 100%; margin-top: 80px;">
                 <!-- Section signature avec QR Code -->
                 <div style="display: flex; justify-content: space-between; align-items: flex-end;">
                     <!-- QR Code à gauche -->
@@ -446,7 +446,7 @@
                         <p style="margin: 2px 0 0 0; font-size: 14px;"><strong><u>{{AppGetters::getAppDe()}}</u></strong></p>
                     </div>
                 </div>
-            </div>
+            </div> --}}
             <div style="clear: both;"></div>
           
         </div>

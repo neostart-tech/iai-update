@@ -19,10 +19,10 @@ use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
-	 public function __construct()
-	 {
-	 	$this->authorizeResource(User::class, 'user');
-	 }
+	//  public function __construct()
+	//  {
+	//  	$this->authorizeResource(User::class, 'user');
+	//  }
 
 	public function index(string $profil = 'tous-les-profils'): View
 	{
@@ -82,7 +82,7 @@ class UserController extends Controller
 
     Mail::to($user)->send(new AdminWelcomeMail($user, $clearPassword));
 
-    return to_route('admin.users.index')->with(successMsg('Utilisateur créé avec succès'));
+    return redirect()->route('admin.users.index')->with(successMsg('Utilisateur créé avec succès'));
 }
 
 	public function edit(User $user): View

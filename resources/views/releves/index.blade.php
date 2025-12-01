@@ -308,7 +308,7 @@
                 </table>
             </div>
 
-            <!-- TITRE CENTRAL ENCADRÉ (version compacte) -->
+            
             <div style="margin: 30px auto 20px auto; text-align: center; width: 70%;">
                 <div
                     style="

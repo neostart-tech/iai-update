@@ -37,7 +37,7 @@ class ReclamationController extends Controller
     }
 
     $reclamation = Reclamation::create([
-        'etudiant_id' => auth()->user()->etudiant->id,
+        'etudiant_id' => auth()->user()->id,
         'evaluation_id' => $note->evaluation_id,
         'motif' => $request->motif,
         'fichier_justificatif' => $justificatif,
