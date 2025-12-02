@@ -25,6 +25,10 @@ class Album extends Model
 		'certificat_medical',
 		'coupon',
 		'cv',
+		'lettre_motivation',
+       'bulletins_lycee_paths',
+        'releve_bac1_path',
+        'releve_bac2_path',
 		'owner_id',
 		'owner_type',
 	];

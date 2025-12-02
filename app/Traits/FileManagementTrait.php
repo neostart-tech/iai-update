@@ -26,6 +26,24 @@ trait FileManagementTrait
 		return $file->storeAs($folderName, $fileFullName, static::$disk);
 
 	}
+	private function storeMultipleFiles(Request $request, string $fileKey, string $folderName, string $niveau, string $filePrefix): array
+{
+    $paths = [];
+
+    if (!$request->hasFile($fileKey)) {
+        return $paths;
+    }
+
+    foreach ($request->file($fileKey) as $file) {
+        if (!$file) continue;
+
+        $fileFullName = uniqid($filePrefix . '_') . '.' . $file->getClientOriginalExtension();
+        $paths[] = $file->storeAs($folderName . '/' . $niveau, $fileFullName, static::$disk);
+    }
+
+    return $paths; 
+}
+
 
 	/**
 	 * @param Request $request

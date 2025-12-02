@@ -247,8 +247,19 @@
 				</a>
 			</li>
 			<li class="pc-item">
+				<a class="pc-link" href="{{ route('admin.candidatures.admission') }}">
+					Inscription
+				</a>
+			</li>
+
+			<li class="pc-item">
 				<a class="pc-link" href="{{ route('admin.candidatures.choose-class-assignment-group-view') }}">
 					Attribution de groupe
+				</a>
+			</li>
+			<li class="pc-item">
+				<a class="pc-link" href="{{ route('admin.candidatures.admission') }}">
+					Réinscription
 				</a>
 			</li>
 		</ul>

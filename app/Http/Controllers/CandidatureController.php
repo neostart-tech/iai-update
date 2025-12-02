@@ -33,6 +33,10 @@ class CandidatureController extends Controller
 	private const PHOTO_IDENTITE = 'photos_identite';
 	private const CERTIFICAT_MEDICAL = 'certificats_medicaux';
 	private const COUPON = 'coupons';
+	private const BULLETINS_LYCEE = 'bulletins_lycee';
+	private const RELEVE_BAC_1 = 'releve_bac_1';
+	private const RELEVE_BAC_2 = 'releve_bac_2';
+
 
 	public function show(Candidature $candidature): View
 	{
@@ -190,40 +194,75 @@ class CandidatureController extends Controller
 			);
 		}
 
-		// Bulletins multi-fichiers (seconde, premiere, terminale)
-		foreach (['seconde', 'premiere', 'terminale'] as $niveau) {
-			$key = "bulletins_{$niveau}";
-			if ($request->hasFile($key)) {
-				foreach ($request->file($key) as $file) {
-					if (!$file) continue;
-					$name = uniqid($filePrefix . '_') . '.' . $file->getClientOriginalExtension();
-					$path = $file->storeAs("bulletins/{$niveau}", $name, 'public');
-					$candidat->documents()->create([
-						'type' => 'bulletin',
-						'niveau' => $niveau,
-						'path' => $path,
-					]);
-				}
-			}
-		}
+
+		$allBulletins = [];
+
+foreach (['seconde', 'premiere', 'terminale'] as $niveau) {
+    $paths = $this->storeMultipleFiles(
+        $request,
+        "bulletins_{$niveau}",
+        'bulletins',
+        $niveau,
+        $filePrefix
+    );
+
+    $allBulletins[$niveau] = $paths;
+}
+
+// sauvegarde JSON dans album
+$candidat->album()->update([
+    'bulletins_lycee_paths' => json_encode($allBulletins),
+]);
+
+		
+		// foreach (['seconde', 'premiere', 'terminale'] as $niveau) {
+		// 	$key = "bulletins_{$niveau}";
+		// 	if ($request->hasFile($key)) {
+		// 		foreach ($request->file($key) as $file) {
+		// 			if (!$file) continue;
+		// 			$name = uniqid($filePrefix . '_') . '.' . $file->getClientOriginalExtension();
+		// 			$path = $file->storeAs("bulletins/{$niveau}", $name, 'public');
+		// 			$candidat->documents()->create([
+		// 				'type' => 'bulletin',
+		// 				'niveau' => $niveau,
+		// 				'path' => $path,
+		// 			]);
+		// 		}
+		// 	}
+		// }
+foreach ([1, 2] as $i) {
+    $niveau = "bac{$i}";
+    $paths = $this->storeMultipleFiles(
+        $request,
+        "releve_bac{$i}",
+        'releves',
+        $niveau,
+        $filePrefix
+    );
+
+    // On enregistre le premier ou null
+    $candidat->album()->update([
+        "releve_bac{$i}_path" => $paths[0] ?? null,
+    ]);
+}
 
 		// Relevés BAC (bac1, bac2)
-		foreach ([1, 2] as $i) {
-			$key = "releve_bac{$i}";
-			$niveau = "bac{$i}";
-			if ($request->hasFile($key)) {
-				foreach ($request->file($key) as $file) {
-					if (!$file) continue;
-					$name = uniqid($filePrefix . '_') . '.' . $file->getClientOriginalExtension();
-					$path = $file->storeAs("releves/{$niveau}", $name, 'public');
-					$candidat->documents()->create([
-						'type' => 'releve',
-						'niveau' => $niveau,
-						'path' => $path,
-					]);
-				}
-			}
-		}
+		// foreach ([1, 2] as $i) {
+		// 	$key = "releve_bac{$i}";
+		// 	$niveau = "bac{$i}";
+		// 	if ($request->hasFile($key)) {
+		// 		foreach ($request->file($key) as $file) {
+		// 			if (!$file) continue;
+		// 			$name = uniqid($filePrefix . '_') . '.' . $file->getClientOriginalExtension();
+		// 			$path = $file->storeAs("releves/{$niveau}", $name, 'public');
+		// 			$candidat->documents()->create([
+		// 				'type' => 'releve',
+		// 				'niveau' => $niveau,
+		// 				'path' => $path,
+		// 			]);
+		// 		}
+		// 	}
+		// }
 
 		$type_diplome = $request->enum('type_diplome', TypeDiplomeEnum::class);
 
@@ -245,23 +284,23 @@ class CandidatureController extends Controller
 		$bac1 = $docs->firstWhere(fn($d) => $d->type === 'releve' && $d->niveau === 'bac1')?->path ?? $bac1;
 		$bac2 = $docs->firstWhere(fn($d) => $d->type === 'releve' && $d->niveau === 'bac2')?->path;
 
-		Inscription::create([
-			'numero_table' => $request->string('numero_table'),
-			'annee_bac' => (int) $request->input('annee_bac'),
-			'lettre_motivation' => $request->string('lettre_motivation'),
-			'serie' => $request->string('serie'),
-			'email' => $request->filled('email') ? $request->string('email') : null,
-			'phone1' => $request->string('tel'),
-			'phone2' => $request->string('tel2'),
-			'phone3' => $request->string('tel3'),
-			'tuteur_lieu' => $request->string('adresse_tuteur'),
-			'accepte' => $request->boolean('accept_cgu') ? 'accepte' : 'refuse',
-			'certificat_medical_path' => $certificat_medical ?: null,
-			'bulletins_lycee_paths' => $bulletins,
-			'releve_bac1_path' => $bac1 ?? null,
-			'releve_bac2_path' => $bac2 ?? null,
-			'status' => 'pending',
-		]);
+		// Inscription::create([
+		// 	'numero_table' => $request->string('numero_table'),
+		// 	'annee_bac' => (int) $request->input('annee_bac'),
+		// 	'lettre_motivation' => $request->string('lettre_motivation'),
+		// 	'serie' => $request->string('serie'),
+		// 	'email' => $request->filled('email') ? $request->string('email') : null,
+		// 	'phone1' => $request->string('tel'),
+		// 	'phone2' => $request->string('tel2'),
+		// 	'phone3' => $request->string('tel3'),
+		// 	'tuteur_lieu' => $request->string('adresse_tuteur'),
+		// 	'accepte' => $request->boolean('accept_cgu') ? 'accepte' : 'refuse',
+		// 	'certificat_medical_path' => $certificat_medical ?: null,
+		// 	'bulletins_lycee_paths' => $bulletins,
+		// 	'releve_bac1_path' => $bac1 ?? null,
+		// 	'releve_bac2_path' => $bac2 ?? null,
+		// 	'status' => 'pending',
+		// ]);
 	}
 
 	public function payementCandidaturesStore(Request $request): RedirectResponse

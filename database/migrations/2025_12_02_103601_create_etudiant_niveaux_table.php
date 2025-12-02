@@ -11,12 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('inscriptions', function (Blueprint $table) {
+        Schema::create('etudiant_niveaux', function (Blueprint $table) {
             $table->id();
-             $table->unsignedBigInteger('etudiant_id');
-               $table->foreign('etudiant_id')->references('id')->on('etudiants');
-              $table->unsignedBigInteger('group_id');
-            $table->foreign('group_id')->references('id')->on('groups');
+              $table->unsignedBigInteger('etudiant_id');
+               $table->foreign('etudiant_id')->references('id')->on('etudiants');;
             $table->unsignedBigInteger('niveau_id');
             $table->foreign('niveau_id')->references('id')->on('niveaux');
                $table->unsignedBigInteger('annee_scolaire_id');
@@ -30,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('inscriptions');
+        Schema::dropIfExists('etudiant_niveaux');
     }
 };
