@@ -133,6 +133,8 @@ class CandidatureController extends Controller
 
 	private function createAlbum(StoreRequest $request, Candidature $candidat)
 	{
+
+		\Log::info($request->all());
 		$filePrefix = Str::slug($candidat->getAttribute('nom') . '_' . $candidat->getAttribute('prenom'));
 
 		$coupon = null;
