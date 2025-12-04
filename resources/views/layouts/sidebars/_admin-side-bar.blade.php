@@ -246,11 +246,11 @@
 					Déclaration d'admission
 				</a>
 			</li>
-			<li class="pc-item">
+			{{-- <li class="pc-item">
 				<a class="pc-link" href="{{ route('admin.candidatures.admission') }}">
 					Inscription
 				</a>
-			</li>
+			</li> --}}
 
 			<li class="pc-item">
 				<a class="pc-link" href="{{ route('admin.candidatures.choose-class-assignment-group-view') }}">
