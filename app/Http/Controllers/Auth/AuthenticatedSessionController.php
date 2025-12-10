@@ -26,7 +26,9 @@ class AuthenticatedSessionController extends Controller
 
 		$request->session()->regenerate();
 		// Flashy::success($request->user()->greeting(), icon: 'waving_hand');
-		return redirect()->intended(route('mon-dashboard'));
+		// return redirect()->intended(route('mon-dashboard'));
+				return redirect()->intended(route('my-calendar'));
+
 	}
 
 	/**

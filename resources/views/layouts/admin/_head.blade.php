@@ -3,19 +3,27 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
-<meta name="description"
-			content="">
+<meta name="description" content="">
 <meta name="keywords"
-			content="Bootstrap admin template, Dashboard UI Kit, Dashboard Template, Backend Panel, react dashboard, angular dashboard">
+	content="Bootstrap admin template, Dashboard UI Kit, Dashboard Template, Backend Panel, react dashboard, angular dashboard">
 <meta name="author" content="Phoenixcoded">
 
 <!-- [Favicon] icon -->
-<link rel="icon" href="https://www.iai-togo.tg/wp-content/uploads/2017/06/logo.jpeg" type="image/x-icon">
+{{--
+<link rel="icon" href="https://www.iai-togo.tg/wp-content/uploads/2017/06/logo.jpeg" type="image/x-icon"> --}}
+@php
+$logoPath = AppGetters::getAppLogo();
+@endphp
+
+<link rel="icon" href="{{ $logoPath && Storage::disk('public')->exists($logoPath)
+? Storage::url($logoPath)
+: 'https://www.iai-togo.tg/wp-content/uploads/2017/06/logo.jpeg' }}" type="image/x-icon">
+
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
 
 @yield('other-css')
 
-<link rel="stylesheet" href="{{ asset('admin/assets/fonts/inter/inter.css') }}" id="main-font-link"/>
+<link rel="stylesheet" href="{{ asset('admin/assets/fonts/inter/inter.css') }}" id="main-font-link" />
 <!-- [Tabler Icons] https://tablericons.com -->
 <link rel="stylesheet" href="{{ asset('admin/assets/fonts/tabler-icons.min.css') }}">
 <!-- [Feather Icons] https://feathericons.com -->
@@ -33,23 +41,23 @@
 
 <style>
 	.flashy {
-			font-family: "Source Sans Pro", Arial, sans-serif;
-			padding: 11px 30px;
-			border-radius: 4px;
-			font-weight: 400;
-			position: fixed;    
-			z-index: 99999999;
-			height: 50px;
-			top: 20px;
-			right: 20px;
-			font-size: 16px;
-			color: #fff;
+		font-family: "Source Sans Pro", Arial, sans-serif;
+		padding: 11px 30px;
+		border-radius: 4px;
+		font-weight: 400;
+		position: fixed;
+		z-index: 99999999;
+		height: 50px;
+		top: 20px;
+		right: 20px;
+		font-size: 16px;
+		color: #fff;
 	}
 </style>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-14K1GBX9FG"></script>
-	<script>
-		window.dataLayer = window.dataLayer || [];
+<script>
+	window.dataLayer = window.dataLayer || [];
 
 		function gtag() {
 			dataLayer.push(arguments);
@@ -58,4 +66,4 @@
 		gtag('js', new Date());
 
 		gtag('config', 'G-14K1GBX9FG');
-	</script>
+</script>
