@@ -14,7 +14,9 @@ use App\Http\Controllers\FraisScolariteController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UrgentInfoPublicController;
 
-Route::get('', fn() => to_route('home'));
+// Route::get('', fn() => to_route('home'));
+Route::get('', fn() => to_route('login'));
+
 
 // Informations urgentes (page publique)
 Route::get('/informations-urgentes', [UrgentInfoPublicController::class, 'index'])->name('urgent.info');
