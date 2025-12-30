@@ -5,14 +5,15 @@ use App\Http\Controllers\{
 	Admin\BlogController,
 	AdvertiserController,
 	CandidatureController,
+	ClubController,
 	EtudiantController,
 	EvaluationController,
 	GroupController,
 	ConfigurationController,
 	ReleveController,
-
 };
 use App\Http\Controllers\Admin\{
+	AgendaController,
 	AnonymousSheetController,
 	ContactController,
 	EmploiDuTempController,
@@ -92,7 +93,6 @@ Route::controller(SalleController::class)->prefix('salles')->name('salles.')->gr
 	Route::get('{salle}/emploi-du-temps', 'displayCalendar')->name('display-calendar');
 	Route::get('{salle}/load-edt', 'loadCalendar')->name('load-calendar');
 	Route::delete('supprimer-une-salle', 'destroy')->name('delete');
-
 });
 
 Route::controller(EmploiDuTempController::class)->prefix('emploi-du-temps')->name('edt.')->group(function () {
@@ -107,11 +107,11 @@ Route::controller(EmploiDuTempController::class)->prefix('emploi-du-temps')->nam
 Route::controller(RoleController::class)->prefix('roles')->name('roles.')->group(function () {
 	Route::get('liste', 'index')->name('index');
 	//		Route::get('ajouter-un-role', 'create')->name('create');
-//		Route::get('{role}/a-propos', 'show')->name('show');
-//		Route::get('{role}/modifier', 'edit')->name('edit');
-//		Route::post('ajouter-un-role', 'store')->name('store');
-//		Route::put('{role}/modifier', 'update')->name('update');
-//		Route::delete('{role}/supprimer', 'destroy')->name('delete');
+	//		Route::get('{role}/a-propos', 'show')->name('show');
+	//		Route::get('{role}/modifier', 'edit')->name('edit');
+	//		Route::post('ajouter-un-role', 'store')->name('store');
+	//		Route::put('{role}/modifier', 'update')->name('update');
+	//		Route::delete('{role}/supprimer', 'destroy')->name('delete');
 });
 
 // Gestion des Utilisateurs par l'administration
@@ -121,7 +121,7 @@ Route::controller(UserController::class)->prefix('users')->name('users.')->group
 	Route::post('create', 'store')->name('store');
 	Route::get('{user}/edit', 'edit')->name('edit');
 	Route::put('{user}/update', 'update')->name('update');
-	Route::delete('delete', 'destroy')->name('delete'); 
+	Route::delete('delete', 'destroy')->name('delete');
 	Route::get('{user}/load-edt', 'loadEmploiDuTemps')->name('load-edt'); // charge les edt de l'utilisateur
 	Route::get('{user}/emploi-du-temps', 'ShowEmploiDuTemps')->name('show-edt'); // charge les edt de l'utilisateur
 	Route::post('{user}/add-edt', 'storeEmploiDuTemps')->name('store-edt'); // charge les edt de l'utilisateur
@@ -158,14 +158,22 @@ Route::controller(CandidatureController::class)->prefix('candidature')->name('ca
 	Route::put('{candidature}/valider', action: 'validateCandidature')->name('validate');
 	Route::put('{candidature}/rejeter', 'rejectCandidature')->name('reject');
 	Route::put('{candidature}/demander-rectification', 'askForRectificationOnCandidature')->name('ask-for-rectification');
-    
+	Route::post('{candidature}/reorienter', 'reorienter')->name('reorienter');
 });
 
-Route::controller(AnneeScolaireController::class)->prefix('annee-scolaire')->name('annescolaire.')->group(function(){
-Route::get('/liste','index')->name('liste');
-Route::post('/create','store')->name('store');
-Route::put('/{id}/activate','activer')->name('activer');
-Route::put('/desactivate','desactiver')->name('desactiver');
+Route::controller(AgendaController::class)->prefix('agenda')->name('agenda.')->group(function () {
+	Route::get('/',  'index')->name('index');
+	Route::post('/store',  'store')->name('store');
+	Route::delete('{agenda}/destroy',  'destroy')->name('destroy');
+	Route::post('{agenda}/modifier',  'update')->name('update');
+	Route::get('get-my-agenda','getAgenda')->name("get");
+});
+
+Route::controller(AnneeScolaireController::class)->prefix('annee-scolaire')->name('annescolaire.')->group(function () {
+	Route::get('/liste', 'index')->name('liste');
+	Route::post('/create', 'store')->name('store');
+	Route::put('/{id}/activate', 'activer')->name('activer');
+	Route::put('/desactivate', 'desactiver')->name('desactiver');
 });
 
 Route::controller(ConfigurationController::class)->prefix('parametre')->name('configuration.')->group(function () {
@@ -186,6 +194,26 @@ Route::controller(GroupController::class)->prefix('groups')->name('groups.')->gr
 	Route::delete('supprimer', 'destroy')->name('delete');
 });
 
+Route::controller(ClubController::class)->prefix('club')->name('club.')->group(function () {
+	Route::get('liste', 'index')->name('index');
+	Route::get('create', 'create')->name('create');
+	Route::post('store', 'store')->name('store');
+	Route::get('{club}/edit', 'edit')->name('edit');
+	Route::put('{club}/update', 'update')->name('update');
+	Route::delete('{club}/delete', 'destroy')->name('delete');
+
+	Route::get('{club}/etudiants', 'getEtudiant')
+		->name('etudiants.create');
+
+	Route::post('{club}/etudiants',  'storeEtudiant')
+		->name('etudiants.store');
+
+	Route::delete('{club}/etudiants/{etudiant}',  'destroyEtudiant')
+		->name('etudiants.destroy');
+});
+
+
+
 Route::controller(EtudiantController::class)->prefix('etudiants')->name('etudiants.')->group(function () {
 	Route::get('liste', 'index')->name('index');
 	Route::get('{etudiant}/details', 'show')->name('show');
@@ -195,7 +223,7 @@ Route::controller(EtudiantController::class)->prefix('etudiants')->name('etudian
 
 
 // Gestion du comité de classe
-Route::controller(ClassCommitteeController::class)->prefix('comite-de-classe')->name('committee.')->group(function(){
+Route::controller(ClassCommitteeController::class)->prefix('comite-de-classe')->name('committee.')->group(function () {
 	Route::get('', 'index')->name('index');
 	Route::post('', 'store')->name('store');
 	Route::delete('', 'destroy')->name('delete');
@@ -241,7 +269,7 @@ Route::prefix('evaluations')->name('evaluations.')->group(function () {
 	});
 
 	//	Route::get('index', 'index')->name('index');
-//	Route::get('index', 'index')->name('index');
+	//	Route::get('index', 'index')->name('index');
 });
 
 Route::controller(FicheDePresenceController::class)->prefix('fiches-de-presence')->name('fiches.')->group(function () {
@@ -341,41 +369,41 @@ Route::controller(UrgentInfoController::class)->prefix('informations-urgentes')-
 
 // Gestion de la Galerie (Albums & Photos)
 Route::prefix('galerie')->name('gallery.')->middleware('can:manage-gallery')->group(function () {
-    // Albums
-    Route::controller(GalleryAlbumController::class)->prefix('albums')->name('albums.')->group(function () {
-        Route::get('', 'index')->name('index');
-        Route::get('ajouter', 'create')->name('create');
-        Route::post('', 'store')->name('store');
-        Route::get('{galleryAlbum}', 'show')->name('show');
-        Route::get('{galleryAlbum}/modifier', 'edit')->name('edit');
-        Route::put('{galleryAlbum}', 'update')->name('update');
-        Route::delete('{galleryAlbum}', 'destroy')->name('destroy');
-    });
+	// Albums
+	Route::controller(GalleryAlbumController::class)->prefix('albums')->name('albums.')->group(function () {
+		Route::get('', 'index')->name('index');
+		Route::get('ajouter', 'create')->name('create');
+		Route::post('', 'store')->name('store');
+		Route::get('{galleryAlbum}', 'show')->name('show');
+		Route::get('{galleryAlbum}/modifier', 'edit')->name('edit');
+		Route::put('{galleryAlbum}', 'update')->name('update');
+		Route::delete('{galleryAlbum}', 'destroy')->name('destroy');
+	});
 
-    // Photos
-    Route::controller(GalleryPhotoController::class)->prefix('photos')->name('photos.')->group(function () {
-        Route::get('', 'index')->name('index');
-        Route::get('ajouter', 'create')->name('create');
-        Route::post('', 'store')->name('store');
-        Route::get('{galleryPhoto}', 'show')->name('show');
-        Route::get('{galleryPhoto}/modifier', 'edit')->name('edit');
-        Route::put('{galleryPhoto}', 'update')->name('update');
-        Route::delete('{galleryPhoto}', 'destroy')->name('destroy');
-    });
+	// Photos
+	Route::controller(GalleryPhotoController::class)->prefix('photos')->name('photos.')->group(function () {
+		Route::get('', 'index')->name('index');
+		Route::get('ajouter', 'create')->name('create');
+		Route::post('', 'store')->name('store');
+		Route::get('{galleryPhoto}', 'show')->name('show');
+		Route::get('{galleryPhoto}/modifier', 'edit')->name('edit');
+		Route::put('{galleryPhoto}', 'update')->name('update');
+		Route::delete('{galleryPhoto}', 'destroy')->name('destroy');
+	});
 });
 
 // Routes pour les relevés de notes
 Route::controller(ReleveController::class)->prefix('releves')->name('releves.')->group(function () {
-    Route::get('generer/{etudiant}', 'generateReleveForStudent')->name('generer');
-		Route::get('/{etudiant_id}', 'genererReleve')->name('detail');
+	Route::get('generer/{etudiant}', 'generateReleveForStudent')->name('generer');
+	Route::get('/{etudiant_id}', 'genererReleve')->name('detail');
 
-    Route::get('telecharger/{etudiant}', 'generateReleveForStudent')->name('telecharger');
-    Route::get('download/{filename}', 'download')->name('download');
-    Route::get('checked', 'checked')->name('checked');
-    Route::post('groupe/{group}', 'generateGroupReleves')->name('groupe');
+	Route::get('telecharger/{etudiant}', 'generateReleveForStudent')->name('telecharger');
+	Route::get('download/{filename}', 'download')->name('download');
+	Route::get('checked', 'checked')->name('checked');
+	Route::post('groupe/{group}', 'generateGroupReleves')->name('groupe');
 });
 
 // Routes pour les cartes étudiants
 Route::controller(CarteEtudiantController::class)->prefix('carte')->name('carte.')->group(function () {
-    Route::get('{etudiant}', 'genererCarteEtudiant')->name('index');
+	Route::get('{etudiant}', 'genererCarteEtudiant')->name('index');
 });

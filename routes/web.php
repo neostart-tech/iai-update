@@ -132,13 +132,6 @@ Route::controller(AuthentificationSessionController::class)->prefix('comptables'
 // });
 
 
-
-require __DIR__ . '/auth.php';
-
-require __DIR__ . '/old_routes.php';
-
-require __DIR__ . '/etudiant.php';
-
 // Les routes de l'espace enseignant sont déjà chargées par le RouteServiceProvider
 
 
@@ -152,11 +145,20 @@ Route::post('/events/{evenement}/comment', [EvenementController::class, 'comment
 	->middleware('throttle:5,1')
 	->name('events.comment');
 
-require __DIR__ . '/comptable.php';
-
-// Cahier de texte workflow
+	// Cahier de texte workflow
 Route::middleware(['web'])->group(function() {
 	Route::post('/professeur/cahier-texte/approuver', [\App\Http\Controllers\EspaceProfesseurControleur::class, 'approuverCahierTexte'])->name('prof.cahier.approuver');
 	Route::post('/comite/cahier-texte', [\App\Http\Controllers\CommitteeCahierTexteController::class, 'store'])->name('comite.cahier.store');
 	Route::post('/professeur/cahier-texte/incoherence', [\App\Http\Controllers\EspaceProfesseurControleur::class, 'marquerIncoherenceCahier'])->name('prof.cahier.incoherence');
 });
+
+
+require __DIR__ . '/auth.php';
+
+require __DIR__ . '/old_routes.php';
+
+require __DIR__ . '/etudiant.php';
+
+
+require __DIR__ . '/comptable.php';
+

@@ -182,4 +182,9 @@ class User extends Authenticatable
 	{
 		$this->notifyNow(new PasswordResetLinkSentNotification($token, $this->getAttribute('email')));
 	}
+
+	public function clubsEncadres()
+{
+    return $this->hasMany(Club::class, 'responsable_id');
+}
 }

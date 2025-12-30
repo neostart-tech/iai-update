@@ -88,6 +88,8 @@
     @include('layouts.admin._settings')
 
     @include('layouts._scripts')
+    
+    
     <!-- Select2 JS -->
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="{{ asset('admin/assets/js/plugins/sweetalert2.all.min.js') }}"></script>

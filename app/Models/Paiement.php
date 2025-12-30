@@ -6,21 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Paiement extends Model
 {
-    protected $fillable = [
-        'etudiant_id',
-        'tranche_paiement_id',
-        'montant',
-        'mode_paiement',
-        'reference',
-        'justificatif',
-        'status',
-        'recu',
-        'date_paiement',
-        'annule',
-    'motif_annulation',
-    'date_annulation',
-    'annule_par',
-    ];
+    protected $guarded = ['id'];
 
     public function etudiant()
     {
@@ -36,6 +22,11 @@ class Paiement extends Model
     public function tranchePaiement()
     {
         return $this->belongsTo(TranchePaiement::class);
+    }
+
+     public function payable()
+    {
+        return $this->morphTo();
     }
 
 }

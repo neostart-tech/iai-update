@@ -1,4 +1,4 @@
-<form method="post" action="{{ $action }}" enctype="multipart/form-data">
+<!-- <form method="post" action="{{ $action }}" enctype="multipart/form-data">
 	@csrf
 	@isset($edit)
 		@method('put')
@@ -41,4 +41,4 @@
 	</div>
 
 	<button type="submit" class="btn btn-primary mb-4">Soumettre</button>
-</form>
+</form> -->

@@ -15,6 +15,7 @@ class Kernel extends ConsoleKernel
         // $schedule->command('inspire')->hourly();
          $schedule->command('relancer:etudiants')->daily();
         $schedule->command('notify:cahier-incoherences')->dailyAt('17:00');
+         $schedule->command('notifier:agenda')->everyFiveMinutes();
     }
 
     /**

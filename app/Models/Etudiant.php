@@ -50,7 +50,7 @@ class Etudiant extends Authenticatable
 		'matricule',
 		'slug',
 		'cv',
-//		'email_verified_at'
+		//		'email_verified_at'
 	];
 
 	protected $casts = [
@@ -63,10 +63,10 @@ class Etudiant extends Authenticatable
 		return $this->hasMany(Note::class);
 	}
 
-//	public function fichesDePresence(): HasMany
-//	{
-//		return $this->hasMany(EmploiDuTemp::class);
-//	}
+	//	public function fichesDePresence(): HasMany
+	//	{
+	//		return $this->hasMany(EmploiDuTemp::class);
+	//	}
 
 	public function notesByUv(int $uvId): HasMany
 	{
@@ -153,46 +153,50 @@ class Etudiant extends Authenticatable
 	}
 
 
-	public function albums(){
-		return $this->hasmany(Album::class, 'owner_id', 'id');		
+	public function albums()
+	{
+		return $this->hasmany(Album::class, 'owner_id', 'id');
 	}
 
-	    public function candidatures()  {
-		 return $this->hasMany(Candidature::class);
-		 }
-public function estAjour() {
-    $candidature = $this->candidatures()->latest()->first();
-    if (!$candidature) return false;
+	public function candidatures()
+	{
+		return $this->hasMany(Candidature::class);
+	}
+	public function estAjour()
+	{
+		$candidature = $this->candidatures()->latest()->first();
+		if (!$candidature) return false;
 
-    $niveau = $candidature->niveau_id;
-    $frais = \App\Models\FraisScolarite::where('niveau_id', $niveau)->first();
-    if (!$frais) return false;
+		$niveau = $candidature->niveau_id;
+		$frais = \App\Models\FraisScolarite::where('niveau_id', $niveau)->first();
+		if (!$frais) return false;
 
-    $tranches = \App\Models\TranchePaiement::where('frais_scolarite_id', $frais->id)->get();
+		$tranches = \App\Models\TranchePaiement::where('frais_scolarite_id', $frais->id)->get();
 
-    foreach ($tranches as $tranche) {
-        $totalPaye = \App\Models\Paiement::where('etudiant_id', $this->id)
-            ->where('tranche_paiement_id', $tranche->id)
-            ->sum('montant');
+		foreach ($tranches as $tranche) {
+			$totalPaye = \App\Models\Paiement::where('etudiant_id', $this->id)
+				->where('tranche_paiement_id', $tranche->id)
+				->sum('montant');
 
-        if ($totalPaye < $tranche->montant) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-		
-
-		     public function paiements(){ 
-				return $this->hasMany(Paiement::class);
+			if ($totalPaye < $tranche->montant) {
+				return false;
 			}
+		}
 
-			public function gratifications(): HasMany
-			{
-				return $this->hasMany(Gratification::class);
-			}
+		return true;
+	}
+
+
+
+	public function paiements()
+	{
+		return $this->hasMany(Paiement::class);
+	}
+
+	public function gratifications(): HasMany
+	{
+		return $this->hasMany(Gratification::class);
+	}
 
 	/**
 	 * Accesseur pour afficher le nom complet en majuscule
@@ -208,5 +212,13 @@ public function estAjour() {
 	public function getNomUpperAttribute(): string
 	{
 		return strtoupper($this->nom);
+	}
+
+
+	public function clubs()
+	{
+		return $this->belongsToMany(Club::class, 'club_etudiants')
+			->withPivot('date_adhesion')
+			->withTimestamps();
 	}
 }

@@ -12,21 +12,43 @@ trait FileManagementTrait
 	private static string $disk = 'public';
 
 	/**
-	 * @param Request $request
-	 * @param string $fileKey
-	 * @param string $folderName
-	 * @param string|null $fileName
-	 * @return string
-	 */
-	private function storeFile(Request $request, string $fileKey, string $folderName, string $fileName = null): string
-	{
-		$file = $request->file($fileKey);
-		$fileFullName = uniqid($fileName ?? '') . '.' . $file->getClientOriginalExtension();
-		// return Storage::disk(static::$disk)->putFileAs($folderName, $file, $fileFullName);
-		return $file->storeAs($folderName, $fileFullName, static::$disk);
+ * @param Request $request
+ * @param string $fileKey
+ * @param string $folderName
+ * @param string|null $fileName
+ * @return string|null
+ */
+private function storeFile(Request $request, string $fileKey, string $folderName, string $fileName = null): ?string
+{
+    $file = $request->file($fileKey);
+    
+    // CORRECTION : Vérifier si le fichier existe
+    if (!$file) {
+        return null;
+    }
+    
+    // CORRECTION : Gérer le cas où c'est un tableau
+    if (is_array($file)) {
+        if (isset($file[0]) && $file[0]) {
+            $fileFullName = uniqid($fileName ?? '') . '.' . $file[0]->getClientOriginalExtension();
+            return $file[0]->storeAs($folderName, $fileFullName, static::$disk);
+        }
+        return null;
+    }
+    
+    $fileFullName = uniqid($fileName ?? '') . '.' . $file->getClientOriginalExtension();
+    return $file->storeAs($folderName, $fileFullName, static::$disk);
+}
 
-	}
-	private function storeMultipleFiles(Request $request, string $fileKey, string $folderName, string $niveau, string $filePrefix): array
+/**
+ * @param Request $request
+ * @param string $fileKey
+ * @param string $folderName
+ * @param string $niveau
+ * @param string $filePrefix
+ * @return array
+ */
+private function storeMultipleFiles(Request $request, string $fileKey, string $folderName, string $niveau, string $filePrefix): array
 {
     $paths = [];
 
@@ -34,11 +56,18 @@ trait FileManagementTrait
         return $paths;
     }
 
-    foreach ($request->file($fileKey) as $file) {
-        if (!$file) continue;
+    $files = $request->file($fileKey);
+    
+    // CORRECTION : Vérifier que c'est bien un tableau
+    if (!is_array($files)) {
+        return $paths;
+    }
 
-        $fileFullName = uniqid($filePrefix . '_') . '.' . $file->getClientOriginalExtension();
-        $paths[] = $file->storeAs($folderName . '/' . $niveau, $fileFullName, static::$disk);
+    foreach ($files as $index => $file) {
+        if ($file) {
+            $fileFullName = uniqid($filePrefix . '_' . $index . '_') . '.' . $file->getClientOriginalExtension();
+            $paths[] = $file->storeAs($folderName . '/' . $niveau, $fileFullName, static::$disk);
+        }
     }
 
     return $paths; 

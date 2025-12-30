@@ -7,9 +7,9 @@ use App\Http\Requests\Candidature\StoreRequest;
 use App\Notifications\Candidatures\CandidatAbsentNotification;
 use App\Notifications\Candidatures\CandidatPresentNotification;
 use App\Jobs\{CandidatureFraisPayementJob, ConcoursResultJob, SmsSendingProcess};
-use App\Models\{Candidature, CandidatureDocument, Inscription};
+use App\Models\{Candidature, CandidatureDocument, Inscription, Reorientation};
 use App\Notifications\Candidatures\CandidatWelcomeNotification;
-use App\Traits\ActionsTraits\{IndexTrait,CandidatureFirstValidationTrait};
+use App\Traits\ActionsTraits\{IndexTrait, CandidatureFirstValidationTrait};
 use App\Traits\FileManagementTrait;
 use App\Models\Niveau;
 use App\Models\Filiere;
@@ -46,6 +46,8 @@ class CandidatureController extends Controller
 			'album' => $candidature->album,
 			'niveau' => $candidature->niveau,
 			'filiere' => $candidature->filiere,
+			'filieres' => Filiere::all(),
+			'niveaux' => Niveau::all(),
 		]);
 	}
 
@@ -59,8 +61,9 @@ class CandidatureController extends Controller
 		]);
 	}
 
-	public function store(StoreRequest $request): RedirectResponse
+	public function store(Request $request): RedirectResponse
 	{
+		// 1. Création du candidat
 		$candidat = Candidature::create([
 			...$request->only([
 				'nom',
@@ -89,6 +92,7 @@ class CandidatureController extends Controller
 			'code' => fake()->unique()->numberBetween(9999, 100000)
 		]);
 
+		// 2. Création du responsable
 		$candidat->responsable()->create([
 			'nom' => $request->get('nom_resp'),
 			'prenom' => $request->get('prenom_resp'),
@@ -101,6 +105,7 @@ class CandidatureController extends Controller
 			'bp' => $request->get('bp_resp'),
 		]);
 
+		// 3. Création du tuteur
 		$candidat->tuteur()->create([
 			'nom' => $request->get('nom_tuteur'),
 			'prenom' => $request->get('prenom_tuteur'),
@@ -114,196 +119,113 @@ class CandidatureController extends Controller
 			'candidature_id' => $candidat->getAttribute('id')
 		]);
 
-		self::createAlbum($request, $candidat);
+		// 4. Création de l'album (utilise la version corrigée ci-dessus)
+		$this->createAlbum($request, $candidat);
 
+		// 5. Connexion et notification
 		Auth::guard('web_candidatures')->login($candidat);
 
 		$message = $candidat->greeting(true);
 		$message .= ", votre dossier de candidature a été déposé avec succès.";
-
-		// SmsSendingProcess::dispatch(
-		// 	$candidat->getAttribute('tel'),
-		// 	'Votre dossier de candidature a été déposé avec succès. Connectez-vous régulièrement en vous rendant sur ' . route('officiel.login') . '	à votre compte pour suivre le niveau d\'avancement de votre candidature'
-		// );
 
 		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message));
 
 		return to_route('officiel.my-space.show')->with(successMsg('Votre dossier a été déposé avec succès.'));
 	}
 
-	private function createAlbum(StoreRequest $request, Candidature $candidat)
+	private function createAlbum(Request $request, Candidature $candidat)
 	{
-
-		\Log::info($request->all());
 		$filePrefix = Str::slug($candidat->getAttribute('nom') . '_' . $candidat->getAttribute('prenom'));
 
-		$coupon = null;
-		// Lettre manuscrite
-		$lettre = $this->storeFile(
-			$request,
-			'lettre_file',
-			static::LETTRE,
-			$filePrefix
-		);
+		// 1. Gestion des fichiers UNIQUES (avec vérification)
+		$lettre = $request->hasFile('lettre_file')
+			? $this->storeFile($request, 'lettre_file', static::LETTRE, $filePrefix)
+			: null;
 
-		// Naissance
-		$naissance = $this->storeFile(
-			$request,
-			'naissance_file',
-			static::NAISSANCE,
-			$filePrefix
-		);
+		$naissance = $request->hasFile('naissance_file')
+			? $this->storeFile($request, 'naissance_file', static::NAISSANCE, $filePrefix)
+			: null;
 
-		// Diplôme
-		$diplome = $this->storeFile(
-			$request,
-			'diplome_file',
-			static::DIPLOME,
-			$filePrefix
-		);
+		$diplome = $request->hasFile('diplome_file')
+			? $this->storeFile($request, 'diplome_file', static::DIPLOME, $filePrefix)
+			: null;
 
-		// Nationalité
-		$nationalite = $this->storeFile(
-			$request,
-			'nationalite_file',
-			static::NATIONALITE,
-			$filePrefix
-		);
+		$nationalite = $request->hasFile('nationalite_file')
+			? $this->storeFile($request, 'nationalite_file', static::NATIONALITE, $filePrefix)
+			: null;
 
-		// Photo d'identité
-		$photo = $this->storeFile(
-			$request,
-			'photo_identite_file',
-			static::PHOTO_IDENTITE,
-			$filePrefix
-		);
+		$photo = $request->hasFile('photo_identite_file')
+			? $this->storeFile($request, 'photo_identite_file', static::PHOTO_IDENTITE, $filePrefix)
+			: null;
 
-		// Certificat médical
-		$certificat_medical = $this->storeFile(
-			$request,
-			'certificat_medical_file',
-			static::CERTIFICAT_MEDICAL,
-			$filePrefix
-		);
+		$certificat_medical = $request->hasFile('certificat_medical_file')
+			? $this->storeFile($request, 'certificat_medical_file', static::CERTIFICAT_MEDICAL, $filePrefix)
+			: null;
 
-		// Certificat médical
-		if ($request->hasFile('coupon_file')) {
-			$coupon = $this->storeFile(
+		$coupon = $request->hasFile('coupon_file')
+			? $this->storeFile($request, 'coupon_file', static::COUPON, $filePrefix)
+			: null;
+
+		// 2. Gestion des fichiers MULTIPLES - Bulletins
+		$allBulletins = [];
+		foreach (['seconde', 'premiere', 'terminale'] as $niveau) {
+			$paths = $this->storeMultipleFiles(
 				$request,
-				'coupon_file',
-				static::COUPON,
+				"bulletins_{$niveau}",
+				'bulletins',
+				$niveau,
 				$filePrefix
 			);
+			$allBulletins[$niveau] = $paths;
 		}
 
+		// 3. Gestion des fichiers MULTIPLES - Relevés BAC
+		$releve_bac1_path = null;
+		$releve_bac2_path = null;
 
-		$allBulletins = [];
+		// Pour BAC1
+		$bac1Paths = $this->storeMultipleFiles(
+			$request,
+			"releve_bac1",
+			'releves',
+			'bac1',
+			$filePrefix
+		);
+		if (!empty($bac1Paths)) {
+			$releve_bac1_path = $bac1Paths[0];
+		}
 
-foreach (['seconde', 'premiere', 'terminale'] as $niveau) {
-    $paths = $this->storeMultipleFiles(
-        $request,
-        "bulletins_{$niveau}",
-        'bulletins',
-        $niveau,
-        $filePrefix
-    );
+		// Pour BAC2
+		$bac2Paths = $this->storeMultipleFiles(
+			$request,
+			"releve_bac2",
+			'releves',
+			'bac2',
+			$filePrefix
+		);
+		if (!empty($bac2Paths)) {
+			$releve_bac2_path = $bac2Paths[0];
+		}
 
-    $allBulletins[$niveau] = $paths;
-}
-
-// sauvegarde JSON dans album
-$candidat->album()->update([
-    'bulletins_lycee_paths' => json_encode($allBulletins),
-]);
-
-		
-		// foreach (['seconde', 'premiere', 'terminale'] as $niveau) {
-		// 	$key = "bulletins_{$niveau}";
-		// 	if ($request->hasFile($key)) {
-		// 		foreach ($request->file($key) as $file) {
-		// 			if (!$file) continue;
-		// 			$name = uniqid($filePrefix . '_') . '.' . $file->getClientOriginalExtension();
-		// 			$path = $file->storeAs("bulletins/{$niveau}", $name, 'public');
-		// 			$candidat->documents()->create([
-		// 				'type' => 'bulletin',
-		// 				'niveau' => $niveau,
-		// 				'path' => $path,
-		// 			]);
-		// 		}
-		// 	}
-		// }
-foreach ([1, 2] as $i) {
-    $niveau = "bac{$i}";
-    $paths = $this->storeMultipleFiles(
-        $request,
-        "releve_bac{$i}",
-        'releves',
-        $niveau,
-        $filePrefix
-    );
-
-    // On enregistre le premier ou null
-    $candidat->album()->update([
-        "releve_bac{$i}_path" => $paths[0] ?? null,
-    ]);
-}
-
-		// Relevés BAC (bac1, bac2)
-		// foreach ([1, 2] as $i) {
-		// 	$key = "releve_bac{$i}";
-		// 	$niveau = "bac{$i}";
-		// 	if ($request->hasFile($key)) {
-		// 		foreach ($request->file($key) as $file) {
-		// 			if (!$file) continue;
-		// 			$name = uniqid($filePrefix . '_') . '.' . $file->getClientOriginalExtension();
-		// 			$path = $file->storeAs("releves/{$niveau}", $name, 'public');
-		// 			$candidat->documents()->create([
-		// 				'type' => 'releve',
-		// 				'niveau' => $niveau,
-		// 				'path' => $path,
-		// 			]);
-		// 		}
-		// 	}
-		// }
-
+		// 4. Récupérer le type de diplôme
 		$type_diplome = $request->enum('type_diplome', TypeDiplomeEnum::class);
 
-		$candidat->album()->create(compact(
-			'lettre',
-			'naissance',
-			'diplome',
-			'nationalite',
-			'photo',
-			'type_diplome',
-			'certificat_medical',
-			'coupon',
-		));
-
-		// Alimente le dashboard des inscriptions
-		$docs = $candidat->documents()->get();
-		$bulletins = $docs->where('type', 'bulletin')->pluck('path')->values()->all();
-		$bac1 = $docs->firstWhere('type', 'releve')?->path;
-		$bac1 = $docs->firstWhere(fn($d) => $d->type === 'releve' && $d->niveau === 'bac1')?->path ?? $bac1;
-		$bac2 = $docs->firstWhere(fn($d) => $d->type === 'releve' && $d->niveau === 'bac2')?->path;
-
-		// Inscription::create([
-		// 	'numero_table' => $request->string('numero_table'),
-		// 	'annee_bac' => (int) $request->input('annee_bac'),
-		// 	'lettre_motivation' => $request->string('lettre_motivation'),
-		// 	'serie' => $request->string('serie'),
-		// 	'email' => $request->filled('email') ? $request->string('email') : null,
-		// 	'phone1' => $request->string('tel'),
-		// 	'phone2' => $request->string('tel2'),
-		// 	'phone3' => $request->string('tel3'),
-		// 	'tuteur_lieu' => $request->string('adresse_tuteur'),
-		// 	'accepte' => $request->boolean('accept_cgu') ? 'accepte' : 'refuse',
-		// 	'certificat_medical_path' => $certificat_medical ?: null,
-		// 	'bulletins_lycee_paths' => $bulletins,
-		// 	'releve_bac1_path' => $bac1 ?? null,
-		// 	'releve_bac2_path' => $bac2 ?? null,
-		// 	'status' => 'pending',
-		// ]);
+		// 5. CRÉER l'album UNE SEULE FOIS avec TOUTES les données
+		$candidat->album()->create([
+			'lettre' => $lettre,
+			'naissance' => $naissance,
+			'diplome' => $diplome,
+			'nationalite' => $nationalite,
+			'photo' => $photo,
+			'type_diplome' => $type_diplome,
+			'certificat_medical' => $certificat_medical,
+			'coupon' => $coupon,
+			'bulletins_lycee_paths' => !empty($allBulletins) ? json_encode($allBulletins) : null,
+			'releve_bac1_path' => $releve_bac1_path,
+			'releve_bac2_path' => $releve_bac2_path,
+		]);
 	}
+
 
 	public function payementCandidaturesStore(Request $request): RedirectResponse
 	{
@@ -391,5 +313,35 @@ foreach ([1, 2] as $i) {
 		return Filiere::query()->orderBy('nom')->get();
 	}
 
+public function reorienter(Request $request, Candidature $candidature)
+{
+    
+    $existe = Reorientation::where('candidature_id', $candidature->id)
+        ->where('annee_scolaire_id', $candidature->annee_scolaire_id)
+        ->exists();
+
+    if ($existe) {
+        return response()->json([
+            'message' => 'Une réorientation existe déjà pour cette année scolaire.'
+        ], 409);
+    }
+
+    Reorientation::create([
+        'candidature_id' => $candidature->id,
+        'filiere_id' => $candidature->filiere_id,
+        'niveau_id' => $candidature->niveau_id,
+        'motif' => $request->motif,
+        'annee_scolaire_id' => $candidature->annee_scolaire_id
+    ]);
+
+    $candidature->update([
+        'filiere_id' => $request->filiere_id,
+        'niveau_id' => $request->niveau_id
+    ]);
+
+    return response()->json([
+        'message' => 'Réorientation effectuée avec succès.'
+    ], 201);
+}
 
 }

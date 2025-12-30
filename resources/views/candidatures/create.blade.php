@@ -16,6 +16,7 @@
 
 <!-- [ Pre-loader ] End -->
 <form action="{{ route('candidatures.store') }}" method="post" id="candidature-form" enctype="multipart/form-data">
+	@csrf
 	<div class="auth-main">
 		<div class="auth-wrapper v3">
 			<div class="auth-form">

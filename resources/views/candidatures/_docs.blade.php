@@ -51,9 +51,8 @@
 				<label class="form-label" for="releve_bac1">Relevés BAC 1
 					<x-forms.required-field/>
 				</label>
-				<input class="form-control" type="file" id="releve_bac1" name="releve_bac1[]" multiple accept=".pdf,image/png,image/jpeg,image/jpg">
+				<input class="form-control" type="file" id="releve_bac1" name="releve_bac1[]"  accept=".pdf,image/png,image/jpeg,image/jpg">
 				{!! errorAlert($errors->first('releve_bac1'), 'releve_bac1') !!}
-				{!! errorAlert($errors->first('releve_bac1.*'), 'releve_bac1') !!}
 			</div>
 		</div>
 		<div class="col-12 col-md-6">
@@ -61,9 +60,8 @@
 				<label class="form-label" for="releve_bac2">Relevés BAC 2
 					<x-forms.required-field/>
 				</label>
-				<input class="form-control" type="file" id="releve_bac2" name="releve_bac2[]" multiple accept=".pdf,image/png,image/jpeg,image/jpg">
+				<input class="form-control" type="file" id="releve_bac2" name="releve_bac2[]"  accept=".pdf,image/png,image/jpeg,image/jpg">
 				{!! errorAlert($errors->first('releve_bac2'), 'releve_bac2') !!}
-				{!! errorAlert($errors->first('releve_bac2.*'), 'releve_bac2') !!}
 			</div>
 		</div>
 	</div>

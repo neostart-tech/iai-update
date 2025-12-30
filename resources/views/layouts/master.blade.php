@@ -207,6 +207,8 @@
 
 	@yield('other-js')
 
+	@include('layouts._scripts')
+
 </script>
     @stack("stepForm")
     

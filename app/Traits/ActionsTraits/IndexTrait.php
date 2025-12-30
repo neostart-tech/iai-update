@@ -19,6 +19,7 @@ trait IndexTrait
 				->where('frais_paye', false)
 				->where('participation', false)
 				->where('admission', false)
+				->whereDoesntHave('reorientations') 
 				->get(),
 				'niveaux'=>Niveau::all(),
 				'filieres'=>Filiere::all(),

@@ -63,6 +63,10 @@ class Candidature extends Authenticatable
 		return $this->hasMany(CandidatureDocument::class);
 	}
 
+	public function Reorientations(){
+		return $this->hasMany(Reorientation::class);
+	}
+
 	public function hasComplexSlug(): bool
 	{
 		return true;
