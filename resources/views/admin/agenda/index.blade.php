@@ -29,6 +29,12 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        function formatDateTimeLocal(date) {
+            const d = new Date(date);
+            const pad = n => n < 10 ? '0' + n : n;
+
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
 
         const calendarEl = document.getElementById('calendar');
 
@@ -40,6 +46,8 @@
             eventColor: '#ECFAFB',
             eventTextColor: '#3EC9D6',
             nowIndicator: true,
+            selectMirror: true,
+            allDaySlot: false,
             slotMinTime: '07:00:00',
             slotMaxTime: '21:00:00',
 
@@ -62,7 +70,7 @@
                             title: event.title,
                             start: event.start_time,
                             end: event.end_time,
-                            description: event.description || '' // ajouter description si existante
+                            description: event.description || ''
                         }));
                         successCallback(events);
                     })
@@ -72,12 +80,19 @@
                     });
             },
 
+
             select: function(info) {
                 document.getElementById('agendaForm').reset();
                 document.getElementById('agenda_id').value = '';
+
+                document.getElementById('start_time').value = formatDateTimeLocal(info.start);
+                document.getElementById('end_time').value = formatDateTimeLocal(info.end);
+                // Ouvrir modal
                 const modal = new bootstrap.Modal(document.getElementById('agendaModal'));
                 modal.show();
+                calendar.unselect();
             },
+
 
             eventClick: function(info) {
                 const modal = new bootstrap.Modal(document.getElementById('agendaModal'));
@@ -93,18 +108,15 @@
 
         calendar.render();
 
-        // Ouvrir modal "Nouvel événement"
         document.getElementById('openAgendaModalBtn').addEventListener('click', function() {
             document.getElementById('agendaForm').reset();
             document.getElementById('agenda_id').value = '';
             const modal = new bootstrap.Modal(document.getElementById('agendaModal'));
             modal.show();
         });
-
-        // Soumission formulaire
         document.getElementById('agendaForm').addEventListener('submit', async function(e) {
-             const modal = bootstrap.Modal.getInstance(document.getElementById('agendaModal'));
-                modal.hide();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('agendaModal'));
+            modal.hide();
             e.preventDefault();
 
             const id = document.getElementById('agenda_id').value;
@@ -124,7 +136,7 @@
 
                 if (!res.ok) throw new Error('Erreur lors de l\'enregistrement');
 
-               
+
 
                 calendar.refetchEvents();
                 Swal.fire('Succès', 'Événement enregistré avec succès', 'success');
@@ -135,7 +147,6 @@
             }
         });
 
-        // Supprimer un événement
         document.getElementById('deleteEventBtn').addEventListener('click', async function() {
             const modal = bootstrap.Modal.getInstance(
                 document.getElementById('agendaModal')
@@ -169,10 +180,6 @@
                     throw new Error('Erreur lors de la suppression');
                 }
 
-
-
-
-                // Rafraîchir le calendrier
                 calendar.refetchEvents();
 
                 Swal.fire({
