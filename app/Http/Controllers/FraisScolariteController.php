@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
@@ -6,6 +7,9 @@ use App\Models\FraisScolarite;
 use App\Models\Niveau;
 use App\Models\AnneeScolaire;
 use App\Enums\GenreEnum;
+use App\Http\Resources\AnneeScolaireResource;
+use App\Http\Resources\FraisScolariteResource;
+use App\Http\Resources\NiveauResource;
 use Illuminate\Http\Request;
 use App\Models\TranchePaiement;
 
@@ -16,7 +20,15 @@ class FraisScolariteController extends Controller
     {
         $frais = FraisScolarite::with(['anneeScolaire', 'niveau'])->get();
         $annees = AnneeScolaire::all();
-        $niveaux =Niveau::all();
+        $niveaux = Niveau::all();
+
+        // return response()->json(
+        //     [
+        //         "frais" => FraisScolariteResource::collection($frais),
+        //         "annees" => AnneeScolaireResource::collection($annees),
+        //         "niveaux" => NiveauResource::collection($niveaux),
+        //     ]
+        // );
 
         return view('comptabilite.frais.index', compact('frais', 'annees', 'niveaux'));
     }
@@ -30,24 +42,25 @@ class FraisScolariteController extends Controller
             'genre' => 'required|in:Masculin,Féminin,Tous',
             'description' => 'nullable|string|max:255',
         ]);
-        
+
         $anne = AnneeScolaire::where('active', true)->first()->getAttribute('id');
-        
+
         // Vérifier qu'il n'existe pas déjà des frais pour ce niveau et ce genre
         $existingFrais = FraisScolarite::where('annee_scolaire_id', $anne)
             ->where('niveau_id', $request->niveau_id)
             ->where('genre', $request->genre)
             ->first();
-            
+
         if ($existingFrais) {
             return redirect()->back()->withErrors(['genre' => 'Des frais existent déjà pour ce niveau et ce genre.']);
         }
-        
-        FraisScolarite::create([
+
+        $frais = FraisScolarite::create([
             "annee_scolaire_id" => $anne,
             ...$request->all()
         ]);
-        
+
+        // return new FraisScolariteResource($frais);
         return redirect()->route('comptable.frais.index')->with('success', 'Frais enregistré avec succès');
     }
 
@@ -59,11 +72,12 @@ class FraisScolariteController extends Controller
             'genre' => 'required|in:Masculin,Féminin,Tous',
             'description' => 'nullable|string|max:255',
         ]);
-        
+
         $frais = FraisScolarite::findOrFail($id);
-        
+
         $frais->update($request->all());
-        
+        // return new FraisScolariteResource($frais);
+
         return redirect()->route('comptable.frais.index')->with('success', 'Frais modifié avec succès');
     }
 
@@ -71,14 +85,19 @@ class FraisScolariteController extends Controller
     {
         $frais = FraisScolarite::findOrFail($id);
         $frais->delete();
-        
+
+        // return new FraisScolariteResource($frais);
+
+
         return redirect()->route('comptable.frais.index')->with('success', 'Frais supprimé avec succès');
     }
 
-    public function show($id){
-        $frais=FraisScolarite::find($id);
-        $tranches=TranchePaiement::where('frais_scolarite_id',$id)->latest()->get();
-       
-        return view('comptabilite.Tranche._index',compact('tranches','frais'));
+    public function show($id)
+    {
+        $frais = FraisScolarite::find($id)->load('tranchepaiement');
+        $tranches = TranchePaiement::where('frais_scolarite_id', $id)->latest()->get();
+        // return new FraisScolariteResource($frais);
+
+        return view('comptabilite.Tranche._index', compact('tranches', 'frais'));
     }
 }

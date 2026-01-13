@@ -4,15 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Enums\TypeDiplomeEnum;
 use App\Http\Requests\Candidature\StoreRequest;
+use App\Http\Resources\CandidatureResource;
 use App\Notifications\Candidatures\CandidatAbsentNotification;
 use App\Notifications\Candidatures\CandidatPresentNotification;
 use App\Jobs\{CandidatureFraisPayementJob, ConcoursResultJob, SmsSendingProcess};
-use App\Models\{Candidature, CandidatureDocument, Inscription, Reorientation};
+use App\Models\{AnneeScolaire, Candidature, CandidatureDocument, Etudiant, FraisInscription, Group, Inscription, Paiement, Reorientation};
 use App\Notifications\Candidatures\CandidatWelcomeNotification;
 use App\Traits\ActionsTraits\{IndexTrait, CandidatureFirstValidationTrait};
 use App\Traits\FileManagementTrait;
 use App\Models\Niveau;
 use App\Models\Filiere;
+use App\Notifications\Candidatures\CandidatAccountLockNotification;
+use App\Notifications\Candidatures\CandidatToEtudiantWelcomeNotification;
 use Illuminate\Http\{RedirectResponse, Request, Response};
 use Illuminate\Support\Facades\{Auth, Hash};
 use Illuminate\Support\Str;
@@ -38,9 +41,11 @@ class CandidatureController extends Controller
 	private const RELEVE_BAC_2 = 'releve_bac_2';
 
 
-	public function show(Candidature $candidature): View
+	public function show(Candidature $candidature)
 	{
 		$candidature->load(['documents', 'album']);
+
+		// return new  CandidatureResource($candidature);
 
 		return view('admin.candidatures.show', compact('candidature'))->with([
 			'album' => $candidature->album,
@@ -302,6 +307,93 @@ class CandidatureController extends Controller
 		return back();
 	}
 
+	public function insertStudent(Candidature $candidature)
+	{
+
+		$fraisInscription = FraisInscription::latest()->first();
+		$anneId = AnneeScolaire::where('active', true)->pluck('id')->first();
+
+		$group = Group::where('filiere_id', $candidature->filiere_id)->first();
+
+		if (!$candidature) {
+			return;
+		}
+		// dump("Etudiant: " . $candidature->getAttribute('nom') . ' ' . $candidature->getAttribute('prenom'));
+		$etudiant = Etudiant::create([
+			'nom' => $candidature->getAttribute('nom'),
+			'nom_jeune_fille' => $candidature->getAttribute('nom_jeune_fille'),
+			'prenom' => $candidature->getAttribute('prenom'),
+			'genre' => $candidature->getAttribute('genre'),
+			'date_naissance' => $candidature->getAttribute('date_naissance'),
+			'lieu_naissance' => $candidature->getAttribute('lieu_naissance'),
+			'nationalite' => $candidature->getAttribute('nationalite'),
+			'tel' => $candidature->getAttribute('tel'),
+			'email' => $candidature->getAttribute('email'),
+			'password' => $candidature->getAttribute('password'),
+			'image' => config('images.etudiants.woman'),
+			'annee_admission' => $year = today()->year,
+			'matricule' => Str::upper($year . '_' . fake()->unique()->randomNumber(6, true)),
+		]);
+
+		$etudiant->groups()->attach(
+			 $group->id,
+			[
+				"annee_scolaire_id" => $anneId
+			]
+		);
+		$etudiant->niveaux()->attach(
+			$candidature->niveau_id,
+			[
+				"annee_scolaire_id" => $anneId
+			]
+
+		);
+
+		Paiement::create([
+			"etudiant_id"=>$etudiant->id,
+			"montant" => $fraisInscription->montant,
+			"mode_paiement" => "caisse",
+			"reference" => random_int(1000000,99999999),
+			"status" => "valide",
+			"date_paiement" => now(),
+			"payable_type" => FraisInscription::class,
+			"payable_id" => $fraisInscription->id
+		]);
+
+
+
+		$updatedData = [
+			'owner_id' => $etudiant->getAttribute('id'),
+			'owner_type' => Etudiant::class,
+		];
+
+		$candidature->album->update($updatedData);
+
+		$candidature->responsable->update($updatedData);
+
+		$candidature->tuteur->update($updatedData);
+
+		$candidature->update([
+			'etudiant_id' => $etudiant->getAttribute('id'),
+			'acceptation_date' => $now = now(),
+			'end_accessibility_date' => $endAccessibilityDate = $now->addDays(3)
+		]);
+
+		return back()->with('success', "Etudiant inscript avec succes");
+
+		// $etudiant->notify(new CandidatToEtudiantWelcomeNotification($etudiant->greeting()));
+		// $message = $candidature->greeting();
+		// $message .= '. Suite à votre admission à ' . ' ' . AppGetters::getAppName() ? AppGetters::getAppName() : "Laravel"  . ', vous avez désormais un compte étudiant. 
+		// 		Ce espace candidat vous sera accessible jusqu\'au ' . $endAccessibilityDate->translatedFormat('d F Y')
+		// 	. '. L\'accès à votre espace étudiant se fait avec les identifiants du présent compte candidat.';
+
+		// $candidature->notify(new CandidatAccountLockNotification($message));
+		// // Msg("Operations  effectué avec succees pour:  " . $candidature->getAttribute('nom') . ' ' . $candidature->getAttribute('prenom'));
+
+
+
+	}
+
 
 	public function getNiveaux()
 	{
@@ -313,35 +405,34 @@ class CandidatureController extends Controller
 		return Filiere::query()->orderBy('nom')->get();
 	}
 
-public function reorienter(Request $request, Candidature $candidature)
-{
-    
-    $existe = Reorientation::where('candidature_id', $candidature->id)
-        ->where('annee_scolaire_id', $candidature->annee_scolaire_id)
-        ->exists();
+	public function reorienter(Request $request, Candidature $candidature)
+	{
 
-    if ($existe) {
-        return response()->json([
-            'message' => 'Une réorientation existe déjà pour cette année scolaire.'
-        ], 409);
-    }
+		$existe = Reorientation::where('candidature_id', $candidature->id)
+			->where('annee_scolaire_id', $candidature->annee_scolaire_id)
+			->exists();
 
-    Reorientation::create([
-        'candidature_id' => $candidature->id,
-        'filiere_id' => $candidature->filiere_id,
-        'niveau_id' => $candidature->niveau_id,
-        'motif' => $request->motif,
-        'annee_scolaire_id' => $candidature->annee_scolaire_id
-    ]);
+		if ($existe) {
+			return response()->json([
+				'message' => 'Une réorientation existe déjà pour cette année scolaire.'
+			], 409);
+		}
 
-    $candidature->update([
-        'filiere_id' => $request->filiere_id,
-        'niveau_id' => $request->niveau_id
-    ]);
+		Reorientation::create([
+			'candidature_id' => $candidature->id,
+			'filiere_id' => $candidature->filiere_id,
+			'niveau_id' => $candidature->niveau_id,
+			'motif' => $request->motif,
+			'annee_scolaire_id' => $candidature->annee_scolaire_id
+		]);
 
-    return response()->json([
-        'message' => 'Réorientation effectuée avec succès.'
-    ], 201);
-}
+		$candidature->update([
+			'filiere_id' => $request->filiere_id,
+			'niveau_id' => $request->niveau_id
+		]);
 
+		return response()->json([
+			'message' => 'Réorientation effectuée avec succès.'
+		], 201);
+	}
 }

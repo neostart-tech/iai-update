@@ -78,18 +78,18 @@ class Evaluation extends Model
     public function getDataAsString(): string
     {
         return
-            $this->getAttribute('type')->value.' de '.$this->matiere->getAttribute('nom').' le '.
-            $this->getAttribute('debut')->translatedFormat('d F Y').' de '.
-            $this->getAttribute('debut')->translatedFormat('H:i').' à '.$this->getAttribute('fin')
-                ->translatedFormat('H:i').' dans la salle '.$this->salle->getAttribute('nom').
+            $this->getAttribute('type')->value . ' de ' . $this->matiere->getAttribute('nom') . ' le ' .
+            $this->getAttribute('debut')->translatedFormat('d F Y') . ' de ' .
+            $this->getAttribute('debut')->translatedFormat('H:i') . ' à ' . $this->getAttribute('fin')
+            ->translatedFormat('H:i') . ' dans la salle ' . $this->salle->getAttribute('nom') .
             '.';
     }
 
     public function getInformationsForMessaging(): string
     {
         return
-            $this->getAttribute('type')->value.' de '.$this->matiere->getAttribute('nom')." qui s'est tenu aujourd'hui de ".
-            $this->getAttribute('debut')->format('H:i').' à '.$this->getAttribute('fin')->format('H:i');
+            $this->getAttribute('type')->value . ' de ' . $this->matiere->getAttribute('nom') . " qui s'est tenu aujourd'hui de " .
+            $this->getAttribute('debut')->format('H:i') . ' à ' . $this->getAttribute('fin')->format('H:i');
     }
 
     public function notes(): HasMany
@@ -114,6 +114,32 @@ class Evaluation extends Model
 
     public function emploiDutemp()
     {
-        return $this->belongsTo(EmploiDuTemp::class,'emploi_du_temps_id');
+        return $this->belongsTo(EmploiDuTemp::class, 'emploi_du_temps_id');
+    }
+
+    public function caseStudyContext()
+    {
+        return $this->hasOne(EvaluationCaseStudyContext::class);
+    }
+
+     public function parts(): HasMany
+    {
+        return $this->hasMany(Part::class)->orderBy('order');
+    }
+
+    /**
+     * Récupérer toutes les questions à travers les parties
+     */
+    public function allQuestions()
+    {
+        return $this->hasManyThrough(
+            EvaluationQuestion::class,
+            Part::class,
+            'evaluation_id', // Clé étrangère sur parts
+            'part_id',       // Clé étrangère sur evaluation_questions
+            'id',            // Clé locale sur evaluations
+            'id'             // Clé locale sur parts
+        );
     }
 }
+

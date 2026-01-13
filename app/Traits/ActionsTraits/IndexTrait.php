@@ -6,23 +6,43 @@ use App\Models\Candidature;
 use App\Models\Group;
 use Illuminate\View\View;
 use App\Helpers\ConfigHelper as AppGetters;
+use App\Http\Resources\CandidatureResource;
 use App\Models\Filiere;
 use App\Models\Niveau;
 
 trait IndexTrait
 {
-	public function index(): View
+	public function index()
 	{
+		// $simpleCandidatures = Candidature::query()
+		// 	->where('dossier_valide', false)
+		// 	->whereNull('motif')
+		// 	->where('frais_paye', false)
+		// 	->where('participation', false)
+		// 	->where('admission', false)
+		// 	->whereDoesntHave('reorientations')
+		// 	->get();
+		// return CandidatureResource::collection($simpleCandidatures)
+		// 	->additional([
+		// 		'niveaux' => Niveau::all(),
+		// 		'filieres' => Filiere::all(),
+		// 		'metaData' => [
+		// 			'title' => 'Liste des candidatures',
+		// 			'breadcrumbs' => ['Administration', 'Candidatures', 'Liste'],
+		// 			'page_name' => 'Liste des candidatures',
+		// 		],
+		// 		'viewContent' => '_simple-candidatures',
+		// 	]);
 		return view('admin.candidatures.index')->with([
 			'simpleCandidatures' => Candidature::query()->where('dossier_valide', false)
 				->whereNull('motif')
 				->where('frais_paye', false)
 				->where('participation', false)
 				->where('admission', false)
-				->whereDoesntHave('reorientations') 
+				->whereDoesntHave('reorientations')
 				->get(),
-				'niveaux'=>Niveau::all(),
-				'filieres'=>Filiere::all(),
+			'niveaux' => Niveau::all(),
+			'filieres' => Filiere::all(),
 			'metaData' => [
 				'title' => 'Liste des candidatures',
 				'breadcrumbs' => ['Administration', 'Candidatures', 'Liste'],
@@ -33,8 +53,17 @@ trait IndexTrait
 	}
 
 
-	public function payementCandidaturesIndex(): View
+	public function payementCandidaturesIndex()
 	{
+		//  $payementCandidatures = Candidature::query()
+		// ->where('dossier_valide', true)
+		// ->whereNull('motif')
+		// ->where('frais_paye', false)
+		// ->where('participation', false)
+		// ->where('admission', false)
+		// ->get();
+		//  return CandidatureResource::collection($payementCandidatures);
+
 		return view('admin.candidatures.index')->with([
 			'payementCandidatures' => Candidature::query()->where('dossier_valide', true)
 				->whereNull('motif')
@@ -51,14 +80,21 @@ trait IndexTrait
 		]);
 	}
 
-	public function participantCandidaturesIndex(): View
+	public function participantCandidaturesIndex()
 	{
+
+		// return CandidatureResource::collection(Candidature::query()
+		// 		->where('dossier_valide', true)
+		// 		->where('frais_paye', true)
+		// 		->where('participation', false)
+		// 		->where('admission', false)
+		// 		->whereNull('motif')
+		// 		->get());
 		return view('admin.candidatures.index')->with([
 			'participantCandidatures' => Candidature::query()
 				->where('dossier_valide', true)
 				->where('frais_paye', true)
 				->where('participation', false)
-				->whereNull('participation_date')
 				->where('admission', false)
 				->whereNull('motif')
 				->get(),
@@ -71,8 +107,35 @@ trait IndexTrait
 		]);
 	}
 
-	public function admisCandidaturesIndex(): View
+	public function admisCandidaturesIndex()
 	{
+		$admisCandidatures = Candidature::query()
+			->where('dossier_valide', true)
+			->whereNotNull('validation_date')
+			->where('frais_paye', true)
+			->whereNotNull('frai_paye_date')
+			->where('participation', true)
+			->whereNotNull('participation_date')
+			->where('admission', false)
+			->whereNull('admission_date')
+			->whereNull('motif')
+			->orderBy('nom')
+			->orderBy('prenom')
+			->get();
+
+		$title = 'Admission à ' . AppGetters::getAppName();
+
+		// return CandidatureResource::collection($admisCandidatures)
+		// 	->additional([
+		// 		'metaData' => [
+		// 			'title' => $title,
+		// 			'breadcrumbs' => ['Administration', 'Candidatures', $title],
+		// 			'page_name' => $title,
+		// 		],
+		// 		'viewContent' => '_admission-validation',
+		// 	]);
+
+
 		return view('admin.candidatures.index')->with([
 			'admisCandidatures' => Candidature::query()
 				->where('dossier_valide', true)
@@ -96,6 +159,118 @@ trait IndexTrait
 		]);
 	}
 
+
+	public function InscriptionCandidaturesIndex()
+	{
+		$candidatures = Candidature::query()
+			->where('dossier_valide', true)
+			->whereNotNull('validation_date')
+			->where('frais_paye', true)
+			->whereNotNull('frai_paye_date')
+			->where('participation', true)
+			->whereNotNull('participation_date')
+			->where('admission', true)
+			->whereNotNull('admission_date')
+			->whereNull('motif')
+			->orderBy('nom')
+			->orderBy('prenom')
+			->get();
+
+		$title = 'Inscription à ' . AppGetters::getAppName();
+
+		// return CandidatureResource::collection($candidatures)
+		// 	->additional([
+		// 		'metaData' => [
+		// 			'title' => $title,
+		// 			'breadcrumbs' => ['Administration', 'Candidatures', $title],
+		// 			'page_name' => $title,
+		// 		],
+
+		// 	]);
+
+
+		return view('admin.candidatures.index')->with([
+			'candidatures' =>  Candidature::query()
+				->where('dossier_valide', true)
+				->whereNotNull('validation_date')
+				->where('frais_paye', true)
+				->whereNotNull('frai_paye_date')
+				->where('participation', true)
+				->whereNotNull('participation_date')
+				->where('admission', true)
+				->whereNotNull('admission_date')
+				->whereNull('motif')
+				->where(function ($query) {
+					$query->whereDoesntHave('etudiant')
+						->orWhereHas('etudiant', function ($q) {
+							$q->whereDoesntHave('groups');
+						});
+				})
+				->orderBy('nom')
+				->orderBy('prenom')
+				->get(),
+			'metaData' => [
+				'title' => $title = 'Inscription à ' . AppGetters::getAppName(),
+				'breadcrumbs' => ['Administration', 'Candidatures', $title],
+				'page_name' => $title
+			],
+			"viewContent" => '_liste_des_amis'
+		]);
+	}
+
+
+	public function InscriptsCandidaturesIndex()
+	{
+		$admisCandidatures = Candidature::query()
+			->where('dossier_valide', true)
+			->whereNotNull('validation_date')
+			->where('frais_paye', true)
+			->whereNotNull('frai_paye_date')
+			->where('participation', true)
+			->whereNotNull('participation_date')
+			->where('admission', false)
+			->whereNull('admission_date')
+			->whereNull('motif')
+			->orderBy('nom')
+			->orderBy('prenom')
+			->get();
+
+		$title = 'Admission à ' . AppGetters::getAppName();
+
+		// return CandidatureResource::collection($admisCandidatures)
+		// 	->additional([
+		// 		'metaData' => [
+		// 			'title' => $title,
+		// 			'breadcrumbs' => ['Administration', 'Candidatures', $title],
+		// 			'page_name' => $title,
+		// 		],
+		// 		'viewContent' => '_admission-validation',
+		// 	]);
+
+
+		return view('admin.candidatures.index')->with([
+			'admisCandidatures' => Candidature::query()
+				->where('dossier_valide', true)
+				->whereNotNull('validation_date')
+				->where('frais_paye', true)
+				->whereNotNull('frai_paye_date')
+				->where('participation', true)
+				->whereNotNull('participation_date')
+				->where('admission', true)
+				->whereNotNull('admission_date')
+				->whereNull('motif')
+				->orderBy('nom')
+				->orderBy('prenom')
+				->get(),
+			'metaData' => [
+				'title' => $title = 'Admission à ' . AppGetters::getAppName(),
+				'breadcrumbs' => ['Administration', 'Candidatures', $title],
+				'page_name' => $title
+			],
+			"viewContent" => '_admission-validation'
+		]);
+	}
+
 	public function rectificationIndex(): View
 	{
 		return view('admin.candidatures.rejection-index')->with([
@@ -105,7 +280,7 @@ trait IndexTrait
 			'breadcrumbs' => [
 				'Administration',
 				[
-					'url' => route('admin.candidatures.index'),
+					'url' => route('admin.candidatures.f'),
 					'text' => 'Candidatures',
 				],
 				'Liste des candidatures en attente de rectification'
@@ -133,7 +308,7 @@ trait IndexTrait
 
 	public function showGroupClassAssignmentView(Group $group): View
 	{
-		$candidatures=Candidature::query()
+		$candidatures = Candidature::query()
 			->where('dossier_valide', true)
 			->where('frais_paye', true)
 			->where('participation', true)
@@ -143,8 +318,8 @@ trait IndexTrait
 			->whereNull('etudiant_id')
 			->get();
 
-			$candidatures = $candidatures->where('filiere_id', $group->filiere_id);
+		$candidatures = $candidatures->where('filiere_id', $group->filiere_id);
 
-		return view('admin.candidatures.class-assignment', compact('group','candidatures'));
+		return view('admin.candidatures.class-assignment', compact('group', 'candidatures'));
 	}
 }

@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\{BelongsToMany, HasMany, HasManyThrou
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @method static self create(array $attributes)
@@ -81,7 +82,7 @@ class User extends Authenticatable
 		return $this->roles->count() > 0 ? $this->roles->pluck('id') : collect();
 	}
 
-   
+
 
 
 	/**
@@ -115,7 +116,7 @@ class User extends Authenticatable
 		return static::query()->whereRelation('roles', fn(Builder $builder) => $builder->whereIn('role_id', static::$enseignantRolesId));
 	}
 
-	
+
 
 	public static function surveillants(): Builder
 	{
@@ -184,7 +185,16 @@ class User extends Authenticatable
 	}
 
 	public function clubsEncadres()
-{
-    return $this->hasMany(Club::class, 'responsable_id');
-}
+	{
+		return $this->hasMany(Club::class, 'responsable_id');
+	}
+
+	public function ImagePath()
+	{
+
+		return asset(Storage::url($this->image));
+	}
+
+
+	
 }

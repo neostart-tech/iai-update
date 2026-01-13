@@ -5,14 +5,19 @@ namespace App\Http\Controllers;
 use App\Enums\TypeEvaluationEnum;
 use App\Http\Controllers\Admin\NoteController;
 use App\Http\Requests\EvaluationRequest;
+use App\Http\Resources\EvaluationResource;
+use App\Http\Resources\EvaluationStudentResource;
+use App\Http\Resources\UserResource;
 use App\Jobs\NotifyStudentsAboutEvaluation;
 use App\Models\EmploiDuTemp;
 use App\Models\Evaluation;
 use App\Models\EvaluationAnswer;
+use App\Models\EvaluationCaseStudyContext;
 use App\Models\EvaluationQuestion;
 use App\Models\EvaluationQuestionOption;
 use App\Models\EvaluationSubmission;
 use App\Models\Group;
+use App\Models\Part;
 use App\Models\Salle;
 use App\Models\User;
 use Illuminate\Contracts\Routing\ResponseFactory;
@@ -21,13 +26,16 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Throwable;
 
 class EvaluationController extends Controller
 {
-    public function index(): View
+    public function index()
     {
         return view('admin.evaluations.index')->with([
             'evaluations' => Evaluation::query()
@@ -49,10 +57,36 @@ class EvaluationController extends Controller
                 }),
             'enseignants' => User::all(),
         ]);
+        // $evaluations = Evaluation::query()
+        //     ->with([
+        //         'salle:id,nom',
+        //         'group:id,nom,filiere_id',
+        //         'group.filiere:id,code',
+        //         'matiere:id,nom,code',
+        //         'fiche.surveillants',
+        //     ])
+        //     ->orderByDesc('debut')
+        //     ->get();
+
+        // return response()->json([
+        //     'evaluations' => EvaluationResource::collection($evaluations),
+        //     'enseignants' => UserResource::collection(User::all()),
+        // ]);
     }
 
-    public function create(): View
+    public function create()
     {
+        //   $evaluations = Evaluation::query()
+        //     ->with([
+        //         'salle:id,nom',
+        //         'group.filiere',
+        //         'matiere',
+        //         'fiche.surveillants',
+        //     ])
+        //     ->orderByDesc('debut')
+        //     ->get();
+
+        //     return EvaluationResource::collection($evaluations);
         return view('admin.evaluations.create')->with([
             'evaluation' => new Evaluation([
                 'debut' => '12:00',
@@ -66,7 +100,7 @@ class EvaluationController extends Controller
         ]);
     }
 
-    public function store(EvaluationRequest $request): RedirectResponse
+    public function store(EvaluationRequest $request)
     {
         // dd('Ceci est un test');
         $evaluation = Evaluation::create([
@@ -91,6 +125,7 @@ class EvaluationController extends Controller
             NotifyStudentsAboutEvaluation::dispatch($evaluation);
         }
 
+        // return new EvaluationResource($evaluation);
         return to_route('admin.evaluations.index')->with(successMsg('Évaluation enregistrée avec succès'));
     }
 
@@ -120,7 +155,7 @@ class EvaluationController extends Controller
         ]);
     }
 
-    public function update(EvaluationRequest $request, Evaluation $evaluation): RedirectResponse
+    public function update(EvaluationRequest $request, Evaluation $evaluation)
     {
         $evaluation->setAllWaysUpdate(false);
         $evaluation->update([
@@ -147,6 +182,9 @@ class EvaluationController extends Controller
         successMsg('Évaluation mise à jour avec succès');
 
         return to_route('admin.evaluations.index');
+
+        // return new EvaluationResource($evaluation);
+
     }
 
     public function publish(string $slug): Application|Response|ResponseFactory
@@ -170,6 +208,9 @@ class EvaluationController extends Controller
         } catch (Throwable $exception) {
             return __500($exception->getMessage());
         }
+
+        // return new EvaluationResource($evaluation);
+
 
         return response([
             'message' => 'Annonce d\'évaluation publiée avec succès.',
@@ -203,7 +244,21 @@ class EvaluationController extends Controller
             ->get();
 
         return view('etudiants.my-space.evaluations.index', compact('evaluations'));
+        // $groupIds = auth()->user()->groups->pluck('id');
 
+        // $evaluations = Evaluation::query()
+        //     ->whereIn('group_id', $groupIds)
+        //     ->with([
+        //         'salle',
+        //         'group',
+        //         'submissions',
+        //         'emploiDutemp',
+        //     ])
+        //     ->where('is_online', true)
+        //     ->orderBy('date', 'asc')
+        //     ->get();
+
+        // return EvaluationStudentResource::collection($evaluations);
     }
 
     // public function startEvaluationview($id)
@@ -298,7 +353,7 @@ class EvaluationController extends Controller
         }
 
         try {
-            \DB::beginTransaction();
+            DB::beginTransaction();
 
             // Récupérer ou créer la soumission
             $submission = EvaluationSubmission::firstOrCreate(
@@ -320,7 +375,7 @@ class EvaluationController extends Controller
 
             // Sauvegarder ou mettre à jour les réponses
             foreach ($evaluation->questions as $question) {
-                $field = 'question_'.$question->id;
+                $field = 'question_' . $question->id;
 
                 if (! $request->has($field)) {
                     // Si aucune réponse pour cette question, supprimer l'ancienne réponse si elle existe
@@ -382,12 +437,11 @@ class EvaluationController extends Controller
                 }
             }
 
-            \DB::commit();
+            DB::commit();
 
             return redirect()->back()->with('success', 'Votre évaluation a bien été envoyée.');
-
         } catch (\Exception $e) {
-            \DB::rollBack();
+            DB::rollBack();
 
             return redirect()->back()->withErrors([
                 'error' => 'Une erreur est survenue lors de l\'enregistrement de vos réponses.',
@@ -426,7 +480,7 @@ class EvaluationController extends Controller
 
         foreach ($evaluation->questions as $question) {
 
-            $field = 'question_'.$question->id;
+            $field = 'question_' . $question->id;
 
             if (! $request->has($field)) {
                 continue;
@@ -492,28 +546,132 @@ class EvaluationController extends Controller
         $evaluation->load(['submissions.etudiant', 'questions.options']);
         // return view('enseignants.evaluations.submissions', compact('evaluation'));
     }
+    // public function createQuestionEvaluation($id)
+    // {
+    //     $emploiDuTemp = EmploiDuTemp::findOrFail($id);
 
+    //     // Récupérer l'évaluation avec TOUTES les relations nécessaires
+    //     $evaluation = Evaluation::where('emploi_du_temps_id', $emploiDuTemp->id)
+    //         ->with([
+    //             'questions.options', // Questions et leurs options
+    //             'questions' => function ($query) {
+    //                 // Trier par partie et par ordre
+    //                 $query->orderByRaw('CASE WHEN part IS NULL THEN 1 ELSE 0 END')
+    //                     ->orderBy('part')
+    //                     ->orderBy('order_in_part');
+    //             },
+    //             'caseStudyContext' // Contexte d'étude de cas
+    //         ])
+    //         ->first();
+
+    //     return response()->json([
+    //         'evaluation' => $evaluation,
+    //     ]);
+
+    //     \Log::info('Évaluation chargée pour création de questions : ', ['evaluation' => $evaluation]);
+
+    //     return view('professeurs.evaluations.evaluations-question-form', compact('emploiDuTemp', 'evaluation'));
+    // }
     public function createQuestionEvaluation($id)
     {
 
         $emploiDuTemp = EmploiDuTemp::findOrFail($id);
+
+        // Récupérer l'évaluation avec la NOUVELLE structure (contexte dans chaque partie)
         $evaluation = Evaluation::where('emploi_du_temps_id', $emploiDuTemp->id)
-            ->with('questions.options')
+            ->with([
+                'parts' => function ($query) {
+                    $query->orderBy('order')
+                        ->with([
+                            'questions' => function ($q) {
+                                $q->orderBy('order_in_part')
+                                    ->with('options');
+                            },
+                            'caseStudyContext' // Charger le contexte de chaque partie
+                        ]);
+                }
+            ])
             ->first();
 
-        return view('professeurs.evaluations.evaluations-question-form', compact('emploiDuTemp', 'evaluation'));
+        // Formater les données pour le frontend
+        $formattedEvaluation = null;
+
+        if ($evaluation) {
+            $formattedEvaluation = [
+                'id' => $evaluation->id,
+                'parts' => $evaluation->parts->map(function ($part) {
+                    return [
+                        'id' => $part->id,
+                        'identifier' => $part->identifier,
+                        'title' => $part->title,
+                        'question_type' => $part->question_type,
+                        'order' => $part->order,
+                        'description' => $part->description,
+                        'case_study_context' => $part->caseStudyContext ? [
+                            'problematic' => $part->caseStudyContext->problematic,
+                            'resources' => $part->caseStudyContext->resources,
+                            'instructions' => $part->caseStudyContext->instructions,
+                        ] : null,
+                        'questions' => $part->questions->map(function ($question) {
+                            return [
+                                'id' => $question->id,
+                                'title' => $question->title,
+                                'statement' => $question->statement,
+                                'type' => $question->type,
+                                'points' => $question->points,
+                                'order_in_part' => $question->order_in_part,
+                                'options_text' => $question->options->map(function ($option) {
+                                    return ['label' => $option->label];
+                                })->toArray()
+                            ];
+                        })->toArray()
+                    ];
+                })->toArray()
+            ];
+        }
+        // \Log::info('Évaluation chargée pour création de questions', [
+        //     'parts_count' => $evaluation?->parts->count() ?? 0,
+        //     "evalutions"=>$formattedEvaluation,
+        // ]);
+
+        // return response()->json([
+        //     'evaluation' => $formattedEvaluation,
+        // ]);
+
+        // Pour la vue Blade :
+        return view('professeurs.evaluations.evaluations-question-form', [
+            'emploiDuTemp' => $emploiDuTemp,
+            'evaluation' => $formattedEvaluation
+        ]);
     }
+
 
     public function StoreEvaluationQuestion(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'questions' => 'required|array',
-            'questions.*.title' => 'required|string|max:255',
-            'questions.*.statement' => 'required|string',
-            'questions.*.type' => 'required|in:text,textarea,choice_single,choice_multiple',
-            'questions.*.options_text' => 'nullable|array',
-            'questions.*.options_text.*.label' => 'required|string|max:255',
-            'questions.*.points' => 'nullable|numeric|min:0',
+            'parts' => 'required|array|min:1',
+            'parts.*.identifier' => 'required|string|max:10',
+            'parts.*.title' => 'required|string|max:100',
+            'parts.*.question_type' => 'required|in:text,textarea,choice_single,choice_multiple',
+            'parts.*.order' => 'required|integer',
+            'parts.*.description' => 'nullable|string',
+            'parts.*.has_case_study_context' => 'nullable|boolean',
+
+            // Validation conditionnelle pour le contexte
+            'parts.*.case_study_context' => 'nullable|array|required_if:parts.*.has_case_study_context,true',
+            'parts.*.case_study_context.problematic' => 'nullable|string|required_if:parts.*.has_case_study_context,true',
+            'parts.*.case_study_context.resources' => 'nullable|string',
+            'parts.*.case_study_context.instructions' => 'nullable|string',
+
+            'parts.*.questions' => 'required|array|min:1',
+            'parts.*.questions.*.title' => 'required|string|max:255',
+            'parts.*.questions.*.statement' => 'required|string',
+            'parts.*.questions.*.type' => 'required|in:text,textarea,choice_single,choice_multiple',
+            'parts.*.questions.*.points' => 'required|numeric|min:0',
+            'parts.*.questions.*.order_in_part' => 'required|integer',
+
+            'parts.*.questions.*.options_text' => 'nullable|array',
+            'parts.*.questions.*.options_text.*.label' => 'required|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -527,146 +685,23 @@ class EvaluationController extends Controller
         try {
             $emploiDuTemp = EmploiDuTemp::findOrFail($id);
 
-            \DB::beginTransaction();
+            DB::beginTransaction();
 
-            // Vérifier si une évaluation existe déjà pour cet emploi du temps
+            // Vérifier si une évaluation existe déjà
             $evaluation = Evaluation::where('emploi_du_temps_id', $emploiDuTemp->id)->first();
 
             if ($evaluation) {
-                // MISE À JOUR - L'évaluation existe déjà
+                // MISE À JOUR
                 $action = 'updated';
-
-                // Récupérer les IDs des questions existantes
-                $existingQuestionIds = $evaluation->questions->pluck('id')->toArray();
-                $newQuestionIds = [];
-
-                // Mettre à jour ou créer les questions
-                foreach ($request->questions as $questionData) {
-                    // Si la question a un ID existant, on la met à jour, sinon on la crée
-                    if (isset($questionData['id']) && in_array($questionData['id'], $existingQuestionIds)) {
-                        $question = EvaluationQuestion::find($questionData['id']);
-                        $question->title = $questionData['title'];
-                        $question->statement = $questionData['statement'];
-                        $question->type = $questionData['type'];
-                        $question->points = $questionData['points'] ?? 0;
-                        $question->save();
-
-                        $newQuestionIds[] = $question->id;
-
-                        // Gestion des options selon le type de question
-                        if (in_array($questionData['type'], ['choice_single', 'choice_multiple'])) {
-                            // Si c'est une question à choix, mettre à jour les options
-                            if (isset($questionData['options_text'])) {
-                                // Supprimer les anciennes options
-                                $question->options()->delete();
-
-                                // Créer les nouvelles options
-                                foreach ($questionData['options_text'] as $optionData) {
-                                    $option = new EvaluationQuestionOption;
-                                    $option->question_id = $question->id;
-                                    $option->label = $optionData['label'];
-                                    $option->is_correct = false;
-                                    $option->save();
-                                }
-                            }
-                        } else {
-                            // Si la question devient de type texte, supprimer toutes les options
-                            $question->options()->delete();
-                        }
-
-                    } else {
-                        // Nouvelle question
-                        $question = new EvaluationQuestion;
-                        $question->evaluation_id = $evaluation->id;
-                        $question->title = $questionData['title'];
-                        $question->statement = $questionData['statement'];
-                        $question->type = $questionData['type'];
-                        $question->points = $questionData['points'] ?? 0;
-                        $question->save();
-
-                        $newQuestionIds[] = $question->id;
-
-                        // Créer les options si c'est une question à choix
-                        if (in_array($questionData['type'], ['choice_single', 'choice_multiple']) && isset($questionData['options_text'])) {
-                            foreach ($questionData['options_text'] as $optionData) {
-                                $option = new EvaluationQuestionOption;
-                                $option->question_id = $question->id;
-                                $option->label = $optionData['label'];
-                                $option->is_correct = false;
-                                $option->save();
-                            }
-                        }
-                    }
-                }
-
-                // Supprimer les questions qui n'existent plus dans la nouvelle soumission
-                $questionsToDelete = array_diff($existingQuestionIds, $newQuestionIds);
-                if (! empty($questionsToDelete)) {
-                    EvaluationQuestion::whereIn('id', $questionsToDelete)->each(function ($question) {
-                        // Supprimer d'abord les options
-                        $question->options()->delete();
-                        // Puis supprimer la question
-                        $question->delete();
-                    });
-                }
-
+                $this->updateEvaluation($evaluation, $request->parts);
             } else {
-                // CRÉATION - Nouvelle évaluation
+                // CRÉATION
                 $action = 'created';
-
-                // Vérifier à nouveau pour éviter les doublons (sécurité supplémentaire)
-                $existingEvaluation = Evaluation::where('emploi_du_temps_id', $emploiDuTemp->id)->first();
-
-                if ($existingEvaluation) {
-                    // Si une évaluation a été créée entre-temps, utiliser celle-ci
-                    $evaluation = $existingEvaluation;
-                    $action = 'updated';
-                } else {
-                    // Créer la nouvelle évaluation
-                    $evaluation = Evaluation::create([
-                        'type' => "Examen",
-                        'group_id' => $emploiDuTemp->group_id,
-                        'emploi_du_temps_id' => $emploiDuTemp->id,
-                        'unite_valeur_id' => $emploiDuTemp->uv_id,
-                        'salle_id' => $emploiDuTemp->salle_id,
-                        'niveau_id' => $emploiDuTemp->niveau_id ?? null,
-                        'semestre' => $emploiDuTemp->semestre ?? null,
-                        'date' => $emploiDuTemp->debut ? $emploiDuTemp->debut->toDateString() : now()->toDateString(),
-                        'debut' => $emploiDuTemp->debut ? $emploiDuTemp->debut->toTimeString() : '12:00:00',
-                        'fin' => $emploiDuTemp->fin ? $emploiDuTemp->fin->toTimeString() : '14:00:00',
-                        'duration_minutes' => $emploiDuTemp->debut && $emploiDuTemp->fin ? $emploiDuTemp->debut->diffInMinutes($emploiDuTemp->fin) : 120,
-                        'published' => true,
-                        'is_online' => true,
-                        'slug' => \Str::uuid(),
-                        'correction_end_date' => now()->addWeeks(2),
-                        'annee_scolaire_id' => $emploiDuTemp->annee_scolaire_id,
-                    ]);
-                }
-
-                // Créer les questions
-                foreach ($request->questions as $questionData) {
-                    $question = new EvaluationQuestion;
-                    $question->evaluation_id = $evaluation->id;
-                    $question->title = $questionData['title'];
-                    $question->statement = $questionData['statement'];
-                    $question->type = $questionData['type'];
-                    $question->points = $questionData['points'] ?? 0;
-                    $question->save();
-
-                    // Si c'est une question avec des options (choix)
-                    if (in_array($questionData['type'], ['choice_single', 'choice_multiple']) && isset($questionData['options_text'])) {
-                        foreach ($questionData['options_text'] as $optionData) {
-                            $option = new EvaluationQuestionOption;
-                            $option->question_id = $question->id;
-                            $option->label = $optionData['label'];
-                            $option->is_correct = false;
-                            $option->save();
-                        }
-                    }
-                }
+                $evaluation = $this->createEvaluation($emploiDuTemp);
+                $this->createParts($evaluation, $request->parts);
             }
 
-            \DB::commit();
+            DB::commit();
 
             $message = $action === 'created'
                 ? 'Évaluation créée avec succès.'
@@ -677,10 +712,8 @@ class EvaluationController extends Controller
                 'message' => $message,
                 'action' => $action,
             ]);
-
         } catch (\Exception $e) {
-            \DB::rollBack();
-
+            DB::rollBack();
             return response()->json([
                 'status' => 'error',
                 'message' => 'Une erreur est survenue, veuillez réessayer.',
@@ -689,17 +722,579 @@ class EvaluationController extends Controller
         }
     }
 
+    // Méthode pour créer une évaluation
+    private function createEvaluation($emploiDuTemp)
+    {
+        return Evaluation::create([
+            'type' => "Examen",
+            'group_id' => $emploiDuTemp->group_id,
+            'emploi_du_temps_id' => $emploiDuTemp->id,
+            'unite_valeur_id' => $emploiDuTemp->uv_id,
+            'salle_id' => $emploiDuTemp->salle_id,
+            'niveau_id' => $emploiDuTemp->niveau_id ?? null,
+            'semestre' => $emploiDuTemp->semestre ?? null,
+            'date' => $emploiDuTemp->debut ? $emploiDuTemp->debut->toDateString() : now()->toDateString(),
+            'debut' => $emploiDuTemp->debut ? $emploiDuTemp->debut->toTimeString() : '12:00:00',
+            'fin' => $emploiDuTemp->fin ? $emploiDuTemp->fin->toTimeString() : '14:00:00',
+            'duration_minutes' => $emploiDuTemp->debut && $emploiDuTemp->fin ?
+                $emploiDuTemp->debut->diffInMinutes($emploiDuTemp->fin) : 120,
+            'published' => true,
+            'is_online' => true,
+            'slug' => Str::uuid(),
+            'correction_end_date' => now()->addWeeks(2),
+            'annee_scolaire_id' => $emploiDuTemp->annee_scolaire_id,
+        ]);
+    }
+
+    // Méthode pour créer les parties avec leurs contextes
+    private function createParts($evaluation, $partsData)
+    {
+        foreach ($partsData as $partData) {
+            $part = Part::create([
+                'evaluation_id' => $evaluation->id,
+                'identifier' => $partData['identifier'],
+                'title' => $partData['title'],
+                'question_type' => $partData['question_type'],
+                'order' => $partData['order'],
+                'description' => $partData['description'] ?? null,
+            ]);
+
+            // Créer le contexte si nécessaire
+            if (isset($partData['has_case_study_context']) && $partData['has_case_study_context']) {
+                EvaluationCaseStudyContext::create([
+                    'part_id' => $part->id,
+                    'problematic' => $partData['case_study_context']['problematic'] ?? null,
+                    'resources' => $partData['case_study_context']['resources'] ?? null,
+                    'instructions' => $partData['case_study_context']['instructions'] ?? null,
+                ]);
+            }
+
+            // Créer les questions
+            $this->processPartQuestions($part, $partData['questions']);
+        }
+    }
+
+    // Méthode pour mettre à jour une évaluation existante
+    private function updateEvaluation($evaluation, $partsData)
+    {
+        $existingPartIds = $evaluation->parts->pluck('id')->toArray();
+        $newPartIds = [];
+
+        foreach ($partsData as $partData) {
+            if (isset($partData['id']) && in_array($partData['id'], $existingPartIds)) {
+                // Mettre à jour une partie existante
+                $part = Part::find($partData['id']);
+                $part->update([
+                    'identifier' => $partData['identifier'],
+                    'title' => $partData['title'],
+                    'question_type' => $partData['question_type'],
+                    'order' => $partData['order'],
+                    'description' => $partData['description'] ?? null,
+                ]);
+            } else {
+                // Créer une nouvelle partie
+                $part = Part::create([
+                    'evaluation_id' => $evaluation->id,
+                    'identifier' => $partData['identifier'],
+                    'title' => $partData['title'],
+                    'question_type' => $partData['question_type'],
+                    'order' => $partData['order'],
+                    'description' => $partData['description'] ?? null,
+                ]);
+            }
+
+            $newPartIds[] = $part->id;
+
+            // Gérer le contexte d'étude de cas
+            $this->processPartContext($part, $partData);
+
+            // Gérer les questions
+            $this->processPartQuestions($part, $partData['questions']);
+        }
+
+        // Supprimer les parties supprimées
+        $partsToDelete = array_diff($existingPartIds, $newPartIds);
+        if (!empty($partsToDelete)) {
+            Part::whereIn('id', $partsToDelete)->delete();
+        }
+    }
+
+    // Méthode pour gérer le contexte d'une partie
+    private function processPartContext($part, $partData)
+    {
+        if (isset($partData['has_case_study_context']) && $partData['has_case_study_context']) {
+            if ($part->caseStudyContext) {
+                // Mettre à jour le contexte existant
+                $part->caseStudyContext->update([
+                    'problematic' => $partData['case_study_context']['problematic'] ?? null,
+                    'resources' => $partData['case_study_context']['resources'] ?? null,
+                    'instructions' => $partData['case_study_context']['instructions'] ?? null,
+                ]);
+            } else {
+                // Créer un nouveau contexte
+                EvaluationCaseStudyContext::create([
+                    'part_id' => $part->id,
+                    'problematic' => $partData['case_study_context']['problematic'] ?? null,
+                    'resources' => $partData['case_study_context']['resources'] ?? null,
+                    'instructions' => $partData['case_study_context']['instructions'] ?? null,
+                ]);
+            }
+        } else {
+            // Supprimer le contexte s'il existe
+            if ($part->caseStudyContext) {
+                $part->caseStudyContext->delete();
+            }
+        }
+    }
+
+    /**
+     * Méthode helper pour traiter les options d'une question
+     */
+    private function processQuestionOptions(EvaluationQuestion $question, array $questionData)
+    {
+        if (in_array($questionData['type'], ['choice_single', 'choice_multiple'])) {
+            // Si c'est une question à choix, mettre à jour les options
+            if (isset($questionData['options_text']) && is_array($questionData['options_text'])) {
+                // Supprimer les anciennes options
+                $question->options()->delete();
+
+                // Créer les nouvelles options
+                foreach ($questionData['options_text'] as $optionData) {
+                    $option = new EvaluationQuestionOption;
+                    $option->question_id = $question->id;
+                    $option->label = $optionData['label'];
+                    $option->is_correct = $optionData['is_correct'] ?? false;
+                    $option->save();
+                }
+            }
+        } else {
+            // Si la question devient de type texte, supprimer toutes les options
+            $question->options()->delete();
+        }
+    }
+    // public function createQuestionEvaluation($id)
+    // {
+
+    //     $emploiDuTemp = EmploiDuTemp::findOrFail($id);
+    //     $evaluation = Evaluation::where('emploi_du_temps_id', $emploiDuTemp->id)
+    //         ->with('questions.options')
+    //         ->first();
+
+    //     return view('professeurs.evaluations.evaluations-question-form', compact('emploiDuTemp', 'evaluation'));
+    // }
+
+    // public function StoreEvaluationQuestion(Request $request, $id)
+    // {
+    //     $validator = Validator::make($request->all(), [
+    //         'questions' => 'required|array',
+    //         'questions.*.title' => 'required|string|max:255',
+    //         'questions.*.statement' => 'required|string',
+    //         'questions.*.type' => 'required|in:text,textarea,choice_single,choice_multiple',
+    //         'questions.*.options_text' => 'nullable|array',
+    //         'questions.*.options_text.*.label' => 'required|string|max:255',
+    //         'questions.*.points' => 'nullable|numeric|min:0',
+    //     ]);
+
+    //     if ($validator->fails()) {
+    //         return response()->json([
+    //             'status' => 'error',
+    //             'message' => 'Validation failed',
+    //             'errors' => $validator->errors(),
+    //         ], 400);
+    //     }
+
+    //     try {
+    //         $emploiDuTemp = EmploiDuTemp::findOrFail($id);
+
+    //         DB::beginTransaction();
+
+    //         // Vérifier si une évaluation existe déjà pour cet emploi du temps
+    //         $evaluation = Evaluation::where('emploi_du_temps_id', $emploiDuTemp->id)->first();
+
+    //         if ($evaluation) {
+    //             // MISE À JOUR - L'évaluation existe déjà
+    //             $action = 'updated';
+
+    //             // Récupérer les IDs des questions existantes
+    //             $existingQuestionIds = $evaluation->questions->pluck('id')->toArray();
+    //             $newQuestionIds = [];
+
+    //             // Mettre à jour ou créer les questions
+    //             foreach ($request->questions as $questionData) {
+    //                 // Si la question a un ID existant, on la met à jour, sinon on la crée
+    //                 if (isset($questionData['id']) && in_array($questionData['id'], $existingQuestionIds)) {
+    //                     $question = EvaluationQuestion::find($questionData['id']);
+    //                     $question->title = $questionData['title'];
+    //                     $question->statement = $questionData['statement'];
+    //                     $question->type = $questionData['type'];
+    //                     $question->points = $questionData['points'] ?? 0;
+    //                     $question->save();
+
+    //                     $newQuestionIds[] = $question->id;
+
+    //                     // Gestion des options selon le type de question
+    //                     if (in_array($questionData['type'], ['choice_single', 'choice_multiple'])) {
+    //                         // Si c'est une question à choix, mettre à jour les options
+    //                         if (isset($questionData['options_text'])) {
+    //                             // Supprimer les anciennes options
+    //                             $question->options()->delete();
+
+    //                             // Créer les nouvelles options
+    //                             foreach ($questionData['options_text'] as $optionData) {
+    //                                 $option = new EvaluationQuestionOption;
+    //                                 $option->question_id = $question->id;
+    //                                 $option->label = $optionData['label'];
+    //                                 $option->is_correct = false;
+    //                                 $option->save();
+    //                             }
+    //                         }
+    //                     } else {
+    //                         // Si la question devient de type texte, supprimer toutes les options
+    //                         $question->options()->delete();
+    //                     }
+    //                 } else {
+    //                     // Nouvelle question
+    //                     $question = new EvaluationQuestion;
+    //                     $question->evaluation_id = $evaluation->id;
+    //                     $question->title = $questionData['title'];
+    //                     $question->statement = $questionData['statement'];
+    //                     $question->type = $questionData['type'];
+    //                     $question->points = $questionData['points'] ?? 0;
+    //                     $question->save();
+
+    //                     $newQuestionIds[] = $question->id;
+
+    //                     // Créer les options si c'est une question à choix
+    //                     if (in_array($questionData['type'], ['choice_single', 'choice_multiple']) && isset($questionData['options_text'])) {
+    //                         foreach ($questionData['options_text'] as $optionData) {
+    //                             $option = new EvaluationQuestionOption;
+    //                             $option->question_id = $question->id;
+    //                             $option->label = $optionData['label'];
+    //                             $option->is_correct = false;
+    //                             $option->save();
+    //                         }
+    //                     }
+    //                 }
+    //             }
+
+    //             // Supprimer les questions qui n'existent plus dans la nouvelle soumission
+    //             $questionsToDelete = array_diff($existingQuestionIds, $newQuestionIds);
+    //             if (! empty($questionsToDelete)) {
+    //                 EvaluationQuestion::whereIn('id', $questionsToDelete)->each(function ($question) {
+    //                     // Supprimer d'abord les options
+    //                     $question->options()->delete();
+    //                     // Puis supprimer la question
+    //                     $question->delete();
+    //                 });
+    //             }
+    //         } else {
+    //             // CRÉATION - Nouvelle évaluation
+    //             $action = 'created';
+
+    //             // Vérifier à nouveau pour éviter les doublons (sécurité supplémentaire)
+    //             $existingEvaluation = Evaluation::where('emploi_du_temps_id', $emploiDuTemp->id)->first();
+
+    //             if ($existingEvaluation) {
+    //                 // Si une évaluation a été créée entre-temps, utiliser celle-ci
+    //                 $evaluation = $existingEvaluation;
+    //                 $action = 'updated';
+    //             } else {
+    //                 // Créer la nouvelle évaluation
+    //                 $evaluation = Evaluation::create([
+    //                     'type' => "Examen",
+    //                     'group_id' => $emploiDuTemp->group_id,
+    //                     'emploi_du_temps_id' => $emploiDuTemp->id,
+    //                     'unite_valeur_id' => $emploiDuTemp->uv_id,
+    //                     'salle_id' => $emploiDuTemp->salle_id,
+    //                     'niveau_id' => $emploiDuTemp->niveau_id ?? null,
+    //                     'semestre' => $emploiDuTemp->semestre ?? null,
+    //                     'date' => $emploiDuTemp->debut ? $emploiDuTemp->debut->toDateString() : now()->toDateString(),
+    //                     'debut' => $emploiDuTemp->debut ? $emploiDuTemp->debut->toTimeString() : '12:00:00',
+    //                     'fin' => $emploiDuTemp->fin ? $emploiDuTemp->fin->toTimeString() : '14:00:00',
+    //                     'duration_minutes' => $emploiDuTemp->debut && $emploiDuTemp->fin ? $emploiDuTemp->debut->diffInMinutes($emploiDuTemp->fin) : 120,
+    //                     'published' => true,
+    //                     'is_online' => true,
+    //                     'slug' => Str::uuid(),
+    //                     'correction_end_date' => now()->addWeeks(2),
+    //                     'annee_scolaire_id' => $emploiDuTemp->annee_scolaire_id,
+    //                 ]);
+    //             }
+
+    //             // Créer les questions
+    //             foreach ($request->questions as $questionData) {
+    //                 $question = new EvaluationQuestion;
+    //                 $question->evaluation_id = $evaluation->id;
+    //                 $question->title = $questionData['title'];
+    //                 $question->statement = $questionData['statement'];
+    //                 $question->type = $questionData['type'];
+    //                 $question->points = $questionData['points'] ?? 0;
+    //                 $question->save();
+
+    //                 // Si c'est une question avec des options (choix)
+    //                 if (in_array($questionData['type'], ['choice_single', 'choice_multiple']) && isset($questionData['options_text'])) {
+    //                     foreach ($questionData['options_text'] as $optionData) {
+    //                         $option = new EvaluationQuestionOption;
+    //                         $option->question_id = $question->id;
+    //                         $option->label = $optionData['label'];
+    //                         $option->is_correct = false;
+    //                         $option->save();
+    //                     }
+    //                 }
+    //             }
+    //         }
+
+    //         DB::commit();
+
+    //         $message = $action === 'created'
+    //             ? 'Évaluation créée avec succès.'
+    //             : 'Évaluation mise à jour avec succès.';
+
+    //         return response()->json([
+    //             'status' => 'success',
+    //             'message' => $message,
+    //             'action' => $action,
+    //         ]);
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+
+    //         return response()->json([
+    //             'status' => 'error',
+    //             'message' => 'Une erreur est survenue, veuillez réessayer.',
+    //             'error' => $e->getMessage(),
+    //         ], 500);
+    //     }
+    // }
+    // public function StoreEvaluationQuestion(Request $request, $id)
+    // {
+    //     $validator = Validator::make($request->all(), [
+    //         'questions' => 'required|array',
+    //         'questions.*.title' => 'required|string|max:255',
+    //         'questions.*.statement' => 'required|string',
+    //         'questions.*.type' => 'required|in:text,textarea,choice_single,choice_multiple',
+    //         'part' => 'nullable|string|max:10',
+    //         'part_title' => 'nullable|string|max:100',
+    //         'questions.*.options_text' => 'nullable|array',
+    //         'questions.*.options_text.*.label' => 'required|string|max:255',
+    //         'questions.*.points' => 'nullable|numeric|min:0',
+    //         'has_case_study_context' => 'nullable|boolean',
+    //         'case_study_context' => 'nullable|array',
+    //         'case_study_context.problematic' => 'nullable|string',
+    //         'case_study_context.resources' => 'nullable|string',
+    //         'case_study_context.instructions' => 'nullable|string',
+    //     ]);
+
+    //     if ($validator->fails()) {
+    //         return response()->json([
+    //             'status' => 'error',
+    //             'message' => 'Validation failed',
+    //             'errors' => $validator->errors(),
+    //         ], 400);
+    //     }
+
+    //     try {
+    //         $emploiDuTemp = EmploiDuTemp::findOrFail($id);
+
+    //         DB::beginTransaction();
+
+    //         // Vérifier si une évaluation existe déjà pour cet emploi du temps
+    //         $evaluation = Evaluation::where('emploi_du_temps_id', $emploiDuTemp->id)->first();
+
+    //         if ($evaluation) {
+    //             // MISE À JOUR - L'évaluation existe déjà
+    //             $action = 'updated';
+
+    //             // Récupérer les IDs des questions existantes
+    //             $existingQuestionIds = $evaluation->questions->pluck('id')->toArray();
+    //             $newQuestionIds = [];
+
+    //             // Mettre à jour ou créer les questions
+    //             foreach ($request->questions as $questionData) {
+    //                 // Si la question a un ID existant, on la met à jour, sinon on la crée
+    //                 if (isset($questionData['id']) && in_array($questionData['id'], $existingQuestionIds)) {
+    //                     $question = EvaluationQuestion::find($questionData['id']);
+    //                     $question->title = $questionData['title'];
+    //                     $question->statement = $questionData['statement'];
+    //                     $question->type = $questionData['type'];
+    //                     $question->points = $questionData['points'] ?? 0;
+    //                     $question->part = $request->part ?? null;
+    //                     $question->part_title = $request->part_title  ?? null;
+    //                     $question->save();
+
+    //                     $newQuestionIds[] = $question->id;
+
+    //                     // Gestion des options selon le type de question
+    //                     if (in_array($questionData['type'], ['choice_single', 'choice_multiple'])) {
+    //                         // Si c'est une question à choix, mettre à jour les options
+    //                         if (isset($questionData['options_text'])) {
+    //                             // Supprimer les anciennes options
+    //                             $question->options()->delete();
+
+    //                             // Créer les nouvelles options
+    //                             foreach ($questionData['options_text'] as $optionData) {
+    //                                 $option = new EvaluationQuestionOption;
+    //                                 $option->question_id = $question->id;
+    //                                 $option->label = $optionData['label'];
+    //                                 $option->is_correct = false;
+    //                                 $option->save();
+    //                             }
+    //                         }
+    //                     } else {
+    //                         // Si la question devient de type texte, supprimer toutes les options
+    //                         $question->options()->delete();
+    //                     }
+    //                 } else {
+    //                     // Nouvelle question
+    //                     $question = new EvaluationQuestion;
+    //                     $question->evaluation_id = $evaluation->id;
+    //                     $question->title = $questionData['title'];
+    //                     $question->statement = $questionData['statement'];
+    //                     $question->type = $questionData['type'];
+    //                     $question->points = $questionData['points'] ?? 0;
+    //                     $question->part = $request->part ?? null;
+    //                     $question->part_title = $request->part_title  ?? null;
+    //                     $question->save();
+
+    //                     $newQuestionIds[] = $question->id;
+
+    //                     // Créer les options si c'est une question à choix
+    //                     if (in_array($questionData['type'], ['choice_single', 'choice_multiple']) && isset($questionData['options_text'])) {
+    //                         foreach ($questionData['options_text'] as $optionData) {
+    //                             $option = new EvaluationQuestionOption;
+    //                             $option->question_id = $question->id;
+    //                             $option->label = $optionData['label'];
+    //                             $option->is_correct = false;
+    //                             $option->save();
+    //                         }
+    //                     }
+    //                 }
+    //             }
+
+    //             // Supprimer les questions qui n'existent plus dans la nouvelle soumission
+    //             $questionsToDelete = array_diff($existingQuestionIds, $newQuestionIds);
+    //             if (! empty($questionsToDelete)) {
+    //                 EvaluationQuestion::whereIn('id', $questionsToDelete)->each(function ($question) {
+    //                     // Supprimer d'abord les options
+    //                     $question->options()->delete();
+    //                     // Puis supprimer la question
+    //                     $question->delete();
+    //                 });
+    //             }
+    //         } else {
+    //             // CRÉATION - Nouvelle évaluation
+    //             $action = 'created';
+
+    //             // Vérifier à nouveau pour éviter les doublons (sécurité supplémentaire)
+    //             $existingEvaluation = Evaluation::where('emploi_du_temps_id', $emploiDuTemp->id)->first();
+
+    //             if ($existingEvaluation) {
+    //                 // Si une évaluation a été créée entre-temps, utiliser celle-ci
+    //                 $evaluation = $existingEvaluation;
+    //                 $action = 'updated';
+    //             } else {
+    //                 // Créer la nouvelle évaluation
+    //                 $evaluation = Evaluation::create([
+    //                     'type' => "Examen",
+    //                     'group_id' => $emploiDuTemp->group_id,
+    //                     'emploi_du_temps_id' => $emploiDuTemp->id,
+    //                     'unite_valeur_id' => $emploiDuTemp->uv_id,
+    //                     'salle_id' => $emploiDuTemp->salle_id,
+    //                     'niveau_id' => $emploiDuTemp->niveau_id ?? null,
+    //                     'semestre' => $emploiDuTemp->semestre ?? null,
+    //                     'date' => $emploiDuTemp->debut ? $emploiDuTemp->debut->toDateString() : now()->toDateString(),
+    //                     'debut' => $emploiDuTemp->debut ? $emploiDuTemp->debut->toTimeString() : '12:00:00',
+    //                     'fin' => $emploiDuTemp->fin ? $emploiDuTemp->fin->toTimeString() : '14:00:00',
+    //                     'duration_minutes' => $emploiDuTemp->debut && $emploiDuTemp->fin ? $emploiDuTemp->debut->diffInMinutes($emploiDuTemp->fin) : 120,
+    //                     'published' => true,
+    //                     'is_online' => true,
+    //                     'slug' => Str::uuid(),
+    //                     'correction_end_date' => now()->addWeeks(2),
+    //                     'annee_scolaire_id' => $emploiDuTemp->annee_scolaire_id,
+    //                 ]);
+    //             }
+
+    //             // Créer les questions
+    //             foreach ($request->questions as $questionData) {
+    //                 $question = new EvaluationQuestion;
+    //                 $question->evaluation_id = $evaluation->id;
+    //                 $question->title = $questionData['title'];
+    //                 $question->statement = $questionData['statement'];
+    //                 $question->type = $questionData['type'];
+    //                 $question->points = $questionData['points'] ?? 0;
+    //                 $question->part = $questionData['part'] ?? null;
+    //                 $question->part_title = $questionData['part_title'] ?? null;
+    //                 $question->save();
+
+    //                 // Si c'est une question avec des options (choix)
+    //                 if (in_array($questionData['type'], ['choice_single', 'choice_multiple']) && isset($questionData['options_text'])) {
+    //                     foreach ($questionData['options_text'] as $optionData) {
+    //                         $option = new EvaluationQuestionOption;
+    //                         $option->question_id = $question->id;
+    //                         $option->label = $optionData['label'];
+    //                         $option->is_correct = false;
+    //                         $option->save();
+    //                     }
+    //                 }
+    //             }
+    //         }
+
+    //         // GESTION DU CONTEXTE D'ÉTUDE DE CAS
+    //         if ($request->has_case_study_context) {
+    //             // Vérifier si un contexte existe déjà
+    //             if ($evaluation->caseStudyContext) {
+    //                 // Mettre à jour le contexte existant
+    //                 $evaluation->caseStudyContext->update([
+    //                     'problematic' => $request->case_study_context['problematic'] ?? null,
+    //                     'resources' => $request->case_study_context['resources'] ?? null,
+    //                     'instructions' => $request->case_study_context['instructions'] ?? null,
+    //                 ]);
+    //             } else {
+    //                 // Créer un nouveau contexte
+    //                 EvaluationCaseStudyContext::create([
+    //                     'evaluation_id' => $evaluation->id,
+    //                     'problematic' => $request->case_study_context['problematic'] ?? null,
+    //                     'resources' => $request->case_study_context['resources'] ?? null,
+    //                     'instructions' => $request->case_study_context['instructions'] ?? null,
+    //                 ]);
+    //             }
+    //         } else {
+    //             // Supprimer le contexte s'il existe
+    //             if ($evaluation->caseStudyContext) {
+    //                 $evaluation->caseStudyContext->delete();
+    //             }
+    //         }
+
+    //         DB::commit();
+
+    //         $message = $action === 'created'
+    //             ? 'Évaluation créée avec succès.'
+    //             : 'Évaluation mise à jour avec succès.';
+
+    //         return response()->json([
+    //             'status' => 'success',
+    //             'message' => $message,
+    //             'action' => $action,
+    //         ]);
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+
+    //         return response()->json([
+    //             'status' => 'error',
+    //             'message' => 'Une erreur est survenue, veuillez réessayer.',
+    //             'error' => $e->getMessage(),
+    //         ], 500);
+    //     }
+    // }
+
     public function getStudentEvaluationSubmission($id) {}
 
     public function getStudentEvaluationSubmissionview($id)
     {
         $emploi = EmploiDuTemp::find($id);
-        $evaluation = Evaluation::with(['submissions.answers.question','submissions.etudiant','questions.options'])
+        $evaluation = Evaluation::with(['submissions.answers.question', 'submissions.etudiant', 'questions.options'])
             ->where('emploi_du_temps_id', $emploi->id)->get();
 
-            \Log::info($evaluation);
+        Log::info($evaluation);
 
-        return view('professeurs.evaluations.student-submission',compact('evaluation'));
-
+        return view('professeurs.evaluations.student-submission', compact('evaluation'));
     }
 }

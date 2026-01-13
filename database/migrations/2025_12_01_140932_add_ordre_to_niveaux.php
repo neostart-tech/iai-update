@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('niveaux', function (Blueprint $table) {
-            $table->integer("ordre")->after('libelle');
+            $table->integer("ordre")->after('libelle')->nullable();
         });
     }
 

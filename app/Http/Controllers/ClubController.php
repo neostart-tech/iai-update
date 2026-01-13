@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\ClubResource;
+use App\Http\Resources\UserResource;
 use App\Models\Club;
 use App\Models\Etudiant;
 use App\Models\User;
@@ -11,6 +13,13 @@ class ClubController extends Controller
 {
     public function index()
     {
+
+        // return ClubResource::collection(
+        //     Club::with('responsable')
+        //         ->withCount('etudiants')
+        //         ->get()
+        // );
+
         $clubs = Club::with('responsable')
             ->withCount('etudiants')
             ->get();
@@ -40,8 +49,9 @@ class ClubController extends Controller
             'responsable_id' => 'required|exists:users,id',
         ]);
 
-        Club::create($request->all());
+        $club = Club::create($request->all());
 
+        // return new ClubResource($club);
         return redirect()->back()
             ->with('success', 'Club créé avec succès');
     }
@@ -55,11 +65,24 @@ class ClubController extends Controller
         ]);
 
 
-        $club->update($request->only($request->validate()));
+        $club = $club->update($request->only($request->validate()));
+        // return new ClubResource($club);
 
         return redirect()->back()
             ->with('success', 'Club mise a jour avec succès');
     }
+
+    public function destroy(Club $club)
+    {
+
+        if ($club->etudiants()) {
+            return response()->json(['success' => "Vous n'etes pas autorisé a supprimer ce club car des etudiants en font partie"]);
+        }
+        $club->delete();
+        // return new ClubResource($club);
+        return response()->json(['success' => "CLub supprimé avec succes"]);
+    }
+
 
 
     public function getEtudiant(Club $club)
@@ -67,6 +90,8 @@ class ClubController extends Controller
         $etudiants = Etudiant::whereDoesntHave('clubs', function ($query) use ($club) {
             $query->where('clubs.id', $club->id);
         })->get();
+
+        // return UserResource::collection($etudiants);
         return view('admin.clubs.etudiants.index', compact('club', 'etudiants'));
     }
 
@@ -85,12 +110,17 @@ class ClubController extends Controller
 
         $club->etudiants()->syncWithoutDetaching($data);
 
+        // return new ClubResource($club);
+
         return back()->with('success', 'Étudiants ajoutés au club avec succès');
     }
 
     public function destroyEtudiant(Club $club, Etudiant $etudiant)
     {
         $club->etudiants()->detach($etudiant->id);
+
+        // return new ClubResource($club);
+
         return back()->with('success', 'Étudiant retiré du club');
     }
 }

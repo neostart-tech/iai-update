@@ -1,4 +1,13 @@
 <ul class="pc-navbar">
+	{{-- Emploi du temps	--}}
+	<li class="pc-item">
+		<a href="{{ route('my-calendar') }}" class="pc-link">
+			<span class="pc-micon">
+				<i class="fa fa-calendar-day"></i>
+			</span>
+			<span class="pc-mtext">Emploi du temps</span>
+		</a>
+	</li>
 	<li class="pc-item">
 		<a href="{{ route('admin.configuration.index') }}" class="pc-link">
 			<span class="pc-micon">
@@ -9,15 +18,34 @@
 			</span>
 		</a>
 	</li>
-	{{-- Emploi du temps	--}}
 	<li class="pc-item">
-		<a href="{{ route('my-calendar') }}" class="pc-link">
+		<a href="{{ route('admin.annescolaire.liste') }}" class="pc-link">
 			<span class="pc-micon">
-				<i class="fa fa-calendar-day"></i>
+				<i class="fa fa-calendar"></i>
 			</span>
-			<span class="pc-mtext">Emploi du temps</span>
+			<span class="pc-mtext">Années scolaires</span>
 		</a>
 	</li>
+	<li class="pc-item pc-hasmenu">
+		<a href="#!" class="pc-link">
+			<span class="pc-micon">
+				<svg class="pc-icon">
+					<use xlink:href="#custom-status-up"></use>
+				</svg>
+			</span>
+			<span class="pc-mtext">Périodes</span>
+			<span class="pc-arrow"><i data-feather="chevron-right"></i></span>
+		</a>
+		<ul class="pc-submenu">
+			<li class="pc-item"><a class="pc-link" href="{{ route('admin.periodes.index') }}">Liste des
+					périodes</a>
+			</li>
+			<li class="pc-item"><a class="pc-link" href="{{ route('admin.periodes.create') }}">Ajouter une
+					période</a>
+			</li>
+		</ul>
+	</li>
+	
 	<li class="pc-item">
 		<a href="{{ route('admin.agenda.index') }}" class="pc-link">
 			<span class="pc-micon">
@@ -50,15 +78,17 @@
 					<use xlink:href="#custom-status-up"></use>
 				</svg>
 			</span>
-			<span class="pc-mtext">Filières</span>
+			<!-- <span class="pc-mtext">Filières</span> -->
+			<span class="pc-mtext">Parcours</span>
+
 			<span class="pc-arrow"><i data-feather="chevron-right"></i></span>
 		</a>
 		<ul class="pc-submenu">
 			<li class="pc-item"><a class="pc-link" href="{{ route('admin.filieres.index') }}">Liste des
-					filières</a>
+					parcours</a>
 			</li>
-			<li class="pc-item"><a class="pc-link" href="{{ route('admin.filieres.create') }}">Ajouter une
-					filière</a>
+			<li class="pc-item"><a class="pc-link" href="{{ route('admin.filieres.create') }}">Ajouter un
+					parcours</a>
 			</li>
 		</ul>
 	</li>
@@ -84,7 +114,7 @@
 
 
 	{{-- Uvs	--}}
-	<li class="pc-item pc-hasmenu">
+	<!-- <li class="pc-item pc-hasmenu">
 		<a href="#!" class="pc-link">
 			<span class="pc-micon">
 				<svg class="pc-icon">
@@ -100,7 +130,7 @@
 			<li class="pc-item"><a class="pc-link" href="{{ route('admin.uvs.create') }}">Ajouter une Matière</a>
 			</li>
 		</ul>
-	</li>
+	</li> -->
 
 	{{-- Periodes	--}}
 	<li class="pc-item pc-hasmenu">
@@ -252,6 +282,12 @@
 				Étude de dossier
 			</a>
 		</li>
+		<li class="pc-item">
+			<a class="pc-link" href="{{ route('admin.candidatures.liste-des-admis') }}">
+				Inscription
+			</a>
+		</li>
+
 		<!-- <li class="pc-item">
 				<a class="pc-link" href="{{ route('admin.candidatures.payement-des-frais-de-participation') }}">
 					Payement
@@ -261,24 +297,24 @@
 				<a class="pc-link" href="{{ route('admin.candidatures.participation-au-concours') }}">
 					Contrôle de présence
 				</a>
-			</li> -->
-		<!-- <li class="pc-item">
+			</li> 
+		<li class="pc-item">
 				<a class="pc-link" href="{{ route('admin.candidatures.admission') }}">
 					Déclaration d'admission
 				</a>
 			</li> -->
-		<li class="pc-item">
+		<!-- <li class="pc-item">
 			<a class="pc-link" href="{{ route('admin.candidatures.admission') }}">
 				Inscription
 			</a>
-		</li>
+		</li> -->
 
 		<!-- <li class="pc-item">
 				<a class="pc-link" href="{{ route('admin.candidatures.choose-class-assignment-group-view') }}">
 					Attribution de groupe
 				</a>
 			</li> -->
-		<li class="pc-item">
+		<!-- <li class="pc-item">
 			<a class="pc-link" href="{{ route('admin.candidatures.admission') }}">
 				Réinscription
 			</a>
@@ -287,7 +323,7 @@
 			<a class="pc-link" href="{{ route('admin.candidatures.admission') }}">
 				Réorientation
 			</a>
-		</li>
+		</li> -->
 	</ul>
 </li>
 
@@ -434,14 +470,7 @@
 <li class="pc-item pc-caption">
 	<label>Comptabilité</label>
 </li>
-<li class="pc-item">
-	<a href="{{ route('admin.annescolaire.liste') }}" class="pc-link">
-		<span class="pc-micon">
-			<i class="fa fa-calendar"></i>
-		</span>
-		<span class="pc-mtext">Années scolaires</span>
-	</a>
-</li>
+
 
 <li class="pc-item">
 	<a href="{{route('comptable.frais.index')}}" class="pc-link">
@@ -449,6 +478,15 @@
 			<i class="fa fa-money-bill-wave"></i>
 		</span>
 		<span class="pc-mtext">Frais de scolarité</span>
+	</a>
+</li>
+
+<li class="pc-item">
+	<a href="{{route('comptable.frais-inscription.index')}}" class="pc-link">
+		<span class="pc-micon">
+			<i class="fa fa-money-bill-wave"></i>
+		</span>
+		<span class="pc-mtext">Frais d'inscription</span>
 	</a>
 </li>
 

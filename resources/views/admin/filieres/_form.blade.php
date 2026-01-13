@@ -5,21 +5,21 @@
 	@endisset
 
 	<div class="form-group">
-		<label class="form-label" for="nom">Nom de la filière <x-forms.required-field/> </label>
+		<label class="form-label" for="nom">Nom du parcours <x-forms.required-field/> </label>
 		<input type="text" class="form-control" id="nom" name="nom" aria-describedby="nom"
-					 placeholder="Nom de la filière" value="{{ old('nom', $filiere->nom) }}">
+					 placeholder="Nom du parcours" value="{{ old('nom', $filiere->nom) }}">
 		{!! errorAlert($errors->first('nom'), 'nom') !!}
 	</div>
 
 	<div class="form-group">
-		<label class="form-label" for="code">Code de la filière <x-forms.required-field/> </label>
+		<label class="form-label" for="code">Code du parcours <x-forms.required-field/> </label>
 		<input type="text" class="form-control" id="code" name="code" aria-describedby="code"
-					 placeholder="Code de la filière" value="{{ old('code', $filiere->code) }}">
+					 placeholder="Code du parcours" value="{{ old('code', $filiere->code) }}">
 		{!! errorAlert($errors->first('code'), 'code') !!}
 	</div>
 
 	<div class="form-group">
-		<label class="form-label" for="description">Description de la filière </label>
+		<label class="form-label" for="description">Description du parcours </label>
 		<textarea class="form-control" id="description" name="description"
 							rows="3">{{ old('description', $filiere->description) }}</textarea>
 		{!! errorAlert($errors->first('description')) !!}

@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Models\{Candidature, Etudiant};
+use App\Models\{Candidature, Etudiant, FraisInscription};
 use App\Notifications\Candidatures\{CandidatAccountLockNotification, CandidatToEtudiantWelcomeNotification};
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -15,9 +15,7 @@ class CreatingUserBasedOnCandidatsDataJob implements ShouldQueue
 {
 	use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-	public function __construct(private readonly Collection $candidatures, private readonly int $groupId)
-	{
-	}
+	public function __construct(private readonly Collection $candidatures, private readonly int $groupId) {}
 
 	public function handle(): void
 	{
@@ -26,6 +24,7 @@ class CreatingUserBasedOnCandidatsDataJob implements ShouldQueue
 			 * @var Candidature $candidature
 			 */
 			$candidature = Candidature::query()->firstWhere('slug', $slug);
+			$fraisInscription=FraisInscription::latest()->first();
 
 			if (!$candidature) {
 				return;
@@ -51,6 +50,13 @@ class CreatingUserBasedOnCandidatsDataJob implements ShouldQueue
 				$this->groupId,
 				injectAnneeScolaireId()
 			);
+			$etudiant->niveaux()->attach(
+				[
+					'niveau_id' => $candidature->niveau_id,
+					injectAnneeScolaireId()
+				]
+
+			);
 
 			$updatedData = [
 				'owner_id' => $etudiant->getAttribute('id'),
@@ -71,7 +77,7 @@ class CreatingUserBasedOnCandidatsDataJob implements ShouldQueue
 
 			$etudiant->notify(new CandidatToEtudiantWelcomeNotification($etudiant->greeting()));
 			$message = $candidature->greeting();
-			$message .= '. Suite à votre admission à ' .' '.AppGetters::getAppName() ? AppGetters::getAppName() : "Laravel"  . ', vous avez désormais un compte étudiant. 
+			$message .= '. Suite à votre admission à ' . ' ' . AppGetters::getAppName() ? AppGetters::getAppName() : "Laravel"  . ', vous avez désormais un compte étudiant. 
 				Ce espace candidat vous sera accessible jusqu\'au ' . $endAccessibilityDate->translatedFormat('d F Y')
 				. '. L\'accès à votre espace étudiant se fait avec les identifiants du présent compte candidat.';
 
@@ -85,5 +91,4 @@ class CreatingUserBasedOnCandidatsDataJob implements ShouldQueue
 	{
 		Log::info("Échec de l'opération: ", [$exception]);
 	}
-
 }

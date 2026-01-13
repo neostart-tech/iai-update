@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -10,16 +11,23 @@ use Illuminate\Http\Request;
 
 class SurveillantController extends Controller
 {
-    public function index(): View
+    public function index()
     {
         $surveillants = User::surveillants()->with('roles')->get();
         $surveillantsInternes = User::surveillantsInternes()->count();
         $surveillantsExternes = User::surveillantsExternes()->count();
-
+        // return response()->json([
+        //     'data' => UserResource::collection($surveillants),
+        //     'stats' => [
+        //         'internes' => $surveillantsInternes,
+        //         'externes' => $surveillantsExternes,
+        //         'total' => $surveillants->count(),
+        //     ],
+        // ]);
         return view('admin.surveillants.index', compact('surveillants', 'surveillantsInternes', 'surveillantsExternes'));
     }
 
-    public function show(User $user): View
+    public function show(User $user)
     {
         if (!$user->isSurveillant()) {
             warningMsg('Cet utilisateur n\'est pas un surveillant.');
@@ -27,16 +35,24 @@ class SurveillantController extends Controller
         }
 
         // Récupérer les évaluations où cet utilisateur a été surveillant
-        $evaluations = $user->emploiDuTemps()
+        $evaluations = $user->emploiDutemps()
             ->where('type_programme', 'evaluation')
             ->with(['evaluation', 'salle'])
             ->orderBy('debut', 'desc')
-            ->paginate(20);
+            ->get();
 
+        $surveillancesCount = $user->emploiDutemps()
+            ->where('type_programme', 'evaluation')
+            ->count();
+
+        // return (new UserResource($user))
+        //     ->additional([
+        //         'nombre_surveillances' => $surveillancesCount,
+        //     ]);
         return view('admin.surveillants.show', compact('user', 'evaluations'));
     }
 
-    public function updateType(Request $request, User $user): RedirectResponse
+    public function updateType(Request $request, User $user)
     {
         $request->validate([
             'supervisor_type' => ['required', 'in:interne,externe,non_surveillant'],
@@ -48,19 +64,26 @@ class SurveillantController extends Controller
             'supervisor_notes' => $request->supervisor_notes
         ]);
 
-        $message = match($request->supervisor_type) {
+        $message = match ($request->supervisor_type) {
             'interne' => 'Utilisateur configuré comme surveillant interne',
             'externe' => 'Utilisateur configuré comme surveillant externe',
             'non_surveillant' => 'Utilisateur retiré de la surveillance'
         };
 
+        // return response()->json([
+        //     "data"=> new UserResource($user),
+        //     "message"=>$message,
+        // ]);
+
         successMsg($message);
         return back();
     }
 
-    public function makeInterne(User $user): RedirectResponse
+    public function makeInterne(User $user)
     {
         $user->update(['supervisor_type' => 'interne']);
+
+        // return new UserResource($user);
         successMsg("{$user->completName} est maintenant surveillant interne.");
         return back();
     }
@@ -72,9 +95,11 @@ class SurveillantController extends Controller
         return back();
     }
 
-    public function removeSurveillance(User $user): RedirectResponse
+    public function removeSurveillance(User $user)
     {
         $user->update(['supervisor_type' => 'non_surveillant', 'supervisor_notes' => null]);
+        // return new UserResource($user);
+
         successMsg("{$user->completName} n'est plus surveillant.");
         return back();
     }

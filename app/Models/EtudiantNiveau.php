@@ -10,4 +10,15 @@ class EtudiantNiveau extends Model
     use HasFactory;
 
     protected $guarded = ['id'];
+    public function niveau()
+	{
+		return $this->belongsTo(Niveau::class);
+	}
+	public function etudiant()
+	{
+		return $this->belongsTo(Etudiant::class);
+	}
+
+	
+	
 }

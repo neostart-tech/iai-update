@@ -1,7 +1,7 @@
 @extends('base', [
-	'title' => 'Modifier une filière',
-	'page_name' => 'Modifier une filière',
-	'breadcrumbs' => ['Administration', 'Filières', $filiere->nom]
+	'title' => 'Modifier un parcours',
+	'page_name' => 'Modifier un parcours',
+	'breadcrumbs' => ['Administration', 'Parcours', $filiere->nom]
 ])
 
 @section('content')

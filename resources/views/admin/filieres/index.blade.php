@@ -3,9 +3,9 @@
     use Illuminate\Support\Facades\Storage;
 @endphp
 @extends('base', [
-    'title' => 'Page des filières',
-    'breadcrumbs' => ['Administration', 'Filières', 'Liste'],
-    'page_name' => 'Liste des filières',
+    'title' => 'Page des parcours',
+    'breadcrumbs' => ['Administration', 'Parcours', 'Liste'],
+    'page_name' => 'Liste des parcours',
 ])
 
 @section('content')
@@ -19,7 +19,7 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        Voulez-vous vraiment supprimer cette filiere ?
+                        Voulez-vous vraiment supprimer ce parcours ?
                     </div>
                     <div class="modal-footer">
                         <form action="{{ route('admin.filieres.delete') }}" method="POST">
@@ -37,7 +37,7 @@
         <div class="card-header">
             <div class="text-end p-4 pb-sm-2 mb-2">
                 <a href="{{ route('admin.filieres.create') }}" class="btn btn-primary">
-                    <i class="ti ti-plus f-18"></i> Ajouter une filière
+                    <i class="ti ti-plus f-18"></i> Ajouter un parcours
                 </a>
             </div>
         </div>

@@ -147,6 +147,7 @@ Route::controller(CandidatureController::class)->prefix('candidature')->name('ca
 	Route::get('participation-au-concours', 'participantCandidaturesIndex')->name('participation-au-concours');
 	Route::get('admission-a-' . Str::slug(env('APP_NAME')), 'admisCandidaturesIndex')->name('admission');
 	Route::get('liste-des-rectifications', 'rectificationIndex')->name('index.rectifications');
+	Route::get('liste-des-admis', 'InscriptionCandidaturesIndex')->name('liste-des-admis');
 	Route::get('liste-des-rejets', 'rejectionIndex')->name('index.rejections');
 	Route::get('{candidature}/evaluer', 'show')->name('show');
 	Route::get('choix-de-groupe', 'chooseClassAssignmentGroupView')->name('choose-class-assignment-group-view');
@@ -159,6 +160,10 @@ Route::controller(CandidatureController::class)->prefix('candidature')->name('ca
 	Route::put('{candidature}/rejeter', 'rejectCandidature')->name('reject');
 	Route::put('{candidature}/demander-rectification', 'askForRectificationOnCandidature')->name('ask-for-rectification');
 	Route::post('{candidature}/reorienter', 'reorienter')->name('reorienter');
+		Route::post('{candidature}/inscrire-un-etudiant', 'insertStudent')->name('inscrire-un-etudiant');
+
+
+	
 });
 
 Route::controller(AgendaController::class)->prefix('agenda')->name('agenda.')->group(function () {
@@ -166,7 +171,7 @@ Route::controller(AgendaController::class)->prefix('agenda')->name('agenda.')->g
 	Route::post('/store',  'store')->name('store');
 	Route::delete('{agenda}/destroy',  'destroy')->name('destroy');
 	Route::post('{agenda}/modifier',  'update')->name('update');
-	Route::get('get-my-agenda','getAgenda')->name("get");
+	Route::get('get-my-agenda', 'getAgenda')->name("get");
 });
 
 Route::controller(AnneeScolaireController::class)->prefix('annee-scolaire')->name('annescolaire.')->group(function () {

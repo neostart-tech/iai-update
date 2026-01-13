@@ -101,18 +101,75 @@ use Illuminate\Database\Eloquent\Casts\Json;
 
 <script>
     function displayEditModal(club) {
-        document.getElementById('nom').value = club.nom;
-        document.getElementById('clubId').value = club.id;
-        document.getElementById('responsable_id').value = club.responsable_id;
         document.getElementById('exampleModalCenterTitle').innerHTML =
             "Formulaire de modification du club";
+
+        document.getElementById('clubId').value = club.id ?? '';
+        document.getElementById('nom').value = club.nom ?? '';
+        document.getElementById('description').value = club.description ?? '';
+
+        // Responsable (IMPORTANT)
+        const responsableSelect = document.getElementById('responsable_id');
+
+        if (club.responsable_id) {
+            responsableSelect.value = 277;
+            responsableSelect.dispatchEvent(new Event('change'));
+        } else {
+            responsableSelect.value = '';
+        }
+
+        // Date
+        if (club.date_creation) {
+            document.getElementById('date_creation').value = club.date_creation;
+        }
     }
-
-
 
     function deleteClub(id) {
-        document.getElementById('club_id').value = id;
+        Swal.fire({
+            title: "Confirmation de suppression",
+            text: "Voulez-vous vraiment supprimer ce club ?",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Oui, supprimer",
+            cancelButtonText: "Annuler",
+            confirmButtonColor: "#dc3545",
+            cancelButtonColor: "#6c757d"
+        }).then(result => {
+
+            if (!result.isConfirmed) return;
+
+            fetch(`/administration/club/${id}/delete`, {
+                    method: "DELETE",
+                    headers: {
+                        "X-CSRF-TOKEN": "{{ csrf_token() }}",
+                        "Accept": "application/json"
+                    }
+                })
+                .then(res => {
+                    if (!res.ok) throw new Error("Erreur suppression");
+                    return res.json();
+                })
+                .then(() => {
+                    Swal.fire({
+                        icon: "success",
+                        title: "Supprimé",
+                        text: "Le club a été supprimé avec succès",
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    setTimeout(() => location.reload(), 1500);
+                })
+                .catch(() => {
+                    Swal.fire(
+                        "Erreur",
+                        "Impossible de supprimer le club",
+                        "error"
+                    );
+                });
+        });
     }
+
+
 
     function refreshForm() {
         document.getElementById('exampleModalCenterTitle').innerHTML =
@@ -121,4 +178,3 @@ use Illuminate\Database\Eloquent\Casts\Json;
         document.getElementById('clubId').value = '';
     }
 </script>
-

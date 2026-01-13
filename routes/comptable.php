@@ -5,7 +5,8 @@ use App\Http\Controllers\FraisScolariteController;
 use App\Http\Controllers\TranchePaiementController;
 use App\Http\Controllers\PaiementController;
 use App\Http\Controllers\ComptabiliteController;
-
+use App\Http\Controllers\FraisInscriptionController;
+use Illuminate\Support\Facades\Route;
 
 Route::controller(AuthentificationSessionController::class)->prefix('comptables')->name('auth.')->middleware('guest:comptables')->group(function () {
 	Route::get('/login-comptable', "logincompta")->name('logincompta');
@@ -44,6 +45,15 @@ Route::middleware(['auth'])->group(function () {
 
 		
 	});
+
+
+	Route::controller(FraisInscriptionController::class)->prefix('frais-inscription')->name('frais-inscription.')->group(function () {
+		Route::get('index', 'index')->name('index');
+		Route::post('store', 'store')->name('store');
+		Route::put('update/{id}', 'update')->name('update');
+		Route::delete('destroy/{id}', 'destroy')->name('destroy');	
+	});
+
 
 
 

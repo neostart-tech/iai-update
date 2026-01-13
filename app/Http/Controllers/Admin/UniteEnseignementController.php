@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UnitEnseignementRequest;
+use App\Http\Resources\UeResource;
 use App\Models\UniteEnseignement;
 use App\Models\UniteValeur;
 use Illuminate\Http\RedirectResponse;
@@ -13,8 +14,10 @@ use Illuminate\View\View;
 
 class UniteEnseignementController extends Controller
 {
-	public function index(): View
+	public function index()
 	{
+
+		// return UeResource::collection(Ue::with(['filiere', 'periode'])->orderBy('nom')->get());
 		return view('admin.ues.index')->with([
 			'ues' => Ue::with(['filiere:id,code,nom','periode:id,nom'])->orderBy('nom')->get()
 		]);
@@ -29,9 +32,9 @@ class UniteEnseignementController extends Controller
 		]);
 	}
 
-	public function store(UnitEnseignementRequest $request): RedirectResponse
+	public function store(UnitEnseignementRequest $request)
 	{
-		Ue::create([
+		$uniteEnseignement = Ue::create([
 			...$request->only([
 				'nom',
 				'code',
@@ -42,11 +45,14 @@ class UniteEnseignementController extends Controller
 			...injectAnneeScolaireId()
 		]);
 
+		// return new UeResource($uniteEnseignement);
 		return to_route('admin.ues.index')->with(successMsg('Unité d\'enseignement ajoutée avec succès.'));
 	}
 
-	public function show(Ue $uniteEnseignement): View
+	public function show(Ue $uniteEnseignement)
 	{
+		// return new UeResource($uniteEnseignement);
+
 		return view('admin.ues.show', compact('uniteEnseignement'));
 	}
 
@@ -58,7 +64,7 @@ class UniteEnseignementController extends Controller
 		]);
 	}
 
-	public function update(UnitEnseignementRequest $request, Ue $ue): RedirectResponse
+	public function update(UnitEnseignementRequest $request, Ue $ue)
 	{
 		$ue->update([
 			...$request->only([
@@ -70,17 +76,22 @@ class UniteEnseignementController extends Controller
 			]),
 			...injectAnneeScolaireId()
 		]);
+		// return new UeResource($ue);
+
 		return to_route('admin.ues.index')->with(successMsg('Unité d\'enseignement mise à jour avec succès.'));
 	}
 
-	public function destroy(Request $request): RedirectResponse
+	public function destroy(Request $request)
 	{
-		$ue= intval($request->idue);
-		$uniteDeValeurs=UniteValeur::query()->where('unite_enseignement_id',$ue)->get();
+		$ue = intval($request->idue);
+		$uniteDeValeurs = UniteValeur::query()->where('unite_enseignement_id', $ue)->get();
 		if ($uniteDeValeurs->isNotEmpty()) {
-			return to_route('admin.ues.index')->with(cannotDeleteItemMessage('cette unité d\'enseignement'));
+			// return to_route('admin.ues.index')->with(cannotDeleteItemMessage('cette unité d\'enseignement'));
+			return __404("Impossible de supprimer cette unité d'enseignement");
 		}
-		UniteEnseignement::query()->where('id',$ue)->first()->delete();
+		$ue = UniteEnseignement::query()->where('id', $ue)->first()->delete();
+		// return new UeResource($ue);
+
 		return to_route('admin.ues.index')->with(successMsg('Unité d\'enseignement supprimée avec succès.'));
 	}
 }

@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany};
  * @property mixed $name Periode periode
  * @property mixed $name Collection<array-key, UniteValeur> uniteDeValeurs
  */
-#[ScopedBy([CurrentAnneeScolaireScope::class])]
+// #[ScopedBy([CurrentAnneeScolaireScope::class])]
 class UniteEnseignement extends Model
 {
 	use GenerateUniqueSlugTrait, ModelsSlugKeyTrait, GetAnneeScolaireModelTrait;

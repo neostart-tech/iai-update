@@ -6,6 +6,11 @@ use App\Enums\TypeProgrammeEnum;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UserRequest;
 use App\Http\Resources\Admin\EmploiDuTempsResource;
+use App\Http\Resources\GroupeResource;
+use App\Http\Resources\SalleResource;
+use App\Http\Resources\TeacherHoursSummaryResource;
+use App\Http\Resources\UserResource;
+use App\Http\Resources\UvResource;
 use App\Mail\Admins\AdminWelcomeMail;
 use App\Models\{Group, Role, Salle, UniteValeur as UV, User};
 use App\Models\EmploiDuTemp;
@@ -24,8 +29,9 @@ class UserController extends Controller
 	//  	$this->authorizeResource(User::class, 'user');
 	//  }
 
-	public function index(string $profil = 'tous-les-profils'): View
+	public function index(string $profil = 'tous-les-profils')
 	{
+
 		$data = [];
 		$users = User::query()->with('roles')->get();
 		if ($profil === 'tous-les-profils') {
@@ -48,6 +54,16 @@ class UserController extends Controller
 			'meta' => $data,
 			'enseignants' => true
 		]);
+
+
+
+		// $query = User::query()->with('roles');
+
+		// if ($profil === 'enseignants') {
+		// 	$query->enseignants();
+		// }
+
+		// return UserResource::collection($query->get());
 	}
 
 	public function create(): View
@@ -68,22 +84,24 @@ class UserController extends Controller
 	// 	// Todo Envoyer un mail de confirmation de mot de passe à l'utilisateur
 	// 	return to_route('admin.users.index')->with(successMsg('Utilisateur créé avec succès'));
 	// }
-	public function store(UserRequest $request): RedirectResponse
-{
-    $clearPassword = 'password'; 
+	public function store(UserRequest $request)
+	{
+		$clearPassword = 'password';
 
-    $data = $request->validated();
+		$data = $request->validated();
 
-    $data['password'] = Hash::make($clearPassword);
+		$data['password'] = Hash::make($clearPassword);
 
-    $user = User::create($data);
+		$user = User::create($data);
 
-    $user->roles()->attach($request->get('roles'));
+		$user->roles()->attach($request->get('roles'));
 
-    Mail::to($user)->send(new AdminWelcomeMail($user, $clearPassword));
+		Mail::to($user)->send(new AdminWelcomeMail($user, $clearPassword));
 
-    return redirect()->route('admin.users.index')->with(successMsg('Utilisateur créé avec succès'));
-}
+		// return new UserResource($user);
+
+		return redirect()->route('admin.users.index')->with(successMsg('Utilisateur créé avec succès'));
+	}
 
 	public function edit(User $user): View
 	{
@@ -92,7 +110,7 @@ class UserController extends Controller
 		]);
 	}
 
-	public function update(Request $request, User $user): RedirectResponse
+	public function update(Request $request, User $user)
 	{
 		$request->validate([
 			'nom' => ['required'],
@@ -127,8 +145,10 @@ class UserController extends Controller
 		$user->roles()->sync($request->get('roles'));
 		if ($request->user()->getAttribute('id') === $user->getAttribute('id')) {
 			// Todo rediriger sur la page de profil de l'utilisateur
-//			return back()->with(successMsg('Profil modifié avec succès'));
+			//			return back()->with(successMsg('Profil modifié avec succès'));
 		}
+
+		// return new UserResource($user);
 		return to_route('admin.users.index')->with(successMsg('Profil modifié avec succès'));
 	}
 
@@ -137,7 +157,7 @@ class UserController extends Controller
 		return EmploiDuTempsResource::collection($user->emploiDuTemps);
 	}
 
-	public function ShowEmploiDuTemps(User $user): View
+	public function ShowEmploiDuTemps(User $user)
 	{
 		//		dd(['resourceUrl' => route('admin.users.load-edt', $user)]);
 		return view('admin.users.teacher-calendar.calendar', compact('user'))->with([
@@ -152,6 +172,26 @@ class UserController extends Controller
 				'breadcrumbs' => ['Administration', 'Gestion des emploi du temps', $user->getAttribute('nom') . ' ' . $user->getAttribute('prenom')]
 			]
 		]);
+		// return response()->json([
+		// 	'user' => new UserResource($user),
+		// 	'uvs' => UvResource::collection(Uv::all()),
+		// 	'types' => collect(TypeProgrammeEnum::cases())
+		// 		->map(fn($type) => [
+		// 			'name' => $type->name,
+		// 			'value' => $type->value,
+		// 		]),
+
+		// 	'groups' => GroupeResource::collection(
+		// 		Group::with('filiere:id,code')
+		// 			->orderBy('nom')
+		// 			->get()
+		// 	),
+
+		// 	'salles' => SalleResource::collection(
+		// 		Salle::select(['id', 'nom', 'slug'])->get()
+		// 	),
+		// 	'resource_url' => route('admin.users.load-edt', $user),
+		// ]);
 	}
 
 	public function destroy(Request $request)
@@ -163,15 +203,15 @@ class UserController extends Controller
 
 
 		$user->delete();
+		// return new UserResource($user);
 		return to_route('admin.users.index')->with(successMsg('Élément supprimé avec succès'));
-
 	}
 
 	/**
 	 * Retourne un récapitulatif des heures effectuées par chaque enseignant.
 	 * Optionnel: date_debut et date_fin en query string pour filtrer la période.
 	 */
-	public function hoursSummary(Request $request): View
+	public function hoursSummary(Request $request)
 	{
 		$start = $request->query('date_debut') ? Carbon::createFromFormat('Y-m-d', $request->query('date_debut'))->startOfDay() : null;
 		$end = $request->query('date_fin') ? Carbon::createFromFormat('Y-m-d', $request->query('date_fin'))->endOfDay() : null;
@@ -201,9 +241,16 @@ class UserController extends Controller
 			'date_debut' => $request->query('date_debut'),
 			'date_fin' => $request->query('date_fin'),
 		]);
+		//  return TeacherHoursSummaryResource::collection($summary)
+        // ->additional([
+        //     'filters' => [
+        //         'date_debut' => $request->query('date_debut'),
+        //         'date_fin' => $request->query('date_fin'),
+        //     ],
+        // ]);
 	}
 
-	public function updateEmploiDuTemps(Request $request): RedirectResponse
+	public function updateEmploiDuTemps(Request $request)
 	{
 
 		dd($request->all());
@@ -256,15 +303,15 @@ class UserController extends Controller
 			'salle_id' => $request->salle_id,
 			'uv_id' => $request->uv_id,
 			'unite_enseignement_id' => null,
-			'evenement_id' => null, 
+			'evenement_id' => null,
 			'type_programme' => $request->type_programme,
-			'owner_type' => 'App\Models\User', 
+			'owner_type' => 'App\Models\User',
 			'owner_id' => $request->userId,
 			'details' => $request->details,
-			'annee_scolaire_id' => session('annee_scolaire_id'), // ou autre logique pour récupérer
+			'annee_scolaire_id' => session('annee_scolaire_id'), 
 		]);
 
+		// return new EmploiDuTempsResource($emploi);
 		return to_route('admin.users.index')->with('success', 'Emploi du temps modifié avec succès.');
 	}
-
 }

@@ -18,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property UniteEnseignement $ue
  * @property Filiere $filiere
  */
-#[ScopedBy([CurrentAnneeScolaireScope::class])]
+// #[ScopedBy([CurrentAnneeScolaireScope::class])]
 class UniteValeur extends Model
 {
 	use GenerateUniqueSlugTrait, ModelsSlugKeyTrait, GetAnneeScolaireModelTrait;
@@ -62,6 +62,8 @@ class UniteValeur extends Model
 	{
 		return $this->uniteEnseignement();
 	}
+
+	
 	public function user()
     {
         return $this->belongsToMany(User::class, 'user_unite_valeur', 'unite_valeur_id', 'user_id');

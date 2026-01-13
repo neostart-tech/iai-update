@@ -71,7 +71,7 @@
                         <td>{{ $etudiant->nom }}</td>
                         <td>{{ $etudiant->prenom }}</td>
                         <td>
-                            {{ \Carbon\Carbon::parse($etudiant->pivot->date_adhesion)->format('d/m/Y') }}
+                            {{ \Carbon\Carbon::parse($etudiant->pivot->date_adhesion)->format('d F Y') }}
                         </td>
                         <td class="text-center">
                             <form method="POST"

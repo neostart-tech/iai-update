@@ -10,9 +10,35 @@ use Illuminate\Http\Request;
 
 trait CandidatureFirstValidationTrait
 {
+	// public function validateCandidature(Candidature $candidature): RedirectResponse
+	// {
+	// 	$candidature->update(['dossier_valide' => true, 'validation_date' => now()]);
+
+	// 	// SmsSendingProcess::dispatch(
+	// 	// 	$candidature->getAttribute('tel'),
+	// 	// 	'Votre dossier de candidature a été validé avec succès. Connectez-vous à votre compte pour voir l\'étape suivante de votre procédure d\'admission.'
+	// 	// );
+
+	// 	$message = $candidature->greeting(true);
+	// 	$message .= '. Votre dossier de candidature a été validé avec succès. Connectez-vous  régulièrement à votre compte pour suivre les prochaines étapes de votre procédure.';
+
+	// 	$candidature->notify(new CandidatValideNotification($message));
+
+	// 	return to_route('admin.candidatures.index')->with(successMsg('Candidature validée avec succès'));
+	// }
+
 	public function validateCandidature(Candidature $candidature): RedirectResponse
 	{
-		$candidature->update(['dossier_valide' => true, 'validation_date' => now()]);
+		$candidature->update([
+			'dossier_valide' => true,
+			'validation_date' => now(),
+			"frais_paye" => true,
+			"frai_paye_date" => now(),
+			"participation" => true,
+			"participation_date" => now(),
+			"admission" => true,
+			"admission_date" => now(),
+		]);
 
 		// SmsSendingProcess::dispatch(
 		// 	$candidature->getAttribute('tel'),
@@ -24,13 +50,15 @@ trait CandidatureFirstValidationTrait
 
 		$candidature->notify(new CandidatValideNotification($message));
 
-		return to_route('admin.candidatures.index')->with(successMsg('Candidature validée avec succès'));
+		// return to_route('admin.candidatures.index')->with(successMsg('Candidature validée avec succès'));
+		return to_route('admin.candidatures.liste-des-admis')->with(successMsg('Candidature validée avec succès'));
 	}
 
 	public function rejectCandidature(Request $request, Candidature $candidature): RedirectResponse
 	{
 		$request->validate([
-			'motif' => ['required'], [
+			'motif' => ['required'],
+			[
 				'motif' => [
 					'required' => 'Le motif de rejet de la candidature est obligatoire'
 				]

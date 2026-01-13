@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany, HasOne, MorphOne};
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -21,7 +22,7 @@ use Illuminate\Support\Str;
  * @property Tuteur $tuteur
  * @property ResponsableFrais $responsable
  */
-#[ScopedBy(CurrentAnneeScolaireScope::class)]
+// #[ScopedBy(CurrentAnneeScolaireScope::class)]
 class Candidature extends Authenticatable
 {
 	use Notifiable, HasFactory, ModelsSlugKeyTrait, GenerateUniqueSlugTrait, UserIdentityTrait;
@@ -45,6 +46,13 @@ class Candidature extends Authenticatable
 		return $this->morphOne(Album::class, 'owner');
 	}
 
+
+	public function getFilePath(string $path)
+	{
+		return asset(Storage::url($path));
+	}
+
+
 	public function tuteur(): MorphOne
 	{
 		return $this->morphOne(Tuteur::class, 'owner');
@@ -63,7 +71,8 @@ class Candidature extends Authenticatable
 		return $this->hasMany(CandidatureDocument::class);
 	}
 
-	public function Reorientations(){
+	public function Reorientations()
+	{
 		return $this->hasMany(Reorientation::class);
 	}
 
@@ -95,25 +104,25 @@ class Candidature extends Authenticatable
 		$this->notify(new PasswordResetLinkSentNotification($token, $this->getAttribute('email')));
 	}
 
-	public function niveau(){
+	public function niveau()
+	{
 		return $this->belongsTo(Niveau::class, 'niveau_id');
 	}
 
-	public function filiere(){
+	public function filiere()
+	{
 		return $this->belongsTo(Filiere::class, 'filiere_id');
 	}
 
 	public function tranches()
-    {
-        return $this->hasManyThrough(
-            TranchePaiement::class,
-            FraisScolarite::class,
-            'niveau_id',          
-            'frais_scolarite_id', 
-            'niveau_id',          
-            'id'                 
-        );
-    }
-
-	
+	{
+		return $this->hasManyThrough(
+			TranchePaiement::class,
+			FraisScolarite::class,
+			'niveau_id',
+			'frais_scolarite_id',
+			'niveau_id',
+			'id'
+		);
+	}
 }

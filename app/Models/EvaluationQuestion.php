@@ -17,4 +17,11 @@ class EvaluationQuestion extends Model
     {
         return $this->hasMany(EvaluationQuestionOption::class, 'question_id');
     }
+
+    
+
+    public function part()
+    {
+        return $this->belongsTo(Part::class);
+    }
 }

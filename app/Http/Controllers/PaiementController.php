@@ -9,12 +9,15 @@ use App\Models\TranchePaiement;
 use App\Models\FraisScolarite;
 use App\Models\AnneeScolaire;
 use App\Enums\GenreEnum;
+use App\Http\Resources\AnneeScolaireResource;
+use App\Http\Resources\MiniUserResource;
+use App\Http\Resources\PaiementResource;
+use App\Http\Resources\UserResource;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Spatie\Browsershot\Browsershot;
 use Carbon\Carbon;
-
-
+use Symfony\Component\HttpFoundation\Response;
 
 class PaiementController extends Controller
 {
@@ -34,7 +37,7 @@ class PaiementController extends Controller
                 'candidatures' => function ($q) use ($annee) {
                     $q->where('annee_scolaire_id', $annee->id)
                         ->with(['filiere:id,nom', 'niveau:id,libelle']);
-                }
+                },"candidatures.album"
             ])
             ->get()
             ->filter(function ($etudiant) use ($annee) {
@@ -67,6 +70,13 @@ class PaiementController extends Controller
                 return $montantPaye < $montantTotal;
             })
             ->values();
+
+
+            // return response()->json([
+            //     "paiements"=>PaiementResource::collection($paiements),
+            //     "etudiants"=>MiniUserResource::collection($etudiants),
+
+            // ]);
 
         return view('comptabilite.paiements._index', compact('paiements', 'etudiants'));
     }
@@ -265,9 +275,7 @@ class PaiementController extends Controller
 
  public function store(Request $request)
 {
-    /* =======================
-     * VALIDATION
-     * ======================= */
+  
     $request->validate([
         'etudiant_id'   => 'required|exists:etudiants,id',
         'montant'       => 'required|numeric|min:0',
@@ -316,9 +324,7 @@ class PaiementController extends Controller
         return back()->with('error', 'Aucune tranche de paiement définie.');
     }
 
-    /* =======================
-     * TRAITEMENT DES PAIEMENTS
-     * ======================= */
+  
     $recap = [];
 
     foreach ($tranches as $tranche) {
@@ -495,6 +501,13 @@ class PaiementController extends Controller
                 'reste_a_payer' => $total_frais - $total_paye,
             ];
         })->filter();
+
+
+        // return response()->json([
+        //     "annee"=>new AnneeScolaireResource($annee),
+        //     "etudiant"
+
+        // ]);
 
         return view('comptabilite.historique._paye', compact('annee', 'etudiants_infos'));
     }

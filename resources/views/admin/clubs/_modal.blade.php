@@ -39,14 +39,14 @@
                             Responsable du club
                             <x-forms.required-field />
                         </label>
-                        <select class="form-control" name="responsable_id" id="responsable_id" data-trigger>
+                        <select class="form-control" data-trigger name="responsable_id" id="responsable_id" >
                             <option value="">-- Sélectionner --</option>
 
                             @foreach ($responsables as $responsable)
 
                             
                             <option value="{{ $responsable->id }}"
-                                @selected(old('responsable_id', $club->responsable_id) == $responsable->id)>
+                                @selected(old('responsable_id') == $responsable->id)>
                                 {{ $responsable->nom }} {{ $responsable->prenom }}
                             </option>
                             @endforeach

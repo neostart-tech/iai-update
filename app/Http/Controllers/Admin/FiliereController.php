@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\FiliereRequest;
+use App\Http\Resources\FiliereResource;
 use App\Models\{AnneeScolaire, Filiere};
 use App\Models\Grade;
 use App\Traits\FileManagementTrait;
@@ -15,15 +16,17 @@ class FiliereController extends Controller
 {
 	use FileManagementTrait;
 
-	 public function __construct()
-	 {
-	 	$this->authorizeResource(Filiere::class, 'filiere');
-	 }
+	//  public function __construct()
+	//  {
+	//  	$this->authorizeResource(Filiere::class, 'filiere');
+	//  }
 
 	private const FOLDER = 'filieres';
 
-	public function index(): View
+	public function index()
 	{
+
+		// return FiliereResource::collection(Filiere::query()->withCount('etudiants')->get()->reverse());
 		return view('admin.filieres.index')->with([
 			'filieres' => Filiere::query()->withCount('etudiants')->get()->reverse()
 		]);
@@ -37,18 +40,23 @@ class FiliereController extends Controller
 		]);
 	}
 
-	public function store(FiliereRequest $request): RedirectResponse
+	public function store(FiliereRequest $request)
 	{
 		$filePath = $request->hasFile('image') ? $this->storeFile($request, 'image', static::FOLDER) : config('images.filieres.default');
 
 		$request->merge(['image' => $filePath]);
-		Filiere::create($request->all());
+		$filiere = Filiere::create($request->all());
+
+		// return new FiliereResource($filiere);
+
 
 		return to_route('admin.filieres.index')->with(successMsg('Filière ajoutée avec succès.'));
 	}
 
-	public function show(Filiere $filiere): View
+	public function show(Filiere $filiere)
 	{
+		// return new FiliereResource($filiere);
+
 		return view('admin.filieres.show', compact('filiere'));
 	}
 
@@ -59,31 +67,37 @@ class FiliereController extends Controller
 		]);
 	}
 
-	public function update(FiliereRequest $request, Filiere $filiere): RedirectResponse
+	public function update(FiliereRequest $request, Filiere $filiere)
 	{
 		$filePath = $request->hasFile('image') ? $this->updateFile($request, 'image', static::FOLDER, $filiere->getAttribute('image')) : $filiere->getAttribute('image');
 
 		$filiere->update([
-			... $request->all(),
+			...$request->all(),
 			'image' => $filePath
 		]);
+
+		// return new FiliereResource($filiere);
+
 
 		return to_route('admin.filieres.index')->with(successMsg('Filière mise à jour avec succès.'));
 	}
 
-	public function destroy(Request $request): RedirectResponse
+	public function destroy(Request $request)
 	{
-		$filiere=$request->idfil;
+		$filiere = $request->idfil;
 
-		 $grades=Grade::query()->where('filiere_id',$filiere)->get();
-		
+		$grades = Grade::query()->where('filiere_id', $filiere)->get();
+
 		if ($grades->isNotEmpty()) {
 			return back()->with(cannotDeleteItemMessage('cette filière'));
 		}
-		$fil=Filiere::query()->where('id',$filiere)->first();
+		$fil = Filiere::query()->where('id', $filiere)->first();
 		$this->deleteFile($fil->getAttribute('image'));
 		$fil->delete();
 		$fil->delete();
+
+		// return new FiliereResource($filiere);
+
 		return to_route('admin.filieres.index')->with(successMsg('Filière supprimée avec succès.'));
 	}
 }

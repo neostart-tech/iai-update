@@ -6,12 +6,13 @@ use App\Models\Scopes\CurrentAnneeScolaireScope;
 use App\Traits\Routing\{GenerateUniqueSlugTrait, ModelsSlugKeyTrait};
 use Illuminate\Database\Eloquent\{Attributes\ScopedBy, Collection, Model};
 use Illuminate\Database\Eloquent\Relations\{HasMany, HasManyThrough};
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @method static self create(array $attributes)
  * @property Collection<array-key, Grade> grades
  */
-#[ScopedBy([CurrentAnneeScolaireScope::class])]
+// #[ScopedBy([CurrentAnneeScolaireScope::class])]
 class Filiere extends Model
 {
 	use GenerateUniqueSlugTrait, ModelsSlugKeyTrait;
@@ -34,4 +35,10 @@ class Filiere extends Model
 	{
 		return $this->hasManyThrough(EtudiantGroup::class, Group::class);
 	}
+
+	public function pathImage(){
+		return asset(Storage::url($this->image));
+	}
+
+
 }

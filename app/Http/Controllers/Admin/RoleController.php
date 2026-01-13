@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\RoleResource;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use App\Models\{Role};
@@ -10,12 +11,13 @@ use Illuminate\View\View;
 
 class RoleController extends Controller
 {
-	public function index(): View
+	public function index()
 	{
+		// return RoleResource::collection(Role::with(['permissions'])->get());
 		return view('admin.roles.index')->with([
 			'roles' => Role::with(['permissions'])->get()
 		]);
-	}
+	 }
 
 	public function create(): View
 	{
@@ -29,8 +31,10 @@ class RoleController extends Controller
 		return to_route('admin.roles.index');
 	}
 
-	public function show(Role $role): View
+	public function show(Role $role)
 	{
+
+		// return new RoleResource($role)
 		return view('admin.roles.show', compact('role'));
 	}
 

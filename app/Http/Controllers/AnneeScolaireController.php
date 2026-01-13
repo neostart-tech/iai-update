@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\AnneeScolaireResource;
 use App\Models\AnneeScolaire;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -13,6 +14,9 @@ class AnneeScolaireController extends Controller
     public function index()
     {
         $annees = AnneeScolaire::all();
+        //  return AnneeScolaireResource::collection($annees);
+
+
         return view('admin.AnneScolaire._index', compact('annees'));
     }
 
@@ -23,17 +27,17 @@ class AnneeScolaireController extends Controller
         ]);
 
         AnneeScolaire::where('active', true)->update(['active' => false]);
- $slug = bin2hex(random_bytes(6));
-       
-       $year = now();
-$annee = AnneeScolaire::create([
-    'nom' => $request->nom,
-     'slug' => $slug,
-    'code' => "as_" . $year->format("Y") . '_' . $year->copy()->addYear()->format("Y"),
-    'active' => true,
-]);
+        $slug = bin2hex(random_bytes(6));
 
+        $year = now();
+        $annee = AnneeScolaire::create([
+            'nom' => $request->nom,
+            'slug' => $slug,
+            'code' => "as_" . $year->format("Y") . '_' . $year->copy()->addYear()->format("Y"),
+            'active' => true,
+        ]);
 
+        //   return new AnneeScolaireResource($annee);
         return redirect()->back()->with(successMsg('Nouvelle année créée et activée'));
     }
 
@@ -44,7 +48,10 @@ $annee = AnneeScolaire::create([
         $annee = AnneeScolaire::findOrFail($id);
         $annee->update(['active' => true]);
 
-        return redirect()->back()->with('success','Année activée avec succes');
+        //   return new AnneeScolaireResource($annee);
+
+
+        return redirect()->back()->with('success', 'Année activée avec succes');
     }
 
     public function desactiver($id)
@@ -52,6 +59,8 @@ $annee = AnneeScolaire::create([
         $annee = AnneeScolaire::findOrFail($id);
         $annee->update(['active' => false]);
 
-        return redirect()->back()->with('success','Année désactivée avec succes');
+        //   return new AnneeScolaireResource($annee);
+
+        return redirect()->back()->with('success', 'Année désactivée avec succes');
     }
 }

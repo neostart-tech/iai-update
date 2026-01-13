@@ -105,4 +105,9 @@ class EmploiDuTemp extends Model
     {
         return $this->hasOne(CahierTexte::class);
     }
+
+	 public function evaluation()
+    {
+        return $this->belongsTo(Evaluation::class);
+    }
 }

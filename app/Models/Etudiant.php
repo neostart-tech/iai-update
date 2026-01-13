@@ -88,6 +88,11 @@ class Etudiant extends Authenticatable
 		return $this->belongsToMany(Group::class, 'etudiant_group')->using(EtudiantGroup::class);
 	}
 
+	public function niveaux(): BelongsToMany
+	{
+		return $this->belongsToMany(Niveau::class, 'etudiant_niveaux');
+	}
+
 	public function group(): BelongsToMany
 	{
 		return $this->groups()->latest('annee_scolaire_id');

@@ -1,122 +1,162 @@
 @extends('professeurs.base', [
-    'title' => 'Créer une évaluation',
-    'page_name' => 'Créer une évaluation',
-    'breadcrumbs' => ['Évaluations', 'Créer une évaluation'],
+'title' => 'Créer/Éditer une évaluation',
+'page_name' => isset($evaluation['id']) ? 'Éditer une évaluation' : 'Créer une évaluation',
+'breadcrumbs' => ['Évaluations', isset($evaluation['id']) ? 'Éditer' : 'Créer'],
 ])
 
 @section('bases')
 <div class="container-fluid py-4">
-    <div class="row">
-        <!-- Sidebar avec aperçu et statistiques -->
-        <div class="col-lg-4 mb-4">
-            <div class="sticky-top" style="top: 20px;">
-                <!-- Aperçu de l'évaluation -->
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-primary text-white">
-                        <h6 class="mb-0"><i class="fas fa-eye me-2"></i>Aperçu de l'évaluation</h6>
+    <!-- Sidebar avec aperçu et statistiques (MAINTENANT EN HAUT) -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Aperçu de l'évaluation</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card">
+                                <div class="stat-value" id="parts-count">0</div>
+                                <div class="stat-label">Parties</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card">
+                                <div class="stat-value" id="questions-count">0</div>
+                                <div class="stat-label">Questions</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card">
+                                <div class="stat-value" id="total-points">0</div>
+                                <div class="stat-label">Points</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="stat-card">
+                                <div class="stat-value" id="points-limit">0/20</div>
+                                <div class="stat-label">Limite</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <div class="evaluation-preview">
-                            <div class="preview-stats">
-                                <div class="stat-item d-flex justify-content-between mb-2">
-                                    <span class="text-muted">Nombre de questions:</span>
-                                    <strong id="question-count">0</strong>
-                                </div>
-                                <div class="stat-item d-flex justify-content-between mb-2">
-                                    <span class="text-muted">Points totaux:</span>
-                                    <strong id="total-points">0</strong>
-                                </div>
-                                <div class="stat-item d-flex justify-content-between mb-2">
-                                    <span class="text-muted">Limite:</span>
-                                    <strong id="points-limit" class="text-success">20/20</strong>
-                                </div>
-                                <div class="stat-item d-flex justify-content-between mb-2">
-                                    <span class="text-muted">Types de questions:</span>
-                                    <div id="question-types" class="text-end"></div>
-                                </div>
-                            </div>
-                            <!-- Barre de progression -->
-                            <div class="progress mt-3" style="height: 8px;">
-                                <div id="points-progress" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
-                            </div>
-                            <small id="points-warning" class="text-danger mt-1" style="display: none;">
-                                <i class="fas fa-exclamation-triangle me-1"></i>Dépassement de la limite de 20 points
-                            </small>
+
+                    <div class="mt-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Total des points</span>
+                            <span class="fw-bold" id="points-summary">0/20 pts</span>
+                        </div>
+                        <div class="progress" style="height: 12px;">
+                            <div id="points-progress" class="progress-bar bg-success" style="width: 0%"></div>
+                        </div>
+                        <div id="points-warning" class="text-danger small mt-1" style="display: none;">
+                            <i class="fas fa-exclamation-triangle me-1"></i>La limite de 20 points est dépassée
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Guide rapide -->
-                <div class="card shadow-sm">
-                    <div class="card-header bg-light">
-                        <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Guide rapide</h6>
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Conseils pratiques</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <ul class="list-unstyled mb-0">
+                                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Limite : 20 points maximum</li>
+                                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Ajoutez un contexte d'étude de cas si nécessaire</li>
+                                        <li><i class="fas fa-check-circle text-success me-2"></i>Vérifiez l'évaluation avant enregistrement</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <ul class="list-unstyled mb-0">
+                                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Les parties peuvent être réorganisées</li>
+                                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Utilisez la prévisualisation avant sauvegarde</li>
+                                        <li><i class="fas fa-check-circle text-success me-2"></i>Vérifiez la cohérence des points</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <small class="text-muted">
-                            <ul class="list-unstyled mb-0">
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Cliquez sur "Ajouter une question" pour créer de nouvelles questions</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Utilisez les flèches pour développer/réduire les questions</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Attribuez des points à chaque question (max 20 au total)</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Prévisualisez votre évaluation à droite</li>
-                            </ul>
-                        </small>
+                </div>
+                <div class="col-md-4">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Résumé actuel</h5>
+                        </div>
+                        <div class="card-body d-flex flex-column justify-content-center">
+                            <div class="text-center">
+                                <div class="display-6 mb-2" id="live-parts-count">0 parties</div>
+                                <div class="display-6 text-primary" id="total-points-badge">0/20 pts</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Formulaire principal -->
-        <div class="col-lg-8">
+    <!-- Formulaire principal (MAINTENANT EN DESSOUS) -->
+    <div class="row">
+        <div class="col-12">
             <div class="card shadow-sm">
                 <div class="card-header bg-white border-bottom-0">
                     <div class="d-flex justify-content-between align-items-center">
                         <h4 class="mb-0 text-primary">
-                            <i class="fas fa-plus-circle me-2"></i>
-                            @if($evaluation && $evaluation->questions->count() > 0)
-                                Modifier les questions de l'évaluation
-                            @else
-                                Créer une nouvelle évaluation
-                            @endif
+                            <i class="fas fa-{{ isset($evaluation['id']) ? 'edit' : 'plus-circle' }} me-2"></i>
+                            {{ isset($evaluation['id']) ? 'Modifier l\'évaluation' : 'Créer une nouvelle évaluation' }}
                         </h4>
                         <div class="d-flex align-items-center">
-                            <span class="badge bg-primary fs-6 me-2" id="live-question-count">0 question</span>
-                            <span class="badge bg-success fs-6" id="total-points-badge">0/20 pts</span>
+                            <button type="button" class="btn btn-outline-secondary me-2" id="preview-btn">
+                                <i class="fas fa-eye me-2"></i>Prévisualiser
+                            </button>
+                            <button type="submit" class="btn btn-success btn-lg px-4" id="submit-btn" form="evaluation-form">
+                                <i class="fas fa-save me-2"></i>
+                                {{ isset($evaluation['id']) ? 'Mettre à jour' : 'Enregistrer' }}
+                            </button>
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="card-body">
-                    <form id="evaluation-question-form">
+                    <form id="evaluation-form">
                         @csrf
 
-                        <!-- Container des questions -->
-                        <div id="questions-container" class="questions-container">
-                            <!-- Les questions seront ajoutées ici dynamiquement -->
-                        </div>
+                        <!-- SECTION UNIQUE : GESTION DES PARTIES -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><i class="fas fa-layer-group me-2"></i>Gestion des parties</h5>
+                                <button type="button" class="btn btn-sm btn-light" id="add-part-btn">
+                                    <i class="fas fa-plus me-1"></i>Ajouter une partie
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div id="parts-container">
+                                    <!-- Les parties seront ajoutées ici dynamiquement -->
+                                </div>
 
-                        <!-- Bouton d'ajout de question -->
-                        <div class="text-center mt-4 mb-4">
-                            <button type="button" class="btn btn-primary btn-lg" id="add-question-btn">
-                                <i class="fas fa-plus me-2"></i>Ajouter une question
-                            </button>
+                                <div class="text-center mt-3" id="no-parts-message" style="display: none;">
+                                    <i class="fas fa-layer-group fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">Aucune partie définie. Cliquez sur "Ajouter une partie" pour commencer.</p>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Actions du formulaire -->
                         <div class="form-actions mt-5 pt-4 border-top">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    <button type="button" class="btn btn-outline-secondary" id="preview-btn">
-                                        <i class="fas fa-eye me-2"></i>Prévisualiser
+                                    <button type="button" class="btn btn-outline-info" id="validate-btn">
+                                        <i class="fas fa-check me-2"></i>Vérifier la cohérence
                                     </button>
                                 </div>
                                 <div>
-                                    <button type="submit" class="btn btn-success btn-lg px-4" id="submit-btn">
+                                    <button type="submit" class="btn btn-success btn-lg px-4" id="submit-btn-bottom">
                                         <i class="fas fa-save me-2"></i>
-                                        @if($evaluation && $evaluation->questions->count() > 0)
-                                            Mettre à jour l'évaluation
-                                        @else
-                                            Enregistrer l'évaluation
-                                        @endif
+                                        {{ isset($evaluation['id']) ? 'Mettre à jour l\'évaluation' : 'Enregistrer l\'évaluation' }}
                                     </button>
                                 </div>
                             </div>
@@ -126,6 +166,7 @@
                     <!-- Messages d'alerte -->
                     <div id="error-messages" class="alert alert-danger mt-3" style="display: none;"></div>
                     <div id="success-message" class="alert alert-success mt-3" style="display: none;"></div>
+                    <div id="validation-results" class="alert alert-info mt-3" style="display: none;"></div>
                 </div>
             </div>
         </div>
@@ -146,930 +187,1457 @@
         </div>
     </div>
 </div>
-@endsection
 
-@section('other-css')
-<style>
-    :root {
-        --primary-color: #4680ff;
-        --secondary-color: #4680ff;
-        --success-color: #4cc9f0;
-        --warning-color: #f72585;
-        --danger-color: #dc3545;
-    }
-
-    .questions-container {
-        max-height: 70vh;
-        overflow-y: auto;
-        padding-right: 10px;
-    }
-
-    .questions-container::-webkit-scrollbar {
-        width: 6px;
-    }
-
-    .questions-container::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 3px;
-    }
-
-    .questions-container::-webkit-scrollbar-thumb {
-        background: #c1c1c1;
-        border-radius: 3px;
-    }
-
-    .questions-container::-webkit-scrollbar-thumb:hover {
-        background: #a8a8a8;
-    }
-
-    .question-card {
-        background: white;
-        border: 1px solid #e9ecef;
-        border-radius: 12px;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        transition: all 0.3s ease;
-        overflow: hidden;
-    }
-
-    .question-card:hover {
-        box-shadow: 0 4px 15px rgba(0,0,0,0.12);
-        border-color: var(--primary-color);
-    }
-
-    .question-card.expanded {
-        border-color: var(--primary-color);
-        box-shadow: 0 4px 20px rgba(67, 97, 238, 0.15);
-    }
-
-    .question-card.exceeds-limit {
-        border-color: var(--danger-color);
-        box-shadow: 0 4px 15px rgba(220, 53, 69, 0.15);
-    }
-
-    .question-header {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        padding: 1.25rem;
-        cursor: pointer;
-        border-bottom: 1px solid transparent;
-        transition: all 0.3s ease;
-    }
-
-    .question-card.expanded .question-header {
-        background: linear-gradient(135deg, #4680ff 0%, #4680ff 100%);
-        color: white;
-        border-bottom-color: rgba(255,255,255,0.2);
-    }
-
-    .question-card.exceeds-limit .question-header {
-        background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-    }
-
-    .question-header h5 {
-        margin: 0;
-        font-weight: 600;
-    }
-
-    .question-body {
-        padding: 1.5rem;
-        background: white;
-    }
-
-    .question-number {
-        background: var(--primary-color);
-        color: white;
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        font-size: 0.9rem;
-    }
-
-    .question-card.expanded .question-number {
-        background: white;
-        color: var(--primary-color);
-    }
-
-    .question-card.exceeds-limit .question-number {
-        background: var(--danger-color);
-    }
-
-    .toggle-icon {
-        transition: transform 0.3s ease;
-    }
-
-    .question-card.expanded .toggle-icon {
-        transform: rotate(180deg);
-        color: white;
-    }
-
-    .form-group {
-        margin-bottom: 1.5rem;
-    }
-
-    .form-label {
-        font-weight: 600;
-        color: #2d3748;
-        margin-bottom: 0.5rem;
-    }
-
-    .form-control, .form-select {
-        border: 1px solid #d1d5db;
-        border-radius: 8px;
-        padding: 0.75rem 1rem;
-        transition: all 0.3s ease;
-    }
-
-    .form-control:focus, .form-select:focus {
-        border-color: var(--primary-color);
-        box-shadow: 0 0 0 0.2rem rgba(67, 97, 238, 0.25);
-    }
-
-    .form-control.exceeds-limit {
-        border-color: var(--danger-color);
-        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
-    }
-
-    .points-input-container {
-        position: relative;
-    }
-
-    .points-feedback {
-        font-size: 0.75rem;
-        margin-top: 0.25rem;
-    }
-
-    .points-feedback.exceeds-limit {
-        color: var(--danger-color);
-        font-weight: 600;
-    }
-
-    .options-container {
-        background: #f8f9fa;
-        border-radius: 8px;
-        padding: 1.25rem;
-        margin-top: 1rem;
-    }
-
-    .option-item {
-        background: white;
-        border: 1px solid #e9ecef;
-        border-radius: 6px;
-        padding: 1rem;
-        margin-bottom: 0.75rem;
-        transition: all 0.2s ease;
-    }
-
-    .option-item:hover {
-        border-color: var(--primary-color);
-        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    }
-
-    .option-item:last-child {
-        margin-bottom: 0;
-    }
-
-    .btn-delete {
-        transition: all 0.2s ease;
-    }
-
-    .btn-delete:hover {
-        transform: scale(1.05);
-    }
-
-    .preview-stats {
-        font-size: 0.9rem;
-    }
-
-    .type-badge {
-        font-size: 0.7rem;
-        margin-left: 0.25rem;
-    }
-
-    /* Animation pour l'ajout de questions */
-    @keyframes slideIn {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    .question-card.new {
-        animation: slideIn 0.3s ease-out;
-    }
-
-    /* Styles pour la prévisualisation */
-    .preview-question {
-        background: white;
-        border: 1px solid #e9ecef;
-        border-radius: 8px;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-    }
-
-    .preview-question h6 {
-        color: var(--primary-color);
-        margin-bottom: 1rem;
-    }
-
-    .preview-option {
-        padding: 0.5rem 0;
-    }
-
-    .progress-bar.exceeds-limit {
-        background-color: var(--danger-color) !important;
-    }
-</style>
-@endsection
-
-@section('other-js')
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script>
-    let questionCount = 0;
-    let questionsData = [];
-    const MAX_POINTS = 20;
-
-    // Données des questions existantes
-    const existingQuestions = @json($evaluation->questions ?? []);
-
-    // Fonction pour obtenir le libellé du type
-    function getTypeLabel(type) {
-        const types = {
-            'text': 'Texte court',
-            'textarea': 'Texte long',
-            'choice_single': 'Choix unique',
-            'choice_multiple': 'Choix multiples'
-        };
-        return types[type] || type;
-    }
-
-    // Fonction pour vérifier si le total des points dépasse la limite
-    function checkPointsLimit() {
-        const totalPoints = questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 0), 0);
-        const exceedsLimit = totalPoints > MAX_POINTS;
-        
-        // Mettre à jour la barre de progression
-        const progressBar = document.getElementById('points-progress');
-        const progressPercentage = Math.min((totalPoints / MAX_POINTS) * 100, 100);
-        progressBar.style.width = `${progressPercentage}%`;
-        
-        if (exceedsLimit) {
-            progressBar.classList.add('exceeds-limit');
-            progressBar.classList.remove('bg-success');
-            progressBar.classList.add('bg-danger');
-        } else {
-            progressBar.classList.remove('exceeds-limit');
-            progressBar.classList.remove('bg-danger');
-            progressBar.classList.add('bg-success');
-        }
-        
-        // Mettre à jour l'affichage des points
-        document.getElementById('points-limit').textContent = `${totalPoints.toFixed(1)}/20`;
-        document.getElementById('total-points-badge').textContent = `${totalPoints.toFixed(1)}/20 pts`;
-        
-        if (exceedsLimit) {
-            document.getElementById('points-limit').classList.add('text-danger');
-            document.getElementById('points-limit').classList.remove('text-success');
-            document.getElementById('points-warning').style.display = 'block';
-        } else {
-            document.getElementById('points-limit').classList.remove('text-danger');
-            document.getElementById('points-limit').classList.add('text-success');
-            document.getElementById('points-warning').style.display = 'none';
-        }
-        
-        // Désactiver le bouton de soumission si la limite est dépassée
-        const submitBtn = document.getElementById('submit-btn');
-        if (exceedsLimit) {
-            submitBtn.disabled = true;
-            submitBtn.classList.remove('btn-success');
-            submitBtn.classList.add('btn-danger');
-        } else {
-            submitBtn.disabled = false;
-            submitBtn.classList.remove('btn-danger');
-            submitBtn.classList.add('btn-success');
-        }
-        
-        return exceedsLimit;
-    }
-
-    // Fonction pour mettre à jour l'affichage des points d'une question
-    function updateQuestionPointsDisplay(questionId) {
-        const questionElem = document.querySelector(`[data-question-id="${questionId}"]`);
-        const pointsInput = questionElem.querySelector('.question-points');
-        const pointsValue = parseFloat(pointsInput.value) || 0;
-        const totalPoints = questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 0), 0);
-        
-        // Vérifier si cette question fait dépasser la limite
-        const otherQuestionsPoints = questionsData
-            .filter(q => q.id !== questionId)
-            .reduce((sum, q) => sum + (parseFloat(q.points) || 0), 0);
-        
-        const wouldExceedLimit = (otherQuestionsPoints + pointsValue) > MAX_POINTS;
-        
-        // Mettre à jour l'apparence
-        if (wouldExceedLimit) {
-            pointsInput.classList.add('exceeds-limit');
-            questionElem.classList.add('exceeds-limit');
-            
-            // Afficher le feedback
-            let feedbackElem = questionElem.querySelector('.points-feedback');
-            if (!feedbackElem) {
-                feedbackElem = document.createElement('div');
-                feedbackElem.className = 'points-feedback exceeds-limit';
-                pointsInput.parentNode.appendChild(feedbackElem);
-            }
-            const remaining = MAX_POINTS - otherQuestionsPoints;
-            feedbackElem.textContent = `Limite dépassée! Maximum recommandé: ${remaining.toFixed(1)} points`;
-        } else {
-            pointsInput.classList.remove('exceeds-limit');
-            questionElem.classList.remove('exceeds-limit');
-            
-            // Supprimer le feedback
-            const feedbackElem = questionElem.querySelector('.points-feedback');
-            if (feedbackElem) {
-                feedbackElem.remove();
-            }
-        }
-    }
-
-    // Fonction pour charger les questions existantes
-    function loadExistingQuestions() {
-        if (existingQuestions && existingQuestions.length > 0) {
-            // Vider le conteneur actuel
-            document.getElementById('questions-container').innerHTML = '';
-            questionsData = [];
-            questionCount = 0;
-            
-            // Charger chaque question existante
-            existingQuestions.forEach((existingQuestion, index) => {
-                questionCount++;
-                
-                const questionCard = document.createElement('div');
-                questionCard.className = 'question-card new';
-                questionCard.setAttribute('data-question-id', questionCount);
-
-                questionCard.innerHTML = `
-                    <div class="question-header" onclick="toggleQuestion(${questionCount})">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div class="d-flex align-items-center">
-                                <div class="question-number me-3">${questionCount}</div>
-                                <h5 class="mb-0">${existingQuestion.title || 'Question ' + questionCount}</h5>
-                            </div>
-                            <div class="d-flex align-items-center">
-                                <span class="badge bg-light text-dark me-2 question-type-badge">${getTypeLabel(existingQuestion.type)}</span>
-                                <i class="fas fa-chevron-down toggle-icon text-muted"></i>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="question-body" id="question-body-${questionCount}" style="display: none;">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Titre de la question</label>
-                                    <input type="text" class="form-control question-title" 
-                                           value="${existingQuestion.title || ''}" 
-                                           placeholder="Ex: Question sur les fonctions" required>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group points-input-container">
-                                    <label class="form-label">Points (max 20 au total)</label>
-                                    <input type="number" class="form-control question-points" 
-                                           min="0" max="20" step="0.1" value="${existingQuestion.points || 5}">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="form-label">Énoncé de la question</label>
-                            <textarea class="form-control question-statement" rows="3" 
-                                      placeholder="Décrivez la question en détail..." required>${existingQuestion.statement || ''}</textarea>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="form-label">Type de question</label>
-                            <select class="form-select question-type" required>
-                                <option value="text" ${existingQuestion.type === 'text' ? 'selected' : ''}>Texte court</option>
-                                <option value="textarea" ${existingQuestion.type === 'textarea' ? 'selected' : ''}>Texte long</option>
-                                <option value="choice_single" ${existingQuestion.type === 'choice_single' ? 'selected' : ''}>Choix unique</option>
-                                <option value="choice_multiple" ${existingQuestion.type === 'choice_multiple' ? 'selected' : ''}>Choix multiples</option>
+<!-- Template pour une partie avec contexte intégré -->
+<template id="part-template">
+    <div class="part-card card border-primary mb-4">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-grip-vertical text-muted me-2 part-handle" style="cursor: move;"></i>
+                <button type="button" class="btn btn-sm btn-link text-primary p-0 text-decoration-none part-toggle-btn">
+                    <i class="fas fa-chevron-down me-2 part-toggle-icon"></i>
+                    <h6 class="mb-0 part-title-display">Nouvelle Partie</h6>
+                </button>
+                <span class="badge bg-primary ms-2 part-questions-count">0 questions</span>
+                <span class="badge bg-warning ms-2 part-context-indicator" style="display: none;">
+                    <i class="fas fa-file-alt me-1"></i>Avec contexte
+                </span>
+            </div>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-primary add-question-btn me-1">
+                    <i class="fas fa-plus me-1"></i>Question
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-warning toggle-context-btn me-1">
+                    <i class="fas fa-file-alt me-1"></i>Contexte
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger delete-part-btn">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+        <div class="collapse show part-collapse">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="form-group mb-3">
+                            <label class="form-label">Identifiant</label>
+                            <select class="form-select part-identifier">
+                                <option value="I">I</option>
+                                <option value="II">II</option>
+                                <option value="III">III</option>
+                                <option value="IV">IV</option>
+                                <option value="V">V</option>
+                                <option value="VI">VI</option>
+                                <option value="VII">VII</option>
+                                <option value="VIII">VIII</option>
+                                <option value="IX">IX</option>
+                                <option value="X">X</option>
                             </select>
                         </div>
-
-                        <div class="options-container" id="question-options-${questionCount}">
-                            <!-- Les options seront générées ici -->
-                        </div>
-
-                        <div class="d-flex justify-content-between align-items-center mt-4">
-                            <button type="button" class="btn btn-outline-danger btn-delete" onclick="removeQuestion(${questionCount})">
-                                <i class="fas fa-trash me-2"></i>Supprimer cette question
-                            </button>
-                            <small class="text-muted">Question ${questionCount}</small>
+                    </div>
+                    <div class="col-md-9">
+                        <div class="form-group mb-3">
+                            <label class="form-label">Titre de la partie</label>
+                            <input type="text" class="form-control part-title" placeholder="Ex: QCM, Étude de cas, Exercices...">
                         </div>
                     </div>
-                `;
-
-                document.getElementById('questions-container').appendChild(questionCard);
-                
-                // Générer les options selon le type
-                generateExistingOptions(questionCount, existingQuestion);
-                
-                // Initialiser les événements
-                initQuestionEvents(questionCount);
-                
-                // Mettre à jour le badge du type
-                updateTypeBadge(questionCount, existingQuestion.type);
-                
-                // Mettre à jour les données
-                updateQuestionData(questionCount);
-            });
-            
-            // Mettre à jour l'aperçu
-            updatePreview();
-            
-            // Développer la première question
-            if (questionCount > 0) {
-                setTimeout(() => toggleQuestion(1), 300);
-            }
-        } else {
-            // Aucune question existante, ajouter une question vide
-            addQuestion();
-        }
-    }
-
-    // Fonction pour générer les options existantes
-    function generateExistingOptions(questionId, existingQuestion) {
-        const optionsContainer = document.getElementById(`question-options-${questionId}`);
-        const questionType = existingQuestion.type;
-        
-        if (questionType === 'choice_single' || questionType === 'choice_multiple') {
-            const inputType = questionType === 'choice_single' ? 'radio' : 'checkbox';
-            const options = existingQuestion.options || [];
-            
-            let optionsHTML = `
-                <label class="form-label mb-3">Options de réponse</label>
-                <div id="options-list-${questionId}">
-            `;
-            
-            if (options.length > 0) {
-                optionsHTML += options.map((option, index) => `
-                    <div class="option-item" data-option-id="${index + 1}">
-                        <div class="d-flex align-items-center gap-3">
-                            <input type="${inputType}" class="form-check-input" disabled>
-                            <input type="text" class="form-control option-text" 
-                                   value="${option.label || option.option_text || 'Option ' + (index + 1)}"
-                                   placeholder="Option ${index + 1}">
-                            <button type="button" class="btn btn-sm btn-outline-danger" 
-                                    onclick="removeOption(${questionId}, ${index + 1})">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                    </div>
-                `).join('');
-            } else {
-                // Si pas d'options en base, créer des options par défaut
-                optionsHTML += [1, 2, 3].map(i => `
-                    <div class="option-item" data-option-id="${i}">
-                        <div class="d-flex align-items-center gap-3">
-                            <input type="${inputType}" class="form-check-input" disabled>
-                            <input type="text" class="form-control option-text" 
-                                   placeholder="Option ${i}" value="Option ${i}">
-                            <button type="button" class="btn btn-sm btn-outline-danger" 
-                                    onclick="removeOption(${questionId}, ${i})">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                    </div>
-                `).join('');
-            }
-            
-            optionsHTML += `
                 </div>
-                <button type="button" class="btn btn-sm btn-outline-primary mt-2" 
-                        onclick="addNewOption(${questionId})">
-                    <i class="fas fa-plus me-1"></i>Ajouter une option
-                </button>
-            `;
-            
-            optionsContainer.innerHTML = optionsHTML;
-            
-            // Initialiser les événements des options
-            initOptionEvents(questionId);
-        } else {
-            optionsContainer.innerHTML = '';
-        }
-    }
 
-    // Fonction pour mettre à jour l'aperçu
-    function updatePreview() {
-        const questionCountElem = document.getElementById('question-count');
-        const liveQuestionCountElem = document.getElementById('live-question-count');
-        const totalPointsElem = document.getElementById('total-points');
-        const questionTypesElem = document.getElementById('question-types');
-        
-        const totalPoints = questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 0), 0);
-        const typeCount = {};
-        
-        questionsData.forEach(q => {
-            typeCount[q.type] = (typeCount[q.type] || 0) + 1;
-        });
+                <div class="form-group mb-3">
+                    <label class="form-label">Description (optionnel)</label>
+                    <textarea class="form-control part-description" rows="2" placeholder="Description de cette partie..."></textarea>
+                </div>
 
-        questionCountElem.textContent = questionsData.length;
-        liveQuestionCountElem.textContent = `${questionsData.length} question${questionsData.length !== 1 ? 's' : ''}`;
-        totalPointsElem.textContent = totalPoints.toFixed(1);
-        
-        questionTypesElem.innerHTML = Object.entries(typeCount)
-            .map(([type, count]) => 
-                `<span class="badge bg-secondary type-badge">${getTypeLabel(type)}: ${count}</span>`
-            ).join(' ');
-        
-        // Vérifier la limite des points
-        checkPointsLimit();
-    }
+                <div class="form-group mb-3">
+                    <label class="form-label">Type de questions par défaut</label>
+                    <select class="form-select part-question-type">
+                        <option value="text">Cours (texte court)</option>
+                        <option value="textarea">Étude de cas (texte long)</option>
+                        <option value="choice_single">Question à choix unique</option>
+                        <option value="choice_multiple">Question à choix multiples</option>
+                    </select>
+                </div>
 
-    // Fonction pour ajouter une nouvelle question
-    function addQuestion() {
-        questionCount++;
-        
-        const questionCard = document.createElement('div');
-        questionCard.className = 'question-card new';
-        questionCard.setAttribute('data-question-id', questionCount);
+                <!-- SECTION CONTEXTE D'ÉTUDE DE CAS (cachée par défaut) -->
+                <div class="part-context-section" style="display: none;">
+                    <div class="card border-warning mb-3">
+                        <div class="card-header bg-warning bg-opacity-25 d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0"><i class="fas fa-file-alt me-2"></i>Contexte d'étude de cas</h6>
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-context-btn">
+                                <i class="fas fa-trash me-1"></i>Supprimer le contexte
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group mb-3">
+                                <label class="form-label">Problématique</label>
+                                <textarea class="form-control part-context-problematic" rows="3" placeholder="Ex: Comment cette IMF peut-elle réussir sa transition numérique..."></textarea>
+                            </div>
 
-        questionCard.innerHTML = `
-            <div class="question-header" onclick="toggleQuestion(${questionCount})">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-center">
-                        <div class="question-number me-3">${questionCount}</div>
-                        <h5 class="mb-0">Question ${questionCount}</h5>
+                            <div class="form-group mb-3">
+                                <label class="form-label">Ressources</label>
+                                <textarea class="form-control part-context-resources" rows="2" placeholder="Ex: Vous pouvez consulter les sites web des autorités..."></textarea>
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label class="form-label">Consignes de présentation</label>
+                                <textarea class="form-control part-context-instructions" rows="2" placeholder="Ex: Votre étude de cas doit être claire, bien structurée..."></textarea>
+                            </div>
+                        </div>
                     </div>
-                    <div class="d-flex align-items-center">
-                        <span class="badge bg-light text-dark me-2 question-type-badge">Texte court</span>
-                        <i class="fas fa-chevron-down toggle-icon text-muted"></i>
+                </div>
+
+                <!-- Liste des questions de cette partie -->
+                <div class="questions-list mt-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Questions de cette partie</h6>
+                        <div>
+                            <span class="badge bg-secondary me-2 part-total-points-badge">0 pts</span>
+                        </div>
+                    </div>
+                    <div class="questions-container">
+                        <!-- Les questions seront ajoutées ici -->
+                    </div>
+                    <div class="text-center py-3 no-questions-message">
+                        <i class="fas fa-question-circle fa-2x text-muted mb-2"></i>
+                        <p class="text-muted mb-0">Aucune question dans cette partie</p>
                     </div>
                 </div>
             </div>
-            <div class="question-body" id="question-body-${questionCount}" style="display: none;">
-                <div class="row">
-                    <div class="col-md-6">
+        </div>
+    </div>
+</template>
+
+<!-- Template pour une question -->
+<template id="question-template">
+    <div class="question-card card border mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center bg-light">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-grip-vertical text-muted me-2 question-handle" style="cursor: move;"></i>
+                <button type="button" class="btn btn-sm btn-link text-dark p-0 text-decoration-none question-toggle-btn toggle-btn">
+                    <i class="fas fa-chevron-down me-2 question-toggle-icon"></i>
+                    <span class="badge bg-primary me-2 question-number">1</span>
+                    <span class="question-title-display">Nouvelle Question</span>
+                </button>
+                <span class="badge question-type-badge bg-secondary ms-2">Texte court</span>
+                <span class="badge bg-success ms-2 question-points-badge">0 pts</span>
+            </div>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-danger delete-question-btn">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+        <div class="collapse show question-collapse">
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-8">
                         <div class="form-group">
                             <label class="form-label">Titre de la question</label>
-                            <input type="text" class="form-control question-title" 
-                                   placeholder="Ex: Question sur les fonctions" required>
+                            <input type="text" class="form-control question-title" placeholder="Ex: Question 1, Exercice 1...">
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="form-group points-input-container">
-                            <label class="form-label">Points (max 20 au total)</label>
-                            <input type="number" class="form-control question-points" 
-                                   min="0" max="20" step="0.1" placeholder="5" value="5">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label class="form-label">Points</label>
+                            <input type="number" class="form-control question-points" min="0.5" step="0.5" value="1">
                         </div>
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Énoncé de la question</label>
-                    <textarea class="form-control question-statement" rows="3" 
-                              placeholder="Décrivez la question en détail..." required></textarea>
+                <div class="form-group mb-3">
+                    <label class="form-label">Énoncé</label>
+                    <textarea class="form-control question-statement" rows="3" placeholder="Énoncé de la question..."></textarea>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Type de question</label>
-                    <select class="form-select question-type" required>
+                <div class="form-group mb-3">
+                    <label class="form-label">Type de réponse</label>
+                    <select class="form-select question-type">
                         <option value="text">Texte court</option>
-                        <option value="textarea">Texte long</option>
+                        <option value="textarea">Texte long (étude de cas)</option>
                         <option value="choice_single">Choix unique</option>
                         <option value="choice_multiple">Choix multiples</option>
                     </select>
                 </div>
 
-                <div class="options-container" id="question-options-${questionCount}">
-                    <!-- Les options seront générées ici -->
-                </div>
-
-                <div class="d-flex justify-content-between align-items-center mt-4">
-                    <button type="button" class="btn btn-outline-danger btn-delete" onclick="removeQuestion(${questionCount})">
-                        <i class="fas fa-trash me-2"></i>Supprimer cette question
-                    </button>
-                    <small class="text-muted">Question ${questionCount}</small>
-                </div>
-            </div>
-        `;
-
-        document.getElementById('questions-container').appendChild(questionCard);
-        
-        // Initialiser les événements
-        initQuestionEvents(questionCount);
-        
-        // Générer les options initiales
-        generateOptions(questionCount, 'text');
-        
-        // Développer la nouvelle question
-        setTimeout(() => toggleQuestion(questionCount), 100);
-        
-        // Mettre à jour les données
-        updateQuestionData(questionCount);
-        updatePreview();
-    }
-
-    // Initialiser les événements pour une question
-    function initQuestionEvents(questionId) {
-        const questionElem = document.querySelector(`[data-question-id="${questionId}"]`);
-        
-        // Événement pour le type de question
-        questionElem.querySelector('.question-type').addEventListener('change', function() {
-            generateOptions(questionId, this.value);
-            updateQuestionData(questionId);
-            updateTypeBadge(questionId, this.value);
-        });
-
-        // Événements pour les champs de saisie
-        const inputs = questionElem.querySelectorAll('.question-title, .question-statement');
-        inputs.forEach(input => {
-            input.addEventListener('input', () => updateQuestionData(questionId));
-        });
-
-        // Événement spécial pour les points
-        const pointsInput = questionElem.querySelector('.question-points');
-        pointsInput.addEventListener('input', function() {
-            // Limiter la valeur maximale à 20
-            if (parseFloat(this.value) > 20) {
-                this.value = 20;
-            }
-            updateQuestionData(questionId);
-            updateQuestionPointsDisplay(questionId);
-        });
-    }
-
-    // Mettre à jour le badge du type
-    function updateTypeBadge(questionId, type) {
-        const badge = document.querySelector(`[data-question-id="${questionId}"] .question-type-badge`);
-        badge.textContent = getTypeLabel(type);
-        badge.className = `badge me-2 question-type-badge ${
-            type.includes('choice') ? 'bg-warning text-dark' : 
-            type === 'textarea' ? 'bg-info' : 'bg-secondary'
-        }`;
-    }
-
-    // Générer les options selon le type
-    function generateOptions(questionId, questionType) {
-        const optionsContainer = document.getElementById(`question-options-${questionId}`);
-        
-        if (questionType === 'choice_single' || questionType === 'choice_multiple') {
-            const inputType = questionType === 'choice_single' ? 'radio' : 'checkbox';
-            
-            optionsContainer.innerHTML = `
-                <label class="form-label mb-3">Options de réponse</label>
-                <div id="options-list-${questionId}">
-                    ${[1, 2, 3].map(i => `
-                        <div class="option-item" data-option-id="${i}">
-                            <div class="d-flex align-items-center gap-3">
-                                <input type="${inputType}" class="form-check-input" disabled>
-                                <input type="text" class="form-control option-text" 
-                                       placeholder="Option ${i}" value="Option ${i}">
-                                <button type="button" class="btn btn-sm btn-outline-danger" 
-                                        onclick="removeOption(${questionId}, ${i})">
-                                    <i class="fas fa-times"></i>
-                                </button>
+                <!-- Section des options (seulement pour les questions à choix) -->
+                <div class="options-container" style="display: none;">
+                    <div class="card border-info">
+                        <div class="card-header bg-info bg-opacity-25 d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">Options de réponse</h6>
+                            <button type="button" class="btn btn-sm btn-outline-info add-option-btn">
+                                <i class="fas fa-plus me-1"></i>Ajouter une option
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="options-list">
+                                <!-- Les options seront ajoutées ici -->
                             </div>
                         </div>
-                    `).join('')}
-                </div>
-                <button type="button" class="btn btn-sm btn-outline-primary mt-2" 
-                        onclick="addNewOption(${questionId})">
-                    <i class="fas fa-plus me-1"></i>Ajouter une option
-                </button>
-            `;
-            
-            // Initialiser les événements des options
-            initOptionEvents(questionId);
-        } else {
-            optionsContainer.innerHTML = '';
-        }
-    }
-
-    // Initialiser les événements des options
-    function initOptionEvents(questionId) {
-        const optionInputs = document.querySelectorAll(`#options-list-${questionId} .option-text`);
-        optionInputs.forEach(input => {
-            input.addEventListener('input', () => updateQuestionData(questionId));
-        });
-    }
-
-    // Ajouter une nouvelle option
-    function addNewOption(questionId) {
-        const optionsList = document.getElementById(`options-list-${questionId}`);
-        const optionCount = optionsList.children.length + 1;
-        const questionType = document.querySelector(`[data-question-id="${questionId}"] .question-type`).value;
-        const inputType = questionType === 'choice_single' ? 'radio' : 'checkbox';
-        
-        const optionItem = document.createElement('div');
-        optionItem.className = 'option-item';
-        optionItem.setAttribute('data-option-id', optionCount);
-        optionItem.innerHTML = `
-            <div class="d-flex align-items-center gap-3">
-                <input type="${inputType}" class="form-check-input" disabled>
-                <input type="text" class="form-control option-text" 
-                       placeholder="Option ${optionCount}">
-                <button type="button" class="btn btn-sm btn-outline-danger" 
-                        onclick="removeOption(${questionId}, ${optionCount})">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-        `;
-        
-        optionsList.appendChild(optionItem);
-        initOptionEvents(questionId);
-        updateQuestionData(questionId);
-    }
-
-    // Supprimer une option
-    function removeOption(questionId, optionId) {
-        const optionItem = document.querySelector(`#options-list-${questionId} [data-option-id="${optionId}"]`);
-        if (optionItem && document.querySelectorAll(`#options-list-${questionId} .option-item`).length > 1) {
-            optionItem.remove();
-            updateQuestionData(questionId);
-        }
-    }
-
-    // Basculer l'affichage d'une question
-    function toggleQuestion(questionId) {
-        const questionCard = document.querySelector(`[data-question-id="${questionId}"]`);
-        const questionBody = document.getElementById(`question-body-${questionId}`);
-        const isExpanded = questionBody.style.display !== 'none';
-        
-        if (isExpanded) {
-            questionBody.style.display = 'none';
-            questionCard.classList.remove('expanded');
-        } else {
-            questionBody.style.display = 'block';
-            questionCard.classList.add('expanded');
-        }
-    }
-
-    // Supprimer une question
-    function removeQuestion(questionId) {
-        Swal.fire({
-            title: 'Supprimer cette question ?',
-            text: "Cette action est irréversible !",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Oui, supprimer',
-            cancelButtonText: 'Annuler'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                const questionCard = document.querySelector(`[data-question-id="${questionId}"]`);
-                questionCard.style.opacity = '0';
-                questionCard.style.transform = 'translateX(100px)';
-                
-                setTimeout(() => {
-                    questionCard.remove();
-                    questionsData = questionsData.filter(q => q.id !== questionId);
-                    updatePreview();
-                    renumberQuestions();
-                }, 300);
-            }
-        });
-    }
-
-    // Renuméroter les questions
-    function renumberQuestions() {
-        const questionCards = document.querySelectorAll('.question-card');
-        questionCards.forEach((card, index) => {
-            const newNumber = index + 1;
-            const questionId = card.getAttribute('data-question-id');
-            card.querySelector('.question-number').textContent = newNumber;
-            card.querySelector('h5').textContent = `Question ${newNumber}`;
-            card.querySelector('.question-body small').textContent = `Question ${newNumber}`;
-            
-            // Mettre à jour l'ID dans les données
-            const questionIndex = questionsData.findIndex(q => q.id == questionId);
-            if (questionIndex !== -1) {
-                questionsData[questionIndex].id = newNumber;
-            }
-        });
-    }
-
-    // Mettre à jour les données de la question
-    function updateQuestionData(questionId) {
-        const questionElem = document.querySelector(`[data-question-id="${questionId}"]`);
-        const type = questionElem.querySelector('.question-type').value;
-        
-        let questionData = {
-            id: questionId,
-            title: questionElem.querySelector('.question-title').value,
-            statement: questionElem.querySelector('.question-statement').value,
-            type: type,
-            points: parseFloat(questionElem.querySelector('.question-points').value) || 0
-        };
-
-        if (type === 'choice_single' || type === 'choice_multiple') {
-            questionData.options_text = Array.from(questionElem.querySelectorAll('.option-text'))
-                .map(input => ({ label: input.value }));
-        }
-
-        const existingIndex = questionsData.findIndex(q => q.id === questionId);
-        if (existingIndex !== -1) {
-            questionsData[existingIndex] = questionData;
-        } else {
-            questionsData.push(questionData);
-        }
-
-        updatePreview();
-    }
-
-    // Générer la prévisualisation
-    function generatePreview() {
-        const previewContent = document.getElementById('preview-content');
-        previewContent.innerHTML = '';
-
-        if (questionsData.length === 0) {
-            previewContent.innerHTML = '<p class="text-muted text-center">Aucune question créée</p>';
-            return;
-        }
-
-        questionsData.forEach((question, index) => {
-            const questionDiv = document.createElement('div');
-            questionDiv.className = 'preview-question';
-            
-            let optionsHTML = '';
-            if (question.options_text) {
-                optionsHTML = question.options_text.map(option => `
-                    <div class="preview-option">
-                        <div class="form-check">
-                            <input class="form-check-input" type="${
-                                question.type === 'choice_single' ? 'radio' : 'checkbox'
-                            }" disabled>
-                            <label class="form-check-label">${option.label}</label>
-                        </div>
                     </div>
-                `).join('');
-            } else if (question.type === 'text') {
-                optionsHTML = '<input type="text" class="form-control" placeholder="Réponse courte" disabled>';
-            } else if (question.type === 'textarea') {
-                optionsHTML = '<textarea class="form-control" rows="3" placeholder="Réponse longue" disabled></textarea>';
-            }
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
 
-            questionDiv.innerHTML = `
-                <h6>${index + 1}. ${question.title || 'Sans titre'} <span class="badge bg-secondary">${question.points} pts</span></h6>
-                <p class="mb-3">${question.statement || 'Aucun énoncé'}</p>
-                ${optionsHTML}
-            `;
-            
-            previewContent.appendChild(questionDiv);
-        });
+<!-- Template pour une option de réponse -->
+<template id="option-template">
+    <div class="option-item d-flex align-items-center mb-2">
+        <i class="fas fa-grip-vertical text-muted me-2 option-handle" style="cursor: move;"></i>
+        <div class="form-check me-3">
+            <input class="form-check-input option-correct" type="checkbox">
+            <label class="form-check-label small">Correcte</label>
+        </div>
+        <input type="text" class="form-control option-label" placeholder="Texte de l'option...">
+        <button type="button" class="btn btn-sm btn-outline-danger ms-2 delete-option-btn">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+</template>
+@endsection
+
+@section('other-css')
+<style>
+    .stat-card {
+        padding: 15px;
+        border-radius: 8px;
+        background: #f8f9fa;
+        transition: all 0.3s ease;
+    }
+    
+    .stat-card:hover {
+        background: #e9ecef;
+        transform: translateY(-2px);
+    }
+    
+    .stat-value {
+        font-size: 28px;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+    
+    .stat-label {
+        font-size: 14px;
+        color: #7f8c8d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .sortable-ghost {
+        opacity: 0.4;
+    }
+    
+    .sortable-chosen {
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .part-card, .question-card {
+        transition: all 0.3s ease;
+    }
+    
+    .toggle-btn i {
+        transition: transform 0.3s ease;
+    }
+    
+    .toggle-btn.collapsed i {
+        transform: rotate(-90deg);
+    }
+    
+    .part-context-section {
+        animation: fadeIn 0.3s ease;
     }
 
-    // Initialisation
+    .toggle-context-btn.active {
+        background-color: #ffc107;
+        border-color: #ffc107;
+        color: #212529;
+    }
+    
+    .question-card .collapse:not(.show) {
+        display: none;
+    }
+    
+    .part-card .collapse:not(.show) {
+        display: none;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .progress {
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    
+    .progress-bar {
+        border-radius: 10px;
+    }
+</style>
+@endsection
+
+
+
+@section('other-css')
+<style>
+    .sortable-ghost {
+        opacity: 0.4;
+    }
+    
+    .sortable-chosen {
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .stat-card {
+        padding: 10px;
+    }
+    
+    .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+    
+    .stat-label {
+        font-size: 12px;
+        color: #7f8c8d;
+        text-transform: uppercase;
+    }
+    
+    .part-card, .question-card {
+        transition: all 0.3s ease;
+    }
+    
+    .toggle-btn i {
+        transition: transform 0.3s ease;
+    }
+    
+    .toggle-btn.collapsed i {
+        transform: rotate(-90deg);
+    }
+    
+    .part-context-section {
+        animation: fadeIn 0.3s ease;
+    }
+
+    .toggle-context-btn.active {
+        background-color: #ffc107;
+        border-color: #ffc107;
+        color: #212529;
+    }
+    
+    .question-card .collapse:not(.show) {
+        display: none;
+    }
+    
+    .part-card .collapse:not(.show) {
+        display: none;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+</style>
+@endsection
+
+@section('other-js')
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    // Structure de données simplifiée
+    const evaluationData = @json($evaluation ?? null);
+    
     document.addEventListener('DOMContentLoaded', function() {
-        // Charger les questions existantes ou ajouter une nouvelle question
-        loadExistingQuestions();
+        const MAX_POINTS = 20;
+        let partsData = [];
+        let nextPartId = 1;
+        let nextQuestionId = 1;
+        let nextOptionId = 1;
 
-        // Événement pour le bouton d'ajout
-        document.getElementById('add-question-btn').addEventListener('click', addQuestion);
+        // ============ FONCTIONS UTILITAIRES ============
 
-        // Événement pour la prévisualisation
-        document.getElementById('preview-btn').addEventListener('click', function() {
-            generatePreview();
-            new bootstrap.Modal(document.getElementById('previewModal')).show();
-        });
+        // Fonction simple pour les accordéons
+        function setupSimpleAccordion(toggleBtn, collapseElement) {
+            if (toggleBtn && collapseElement) {
+                // Initialiser l'icône
+                const icon = toggleBtn.querySelector('i');
+                if (icon && collapseElement.classList.contains('show')) {
+                    icon.style.transform = 'rotate(0deg)';
+                }
+                
+                toggleBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    // Basculer la classe 'show'
+                    if (collapseElement.classList.contains('show')) {
+                        collapseElement.classList.remove('show');
+                        if (icon) icon.style.transform = 'rotate(-90deg)';
+                    } else {
+                        collapseElement.classList.add('show');
+                        if (icon) icon.style.transform = 'rotate(0deg)';
+                    }
+                });
+            }
+        }
 
-        // Soumission du formulaire
-        document.getElementById('evaluation-question-form').addEventListener('submit', function(event) {
-            event.preventDefault();
+        // Fonction pour initialiser le tri
+        function initSortable(container, groupName) {
+            if (!container) return;
             
-            if (questionsData.length === 0) {
-                Swal.fire('Erreur', 'Veuillez ajouter au moins une question', 'error');
-                return;
-            }
+            return new Sortable(container, {
+                group: groupName,
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                chosenClass: 'sortable-chosen',
+                onEnd: function(evt) {
+                    // Mettre à jour l'ordre dans les données
+                    const partId = container.closest('.part-card')?.dataset.partId;
+                    const questionId = container.closest('.question-card')?.dataset.questionId;
+                    
+                    if (partId && !questionId) {
+                        // Tri des questions dans une partie
+                        const partIndex = partsData.findIndex(p => p.id == partId);
+                        if (partIndex !== -1) {
+                            const questionElements = container.querySelectorAll('.question-card');
+                            questionElements.forEach((element, index) => {
+                                const qId = element.dataset.questionId;
+                                const question = partsData[partIndex].questions.find(q => q.id == qId);
+                                if (question) {
+                                    question.order_in_part = index;
+                                }
+                            });
+                            
+                            // Renumérotage
+                            renumberQuestionsInPart(partId);
+                        }
+                    }
+                }
+            });
+        }
 
-            // Validation des questions
-            const invalidQuestions = questionsData.filter(q => !q.title || !q.statement);
-            if (invalidQuestions.length > 0) {
-                Swal.fire('Erreur', 'Certaines questions ont des champs manquants', 'error');
-                return;
-            }
+        // ============ GESTION DES PARTIES AVEC CONTEXTE ============
 
-            // Vérifier la limite des points
-            if (checkPointsLimit()) {
-                Swal.fire('Erreur', `Le total des points (${questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 0), 0).toFixed(1)}) dépasse la limite de 20 points`, 'error');
-                return;
-            }
-
-            // Envoi des données
-            const formData = {
-                questions: questionsData
+        // Fonction pour créer une partie avec contexte optionnel
+        function createPart(partData = {}) {
+            const partId = partData.id || nextPartId++;
+            const part = {
+                id: partId,
+                identifier: partData.identifier || 'I',
+                title: partData.title || '',
+                description: partData.description || '',
+                question_type: partData.question_type || 'text',
+                order: partData.order || partsData.length,
+                has_case_study_context: !!partData.case_study_context,
+                case_study_context: partData.case_study_context || null,
+                questions: [] // IMPORTANT: Initialiser avec tableau vide
             };
 
-            fetch('{{ route('enseignants.evaluation.store-evaluation-question', $emploiDuTemp->id) }}', {
+            console.log('Création de partie avec ID:', partId, 'Données (sans questions pour l\'instant):', part);
+
+            // Rendre le template
+            const partTemplate = document.getElementById('part-template');
+            const partClone = partTemplate.content.cloneNode(true);
+            const partElement = partClone.querySelector('.part-card');
+            partElement.dataset.partId = partId;
+
+            // Configurer l'accordéon de la partie
+            const partToggleBtn = partElement.querySelector('.part-toggle-btn');
+            const partCollapse = partElement.querySelector('.part-collapse');
+            setupSimpleAccordion(partToggleBtn, partCollapse);
+
+            // Remplir les champs DE BASE (sans les questions pour l'instant)
+            fillPartBasicFields(partElement, part);
+
+            // Configurer le contexte SI IL EXISTE
+            if (part.has_case_study_context && part.case_study_context) {
+                // Afficher le contexte et remplir les champs
+                showPartContext(partElement, part.case_study_context);
+            }
+
+            // Événements pour les boutons
+            setupPartEventListeners(partElement, partId);
+
+            // Ajouter au DOM
+            const partsContainer = document.getElementById('parts-container');
+            if (partsContainer) {
+                partsContainer.appendChild(partElement);
+            }
+
+            // CORRECTION CRITIQUE : Ajouter la partie aux données AVANT d'ajouter les questions
+            partsData.push(part);
+            console.log('Partie ajoutée à partsData. partsData:', partsData);
+
+            // Cacher le message "aucune partie"
+            const noPartsMessage = document.getElementById('no-parts-message');
+            if (noPartsMessage) {
+                noPartsMessage.style.display = 'none';
+            }
+
+            // Initialiser le tri des questions
+            const questionsContainer = partElement.querySelector('.questions-container');
+            if (questionsContainer) {
+                initSortable(questionsContainer, `part-${partId}`);
+            }
+
+            // MAINTENANT ajouter les questions (après que la partie est dans partsData)
+            // MAIS SEULEMENT si partData.questions existe et n'a pas encore été ajoutée
+            if (partData.questions && partData.questions.length > 0 && part.questions.length === 0) {
+                console.log('Ajout des questions APRÈS que la partie est dans partsData');
+                const noQuestionsMessage = partElement.querySelector('.no-questions-message');
+                addQuestionsToPart(partId, questionsContainer, noQuestionsMessage, partData.questions);
+            }
+
+            // Mettre à jour l'aperçu
+            updatePreview();
+
+            return partId;
+        }
+
+        // Fonction pour remplir les champs de BASE d'une partie (sans les questions)
+        function fillPartBasicFields(partElement, part) {
+            const identifierSelect = partElement.querySelector('.part-identifier');
+            const titleInput = partElement.querySelector('.part-title');
+            const descriptionInput = partElement.querySelector('.part-description');
+            const questionTypeSelect = partElement.querySelector('.part-question-type');
+            const titleDisplay = partElement.querySelector('.part-title-display');
+
+            if (identifierSelect) identifierSelect.value = part.identifier;
+            if (titleInput) titleInput.value = part.title;
+            if (descriptionInput) descriptionInput.value = part.description || '';
+            if (questionTypeSelect) questionTypeSelect.value = part.question_type;
+            if (titleDisplay) titleDisplay.textContent = part.title || 'Nouvelle Partie';
+        }
+
+        // Fonction pour ajouter les questions à une partie (après que la partie est dans partsData)
+        function addQuestionsToPart(partId, container, noQuestionsMessage, questionsArray) {
+            if (!container || !questionsArray || questionsArray.length === 0) {
+                console.log('Aucune question à ajouter ou conteneur manquant');
+                return;
+            }
+
+            console.log('Ajout de questions à la partie ID:', partId, 'Questions:', questionsArray);
+            
+            // Trier les questions par order_in_part avant de les ajouter
+            const sortedQuestions = [...questionsArray].sort((a, b) => {
+                return (a.order_in_part || 0) - (b.order_in_part || 0);
+            });
+            
+            console.log('Questions triées pour partie ID', partId, ':', sortedQuestions);
+            
+            sortedQuestions.forEach((questionData, index) => {
+                // Corriger order_in_part si tous sont 0
+                if (questionData.order_in_part === 0 && index > 0) {
+                    questionData.order_in_part = index;
+                }
+                console.log('Ajout question à partie ID', partId, ':', questionData);
+                addQuestionToPart(partId, container, noQuestionsMessage, questionData);
+            });
+            
+            if (noQuestionsMessage) {
+                noQuestionsMessage.style.display = 'none';
+            }
+        }
+
+        // Fonction pour AFFICHER et remplir le contexte
+        function showPartContext(partElement, contextData) {
+            const contextSection = partElement.querySelector('.part-context-section');
+            const toggleBtn = partElement.querySelector('.toggle-context-btn');
+            const contextIndicator = partElement.querySelector('.part-context-indicator');
+            const problematicInput = partElement.querySelector('.part-context-problematic');
+            const resourcesInput = partElement.querySelector('.part-context-resources');
+            const instructionsInput = partElement.querySelector('.part-context-instructions');
+            
+            if (contextSection && toggleBtn && contextIndicator) {
+                // Afficher la section
+                contextSection.style.display = 'block';
+                toggleBtn.classList.add('active');
+                contextIndicator.style.display = 'inline-flex';
+                
+                // Remplir les champs avec les données existantes
+                if (problematicInput) problematicInput.value = contextData.problematic || '';
+                if (resourcesInput) resourcesInput.value = contextData.resources || '';
+                if (instructionsInput) instructionsInput.value = contextData.instructions || '';
+            }
+        }
+
+        // Fonction pour configurer les événements d'une partie
+        function setupPartEventListeners(partElement, partId) {
+            // Bouton pour ajouter une question
+            const addQuestionBtn = partElement.querySelector('.add-question-btn');
+            if (addQuestionBtn) {
+                addQuestionBtn.addEventListener('click', function() {
+                    const container = partElement.querySelector('.questions-container');
+                    const noMsg = partElement.querySelector('.no-questions-message');
+                    addQuestionToPart(partId, container, noMsg);
+                });
+            }
+
+            // Bouton pour basculer le contexte
+            const toggleContextBtn = partElement.querySelector('.toggle-context-btn');
+            if (toggleContextBtn) {
+                toggleContextBtn.addEventListener('click', function() {
+                    togglePartContext(partElement, partId);
+                });
+            }
+
+            // Bouton pour supprimer la partie
+            const deleteBtn = partElement.querySelector('.delete-part-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', function() {
+                    deletePart(partId);
+                });
+            }
+
+            // Bouton pour supprimer le contexte
+            const removeContextBtn = partElement.querySelector('.remove-context-btn');
+            if (removeContextBtn) {
+                removeContextBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    removePartContext(partElement, partId);
+                });
+            }
+
+            // Écouteurs pour les champs de la partie
+            const partFields = partElement.querySelectorAll('.part-identifier, .part-title, .part-description, .part-question-type');
+            partFields.forEach(field => {
+                field.addEventListener('change', function() {
+                    updatePartData(partId);
+                    if (field.classList.contains('part-title')) {
+                        const display = partElement.querySelector('.part-title-display');
+                        if (display) display.textContent = field.value || 'Nouvelle Partie';
+                    }
+                });
+            });
+
+            // Écouteurs pour les champs du contexte
+            const contextFields = partElement.querySelectorAll('.part-context-problematic, .part-context-resources, .part-context-instructions');
+            contextFields.forEach(field => {
+                field.addEventListener('input', function() {
+                    updatePartContextData(partId);
+                });
+            });
+        }
+
+        // Fonction pour basculer l'affichage du contexte
+        function togglePartContext(partElement, partId) {
+            const contextSection = partElement.querySelector('.part-context-section');
+            const toggleBtn = partElement.querySelector('.toggle-context-btn');
+            const contextIndicator = partElement.querySelector('.part-context-indicator');
+            
+            if (contextSection.style.display === 'none' || !contextSection.style.display) {
+                // Afficher le contexte
+                contextSection.style.display = 'block';
+                toggleBtn.classList.add('active');
+                if (contextIndicator) contextIndicator.style.display = 'inline-flex';
+                
+                // Mettre à jour les données
+                const partIndex = partsData.findIndex(p => p.id == partId);
+                if (partIndex !== -1) {
+                    if (!partsData[partIndex].case_study_context) {
+                        partsData[partIndex].case_study_context = {
+                            problematic: '',
+                            resources: '',
+                            instructions: ''
+                        };
+                    }
+                    partsData[partIndex].has_case_study_context = true;
+                }
+            } else {
+                // Cacher le contexte
+                contextSection.style.display = 'none';
+                toggleBtn.classList.remove('active');
+                if (contextIndicator) contextIndicator.style.display = 'none';
+                
+                // Mettre à jour les données
+                const partIndex = partsData.findIndex(p => p.id == partId);
+                if (partIndex !== -1) {
+                    partsData[partIndex].has_case_study_context = false;
+                }
+            }
+        }
+
+        // Fonction pour supprimer le contexte d'une partie
+        function removePartContext(partElement, partId) {
+            Swal.fire({
+                title: 'Supprimer ce contexte ?',
+                text: "Le contexte sera définitivement supprimé.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Oui, supprimer',
+                cancelButtonText: 'Annuler'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const contextSection = partElement.querySelector('.part-context-section');
+                    const toggleBtn = partElement.querySelector('.toggle-context-btn');
+                    const contextIndicator = partElement.querySelector('.part-context-indicator');
+                    
+                    // Cacher la section
+                    if (contextSection) contextSection.style.display = 'none';
+                    if (toggleBtn) toggleBtn.classList.remove('active');
+                    if (contextIndicator) contextIndicator.style.display = 'none';
+                    
+                    // Réinitialiser les champs
+                    const problematicInput = partElement.querySelector('.part-context-problematic');
+                    const resourcesInput = partElement.querySelector('.part-context-resources');
+                    const instructionsInput = partElement.querySelector('.part-context-instructions');
+                    
+                    if (problematicInput) problematicInput.value = '';
+                    if (resourcesInput) resourcesInput.value = '';
+                    if (instructionsInput) instructionsInput.value = '';
+                    
+                    // Mettre à jour les données
+                    const partIndex = partsData.findIndex(p => p.id == partId);
+                    if (partIndex !== -1) {
+                        partsData[partIndex].has_case_study_context = false;
+                        partsData[partIndex].case_study_context = null;
+                    }
+                }
+            });
+        }
+
+        // ============ GESTION DES QUESTIONS ============
+
+        // Fonction pour ajouter une question à une partie
+        function addQuestionToPart(partId, container, noQuestionsMessage, questionData = {}) {
+            const partIndex = partsData.findIndex(p => p.id == partId);
+            if (partIndex === -1) {
+                console.error('Partie non trouvée dans partsData. partId:', partId, 'partsData:', partsData);
+                return null;
+            }
+
+            const questionId = questionData.id || nextQuestionId++;
+            const question = {
+                id: questionId,
+                title: questionData.title || '',
+                statement: questionData.statement || '',
+                type: questionData.type || 'text',
+                points: questionData.points || 1,
+                order_in_part: questionData.order_in_part || partsData[partIndex].questions.length,
+                options_text: questionData.options_text || []
+            };
+
+            console.log('Création de question ID:', questionId, 'pour partie ID:', partId, 'Données:', question);
+
+            // Rendre le template
+            const questionTemplate = document.getElementById('question-template');
+            if (!questionTemplate) {
+                console.error('Template de question non trouvé!');
+                return null;
+            }
+            
+            const questionClone = questionTemplate.content.cloneNode(true);
+            const questionElement = questionClone.querySelector('.question-card');
+            if (!questionElement) {
+                console.error('Élément question-card non trouvé dans le template!');
+                return null;
+            }
+            
+            questionElement.dataset.questionId = questionId;
+            questionElement.dataset.partId = partId;
+
+            // Configurer l'accordéon de la question
+            const questionToggleBtn = questionElement.querySelector('.question-toggle-btn');
+            const questionCollapse = questionElement.querySelector('.question-collapse');
+            setupSimpleAccordion(questionToggleBtn, questionCollapse);
+
+            // Remplir les champs
+            const titleInput = questionElement.querySelector('.question-title');
+            const statementInput = questionElement.querySelector('.question-statement');
+            const typeSelect = questionElement.querySelector('.question-type');
+            const pointsInput = questionElement.querySelector('.question-points');
+            const titleDisplay = questionElement.querySelector('.question-title-display');
+            const pointsBadge = questionElement.querySelector('.question-points-badge');
+            const typeBadge = questionElement.querySelector('.question-type-badge');
+            const questionNumber = questionElement.querySelector('.question-number');
+
+            if (titleInput) titleInput.value = question.title;
+            if (statementInput) statementInput.value = question.statement;
+            if (typeSelect) typeSelect.value = question.type;
+            if (pointsInput) pointsInput.value = question.points;
+            if (titleDisplay) titleDisplay.textContent = question.title || 'Nouvelle Question';
+            if (pointsBadge) pointsBadge.textContent = `${question.points} pts`;
+            
+            // CORRECTION : Utiliser l'ordre réel de la question
+            if (questionNumber) {
+                questionNumber.textContent = (question.order_in_part + 1) || 1;
+            }
+            
+            // Mettre à jour le badge de type
+            if (typeBadge) {
+                const typeLabels = {
+                    'text': { text: 'Texte court', class: 'bg-secondary' },
+                    'textarea': { text: 'Texte long', class: 'bg-warning text-dark' },
+                    'choice_single': { text: 'Choix unique', class: 'bg-success' },
+                    'choice_multiple': { text: 'Choix multiples', class: 'bg-info' }
+                };
+                const typeInfo = typeLabels[question.type] || typeLabels.text;
+                typeBadge.textContent = typeInfo.text;
+                typeBadge.className = `badge question-type-badge ${typeInfo.class}`;
+            }
+
+            // Gérer les options si c'est une question à choix
+            const optionsContainer = questionElement.querySelector('.options-container');
+            const optionsList = questionElement.querySelector('.options-list');
+            const addOptionBtn = questionElement.querySelector('.add-option-btn');
+            
+            if (question.type === 'choice_single' || question.type === 'choice_multiple') {
+                if (optionsContainer) optionsContainer.style.display = 'block';
+                
+                // Ajouter les options existantes
+                if (optionsList && question.options_text && question.options_text.length > 0) {
+                    question.options_text.forEach((optionData, index) => {
+                        addOptionToQuestion(questionId, optionsList, optionData);
+                    });
+                } else if (optionsList && addOptionBtn) {
+                    // Ajouter 3 options par défaut si aucune n'existe
+                    for (let i = 0; i < 3; i++) {
+                        addOptionToQuestion(questionId, optionsList);
+                    }
+                }
+                
+                // Configurer le bouton pour ajouter des options
+                if (addOptionBtn) {
+                    addOptionBtn.addEventListener('click', function() {
+                        addOptionToQuestion(questionId, optionsList);
+                    });
+                }
+            }
+
+            // Événement pour changer le type de question
+            if (typeSelect) {
+                typeSelect.addEventListener('change', function() {
+                    const newType = this.value;
+                    
+                    // Mettre à jour le badge
+                    if (typeBadge) {
+                        const typeLabels = {
+                            'text': { text: 'Texte court', class: 'bg-secondary' },
+                            'textarea': { text: 'Texte long', class: 'bg-warning text-dark' },
+                            'choice_single': { text: 'Choix unique', class: 'bg-success' },
+                            'choice_multiple': { text: 'Choix multiples', class: 'bg-info' }
+                        };
+                        const typeInfo = typeLabels[newType] || typeLabels.text;
+                        typeBadge.textContent = typeInfo.text;
+                        typeBadge.className = `badge question-type-badge ${typeInfo.class}`;
+                    }
+                    
+                    // Afficher/masquer les options
+                    if (optionsContainer) {
+                        if (newType === 'choice_single' || newType === 'choice_multiple') {
+                            optionsContainer.style.display = 'block';
+                            if (optionsList && optionsList.children.length === 0) {
+                                for (let i = 0; i < 3; i++) {
+                                    addOptionToQuestion(questionId, optionsList);
+                                }
+                            }
+                        } else {
+                            optionsContainer.style.display = 'none';
+                        }
+                    }
+                    
+                    updateQuestionData(partId, questionId);
+                });
+            }
+
+            // Événements pour les autres champs
+            [titleInput, statementInput, pointsInput].forEach(field => {
+                if (field) {
+                    field.addEventListener('input', function() {
+                        updateQuestionData(partId, questionId);
+                        if (field === titleInput && titleDisplay) {
+                            titleDisplay.textContent = field.value || 'Nouvelle Question';
+                        }
+                        if (field === pointsInput && pointsBadge) {
+                            pointsBadge.textContent = `${field.value} pts`;
+                        }
+                    });
+                }
+            });
+
+            // Événement pour supprimer la question
+            const deleteBtn = questionElement.querySelector('.delete-question-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', function() {
+                    deleteQuestion(partId, questionId);
+                });
+            }
+
+            // Ajouter au DOM
+            if (container) {
+                console.log('Ajout de la question ID', questionId, 'au conteneur');
+                container.appendChild(questionElement);
+                console.log('Question ajoutée avec succès');
+            } else {
+                console.error('Conteneur de questions non trouvé pour partie ID', partId);
+            }
+            
+            if (noQuestionsMessage) {
+                noQuestionsMessage.style.display = 'none';
+            }
+
+            // Ajouter aux données
+            if (!partsData[partIndex].questions) {
+                partsData[partIndex].questions = [];
+            }
+            partsData[partIndex].questions.push(question);
+
+            // Renumérotage
+            renumberQuestionsInPart(partId);
+            
+            // Mettre à jour le compteur de questions
+            updatePartQuestionCount(partId);
+            
+            // Mettre à jour l'aperçu
+            updatePreview();
+
+            return questionId;
+        }
+
+        // Fonction pour ajouter une option à une question
+        function addOptionToQuestion(questionId, container, optionData = {}) {
+            const optionId = nextOptionId++;
+            const optionTemplate = document.getElementById('option-template');
+            const optionClone = optionTemplate.content.cloneNode(true);
+            const optionElement = optionClone.querySelector('.option-item');
+            optionElement.dataset.optionId = optionId;
+
+            const optionLabel = optionElement.querySelector('.option-label');
+            const optionCorrect = optionElement.querySelector('.option-correct');
+            
+            if (optionLabel) optionLabel.value = optionData.label || '';
+            if (optionCorrect && optionData.correct !== undefined) {
+                optionCorrect.checked = optionData.correct;
+            }
+
+            // Événement pour supprimer l'option
+            const deleteBtn = optionElement.querySelector('.delete-option-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', function() {
+                    optionElement.remove();
+                });
+            }
+
+            // Événement pour mettre à jour
+            if (optionLabel) {
+                optionLabel.addEventListener('input', function() {
+                    // Mettre à jour les données si nécessaire
+                });
+            }
+
+            if (container) container.appendChild(optionElement);
+            return optionId;
+        }
+
+        // ============ FONCTIONS DE MISE À JOUR ============
+
+        // Fonction pour mettre à jour les données d'une partie
+        function updatePartData(partId) {
+            const partElement = document.querySelector(`[data-part-id="${partId}"]`);
+            if (!partElement) return;
+
+            const partIndex = partsData.findIndex(p => p.id == partId);
+            if (partIndex === -1) return;
+
+            const identifierSelect = partElement.querySelector('.part-identifier');
+            const titleInput = partElement.querySelector('.part-title');
+            const descriptionInput = partElement.querySelector('.part-description');
+            const questionTypeSelect = partElement.querySelector('.part-question-type');
+
+            if (identifierSelect) partsData[partIndex].identifier = identifierSelect.value;
+            if (titleInput) partsData[partIndex].title = titleInput.value;
+            if (descriptionInput) partsData[partIndex].description = descriptionInput.value;
+            if (questionTypeSelect) partsData[partIndex].question_type = questionTypeSelect.value;
+
+            updatePreview();
+        }
+
+        // Fonction pour mettre à jour les données du contexte
+        function updatePartContextData(partId) {
+            const partElement = document.querySelector(`[data-part-id="${partId}"]`);
+            if (!partElement) return;
+
+            const partIndex = partsData.findIndex(p => p.id == partId);
+            if (partIndex === -1) return;
+
+            const problematicInput = partElement.querySelector('.part-context-problematic');
+            const resourcesInput = partElement.querySelector('.part-context-resources');
+            const instructionsInput = partElement.querySelector('.part-context-instructions');
+            
+            if (!partsData[partIndex].case_study_context) {
+                partsData[partIndex].case_study_context = {};
+            }
+            
+            if (problematicInput) partsData[partIndex].case_study_context.problematic = problematicInput.value;
+            if (resourcesInput) partsData[partIndex].case_study_context.resources = resourcesInput.value;
+            if (instructionsInput) partsData[partIndex].case_study_context.instructions = instructionsInput.value;
+            
+            partsData[partIndex].has_case_study_context = true;
+        }
+
+        // Fonction pour mettre à jour les données d'une question
+        function updateQuestionData(partId, questionId) {
+            const questionElement = document.querySelector(`[data-question-id="${questionId}"]`);
+            if (!questionElement) return;
+
+            const partIndex = partsData.findIndex(p => p.id == partId);
+            if (partIndex === -1) return;
+
+            const questionIndex = partsData[partIndex].questions.findIndex(q => q.id == questionId);
+            if (questionIndex === -1) return;
+
+            const titleInput = questionElement.querySelector('.question-title');
+            const statementInput = questionElement.querySelector('.question-statement');
+            const typeSelect = questionElement.querySelector('.question-type');
+            const pointsInput = questionElement.querySelector('.question-points');
+
+            if (titleInput) partsData[partIndex].questions[questionIndex].title = titleInput.value;
+            if (statementInput) partsData[partIndex].questions[questionIndex].statement = statementInput.value;
+            if (typeSelect) partsData[partIndex].questions[questionIndex].type = typeSelect.value;
+            if (pointsInput) partsData[partIndex].questions[questionIndex].points = parseFloat(pointsInput.value) || 0;
+
+            // Mettre à jour les options
+            const optionsList = questionElement.querySelector('.options-list');
+            if (optionsList) {
+                const optionElements = optionsList.querySelectorAll('.option-item');
+                partsData[partIndex].questions[questionIndex].options_text = Array.from(optionElements).map(opt => ({
+                    label: opt.querySelector('.option-label')?.value || '',
+                    correct: opt.querySelector('.option-correct')?.checked || false
+                }));
+            }
+
+            updatePreview();
+        }
+
+        // Fonction pour renumeroter les questions
+        function renumberQuestionsInPart(partId) {
+            const partElement = document.querySelector(`[data-part-id="${partId}"]`);
+            if (!partElement) return;
+
+            const questionElements = partElement.querySelectorAll('.question-card');
+            questionElements.forEach((element, index) => {
+                const numberElement = element.querySelector('.question-number');
+                if (numberElement) {
+                    numberElement.textContent = index + 1;
+                }
+            });
+        }
+
+        // Fonction pour mettre à jour le compteur de questions
+        function updatePartQuestionCount(partId) {
+            const partElement = document.querySelector(`[data-part-id="${partId}"]`);
+            if (!partElement) return;
+
+            const partIndex = partsData.findIndex(p => p.id == partId);
+            if (partIndex === -1) return;
+
+            const countElement = partElement.querySelector('.part-questions-count');
+            if (countElement) {
+                countElement.textContent = `${partsData[partIndex].questions.length} question${partsData[partIndex].questions.length !== 1 ? 's' : ''}`;
+            }
+        }
+
+        // ============ SUPPRESSION ============
+
+        // Fonction pour supprimer une question
+        function deleteQuestion(partId, questionId) {
+            Swal.fire({
+                title: 'Supprimer cette question ?',
+                text: "Cette action est irréversible !",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Oui, supprimer',
+                cancelButtonText: 'Annuler'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const questionElement = document.querySelector(`[data-question-id="${questionId}"]`);
+                    if (questionElement) {
+                        questionElement.style.opacity = '0';
+                        questionElement.style.transform = 'translateX(100px)';
+                        
+                        setTimeout(() => {
+                            questionElement.remove();
+                            
+                            // Supprimer des données
+                            const partIndex = partsData.findIndex(p => p.id == partId);
+                            if (partIndex !== -1) {
+                                partsData[partIndex].questions = partsData[partIndex].questions.filter(q => q.id != questionId);
+                                renumberQuestionsInPart(partId);
+                                updatePartQuestionCount(partId);
+                            }
+                            
+                            updatePreview();
+                        }, 300);
+                    }
+                }
+            });
+        }
+
+        // Fonction pour supprimer une partie
+        function deletePart(partId) {
+            Swal.fire({
+                title: 'Supprimer cette partie ?',
+                text: "Toutes les questions de cette partie seront également supprimées !",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Oui, supprimer',
+                cancelButtonText: 'Annuler'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const partElement = document.querySelector(`[data-part-id="${partId}"]`);
+                    if (partElement) {
+                        partElement.style.opacity = '0';
+                        partElement.style.transform = 'translateX(100px)';
+                        
+                        setTimeout(() => {
+                            partElement.remove();
+                            partsData = partsData.filter(p => p.id != partId);
+                            updatePreview();
+                            
+                            if (partsData.length === 0) {
+                                document.getElementById('no-parts-message').style.display = 'block';
+                            }
+                        }, 300);
+                    }
+                }
+            });
+        }
+
+        // ============ APERÇU ET VALIDATION ============
+
+        // Fonction pour générer la prévisualisation
+        function generatePreview() {
+            let previewHTML = '<div class="preview-evaluation">';
+            
+            if (partsData.length === 0) {
+                previewHTML += '<div class="alert alert-warning">Aucune partie définie</div>';
+                return previewHTML;
+            }
+            
+            partsData.forEach((part, partIndex) => {
+                previewHTML += `
+                    <div class="preview-part mb-4">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h4 class="mb-0">${part.identifier}. ${part.title || 'Sans titre'}</h4>
+                                ${part.description ? `<p class="mb-0 mt-2">${part.description}</p>` : ''}
+                            </div>
+                            <div class="card-body">
+                `;
+                
+                // Afficher le contexte d'étude de cas s'il existe
+                if (part.has_case_study_context && part.case_study_context) {
+                    previewHTML += `
+                        <div class="card border-warning mb-4">
+                            <div class="card-header bg-warning bg-opacity-25">
+                                <h5 class="mb-0"><i class="fas fa-file-alt me-2"></i>Contexte d'étude de cas</h5>
+                            </div>
+                            <div class="card-body">
+                    `;
+                    
+                    if (part.case_study_context.problematic) {
+                        previewHTML += `
+                            <div class="mb-3">
+                                <h6>Problématique :</h6>
+                                <p>${part.case_study_context.problematic}</p>
+                            </div>
+                        `;
+                    }
+                    
+                    if (part.case_study_context.resources) {
+                        previewHTML += `
+                            <div class="mb-3">
+                                <h6>Ressources :</h6>
+                                <p>${part.case_study_context.resources}</p>
+                            </div>
+                        `;
+                    }
+                    
+                    if (part.case_study_context.instructions) {
+                        previewHTML += `
+                            <div class="mb-3">
+                                <h6>Consignes de présentation :</h6>
+                                <p>${part.case_study_context.instructions}</p>
+                            </div>
+                        `;
+                    }
+                    
+                    previewHTML += `
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Afficher les questions
+                if (part.questions && part.questions.length > 0) {
+                    part.questions.forEach((question, qIndex) => {
+                        previewHTML += `
+                            <div class="preview-question mb-4">
+                                <div class="card">
+                                    <div class="card-header bg-light">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h5 class="mb-0">Question ${qIndex + 1}</h5>
+                                            <span class="badge bg-primary">${question.points} point${question.points !== 1 ? 's' : ''}</span>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                        `;
+                        
+                        if (question.title) {
+                            previewHTML += `<h6 class="mb-2">${question.title}</h6>`;
+                        }
+                        
+                        if (question.statement) {
+                            previewHTML += `<p class="mb-3">${question.statement}</p>`;
+                        }
+                        
+                        // Afficher le type de réponse
+                        const typeLabels = {
+                            'text': 'Réponse courte',
+                            'textarea': 'Réponse longue',
+                            'choice_single': 'Choix unique',
+                            'choice_multiple': 'Choix multiples'
+                        };
+                        
+                        previewHTML += `
+                            <div class="mb-2">
+                                <small class="text-muted">Type de réponse : ${typeLabels[question.type] || 'Non spécifié'}</small>
+                            </div>
+                        `;
+                        
+                        // Afficher les options pour les questions à choix
+                        if ((question.type === 'choice_single' || question.type === 'choice_multiple') && question.options_text && question.options_text.length > 0) {
+                            previewHTML += '<div class="mt-3"><h6>Options :</h6><ul class="list-unstyled">';
+                            question.options_text.forEach((option, optIndex) => {
+                                previewHTML += `<li>${String.fromCharCode(65 + optIndex)}. ${option.label || 'Option non définie'}</li>`;
+                            });
+                            previewHTML += '</ul></div>';
+                        }
+                        
+                        previewHTML += `
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                } else {
+                    previewHTML += '<div class="alert alert-info">Aucune question dans cette partie</div>';
+                }
+                
+                previewHTML += `
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // Résumé
+            const totalPoints = partsData.reduce((total, part) => {
+                return total + (part.questions || []).reduce((partTotal, question) => {
+                    return partTotal + (parseFloat(question.points) || 0);
+                }, 0);
+            }, 0);
+            
+            const totalQuestions = partsData.reduce((total, part) => total + (part.questions || []).length, 0);
+            
+            previewHTML += `
+                <div class="card mt-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Résumé</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4 text-center">
+                                <div class="display-4">${partsData.length}</div>
+                                <div>Parties</div>
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <div class="display-4">${totalQuestions}</div>
+                                <div>Questions</div>
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <div class="display-4">${totalPoints.toFixed(1)}</div>
+                                <div>Points total</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            previewHTML += '</div>';
+            return previewHTML;
+        }
+
+        // Fonction pour mettre à jour l'aperçu
+        function updatePreview() {
+            const totalPoints = partsData.reduce((total, part) => {
+                return total + (part.questions || []).reduce((partTotal, question) => {
+                    return partTotal + (parseFloat(question.points) || 0);
+                }, 0);
+            }, 0);
+
+            const totalQuestions = partsData.reduce((total, part) => total + (part.questions || []).length, 0);
+            const exceedsLimit = totalPoints > MAX_POINTS;
+
+            // Mettre à jour les compteurs
+            const partsCountElem = document.getElementById('parts-count');
+            const questionsCountElem = document.getElementById('questions-count');
+            const totalPointsElem = document.getElementById('total-points');
+            const livePartsCountElem = document.getElementById('live-parts-count');
+            const totalPointsBadgeElem = document.getElementById('total-points-badge');
+            const progressBar = document.getElementById('points-progress');
+            const pointsLimitElem = document.getElementById('points-limit');
+            const pointsWarningElem = document.getElementById('points-warning');
+            const submitBtn = document.getElementById('submit-btn');
+
+            if (partsCountElem) partsCountElem.textContent = partsData.length;
+            if (questionsCountElem) questionsCountElem.textContent = totalQuestions;
+            if (totalPointsElem) totalPointsElem.textContent = totalPoints.toFixed(1);
+            if (livePartsCountElem) livePartsCountElem.textContent = `${partsData.length} partie${partsData.length !== 1 ? 's' : ''}`;
+            if (totalPointsBadgeElem) totalPointsBadgeElem.textContent = `${totalPoints.toFixed(1)}/20 pts`;
+
+            // Barre de progression
+            if (progressBar) {
+                const progressPercentage = Math.min((totalPoints / MAX_POINTS) * 100, 100);
+                progressBar.style.width = `${progressPercentage}%`;
+
+                if (exceedsLimit) {
+                    progressBar.className = 'progress-bar bg-danger';
+                    if (pointsLimitElem) pointsLimitElem.className = 'text-danger';
+                    if (pointsWarningElem) pointsWarningElem.style.display = 'block';
+                    if (submitBtn) submitBtn.disabled = true;
+                } else {
+                    progressBar.className = 'progress-bar bg-success';
+                    if (pointsLimitElem) pointsLimitElem.className = 'text-success';
+                    if (pointsWarningElem) pointsWarningElem.style.display = 'none';
+                    if (submitBtn) submitBtn.disabled = false;
+                }
+            }
+            
+            if (pointsLimitElem) {
+                pointsLimitElem.textContent = `${totalPoints.toFixed(1)}/20 pts`;
+            }
+        }
+
+        // ============ INITIALISATION DES DONNÉES ============
+
+        function initializeExistingParts() {
+            console.log('Données complètes chargées:', evaluationData);
+            
+            if (evaluationData && evaluationData.parts && evaluationData.parts.length > 0) {
+                console.log('Chargement des données depuis evaluationData.parts');
+                loadPartsData(evaluationData.parts);
+            } else if (evaluationData && evaluationData.evalutions && evaluationData.evalutions.parts) {
+                console.log('Chargement des données depuis evaluationData.evalutions.parts');
+                loadPartsData(evaluationData.evalutions.parts);
+            } else {
+                console.log('Aucune donnée à charger');
+                document.getElementById('no-parts-message').style.display = 'block';
+            }
+        }
+
+        function loadPartsData(partsArray) {
+            // Réinitialiser les données
+            partsData = [];
+            nextPartId = 1;
+            nextQuestionId = 1;
+            nextOptionId = 1;
+            
+            // Vider le conteneur
+            const partsContainer = document.getElementById('parts-container');
+            if (partsContainer) partsContainer.innerHTML = '';
+            
+            // Charger chaque partie
+            partsArray.forEach((part, index) => {
+                console.log(`Partie ${index} chargée:`, part);
+                
+                // CORRECTION : NE PAS ajouter les questions ici
+                // Les questions seront ajoutées dans createPart après que la partie est dans partsData
+                const partData = {
+                    id: nextPartId++,
+                    identifier: part.identifier || 'I',
+                    title: part.title || '',
+                    description: part.description || '',
+                    question_type: part.question_type || 'text',
+                    order: index,
+                    case_study_context: part.case_study_context || null,
+                    has_case_study_context: !!part.case_study_context,
+                    questions: part.questions || [] // Garder les questions ici pour qu'elles soient ajoutées dans createPart
+                };
+
+                const createdPartId = createPart(partData);
+                console.log('Partie créée avec ID:', createdPartId);
+            });
+            
+            updatePreview();
+            document.getElementById('no-parts-message').style.display = 'none';
+            
+            console.log('PartsData après chargement:', partsData);
+        }
+
+        // ============ ÉVÉNEMENTS ============
+
+        document.getElementById('add-part-btn').addEventListener('click', function() {
+            createPart();
+            updatePreview();
+            document.getElementById('no-parts-message').style.display = 'none';
+        });
+
+        // Bouton de prévisualisation
+        document.getElementById('preview-btn').addEventListener('click', function() {
+            const previewContent = document.getElementById('preview-content');
+            if (previewContent) {
+                previewContent.innerHTML = generatePreview();
+            }
+            
+            const previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+            previewModal.show();
+        });
+
+        // ============ SOUMISSION ============
+
+        document.getElementById('evaluation-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            if (!validateForm()) {
+                Swal.fire('Erreur', 'Veuillez corriger les erreurs avant de soumettre.', 'error');
+                return;
+            }
+
+            // Préparer les données
+            const formData = {
+                parts: partsData.map((part, index) => ({
+                    id: part.id,
+                    identifier: part.identifier,
+                    title: part.title,
+                    description: part.description,
+                    question_type: part.question_type,
+                    order: index,
+                    has_case_study_context: part.has_case_study_context,
+                    case_study_context: part.has_case_study_context ? part.case_study_context : null,
+                    questions: part.questions.map((question, qIndex) => ({
+                        id: question.id,
+                        title: question.title,
+                        statement: question.statement,
+                        type: question.type,
+                        points: question.points,
+                        order_in_part: qIndex,
+                        options_text: question.options_text
+                    }))
+                }))
+            };
+
+            console.log('Données envoyées:', formData);
+
+            // Envoyer les données
+            fetch("{{ route('enseignants.evaluation.store-evaluation-question', $emploiDuTemp->id) }}", {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1080,7 +1648,12 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    Swal.fire('Succès', data.message, 'success').then(() => {
+                    Swal.fire({
+                        title: 'Succès !',
+                        text: data.message,
+                        icon: 'success',
+                        confirmButtonText: 'OK'
+                    }).then(() => {
                         window.location.reload();
                     });
                 } else {
@@ -1090,14 +1663,51 @@
                             errorMessages += `<p>${data.errors[field].join(', ')}</p>`;
                         }
                     }
-                    document.getElementById('error-messages').innerHTML = errorMessages;
-                    document.getElementById('error-messages').style.display = 'block';
+                    const errorMessagesElem = document.getElementById('error-messages');
+                    if (errorMessagesElem) {
+                        errorMessagesElem.innerHTML = errorMessages;
+                        errorMessagesElem.style.display = 'block';
+                    }
                 }
             })
             .catch(error => {
-                Swal.fire('Erreur', 'Une erreur est survenue lors de l\'enregistrement', 'error');
+                Swal.fire('Erreur', 'Une erreur est survenue lors de l\'enregistrement.', 'error');
             });
         });
+
+        // Fonction de validation
+        function validateForm() {
+            if (partsData.length === 0) {
+                Swal.fire('Erreur', 'Veuillez ajouter au moins une partie.', 'error');
+                return false;
+            }
+
+            const totalPoints = partsData.reduce((total, part) => {
+                return total + (part.questions || []).reduce((partTotal, question) => {
+                    return partTotal + (parseFloat(question.points) || 0);
+                }, 0);
+            }, 0);
+
+            if (totalPoints > MAX_POINTS) {
+                Swal.fire('Erreur', `Le total des points (${totalPoints.toFixed(1)}) dépasse la limite de ${MAX_POINTS} points.`, 'error');
+                return false;
+            }
+
+            return true;
+        }
+
+        // Bouton de validation
+        document.getElementById('validate-btn').addEventListener('click', function() {
+            if (validateForm()) {
+                Swal.fire('Validation', 'Le formulaire est valide !', 'success');
+            }
+        });
+
+        // ============ INITIALISATION ============
+
+        // Initialiser les parties existantes
+        setTimeout(() => {
+            initializeExistingParts();
+        }, 100);
     });
 </script>
-@endsection

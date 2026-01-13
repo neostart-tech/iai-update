@@ -26,7 +26,7 @@
 
                     <div class="row text-center mt-3">
                         <div class="col-6">
-                            <h6 class="mb-0">{{ $evaluations->total() }}</h6>
+                            <h6 class="mb-0">{{ $evaluations->count() }}</h6>
                             <small class="text-muted">Surveillances</small>
                         </div>
                         <div class="col-6">
@@ -179,7 +179,6 @@
 
                         <!-- Pagination -->
                         <div class="d-flex justify-content-center mt-3">
-                            {{ $evaluations->links() }}
                         </div>
                     @else
                         <div class="text-center py-5">
