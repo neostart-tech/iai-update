@@ -1,4 +1,3 @@
-
 @extends('base', [
 'title' => 'Page des années scolaires',
 'breadcrumbs' => ['Administration', 'Année scolaire'],
@@ -21,6 +20,16 @@
                         <div class="mb-3">
                             <label for="annee" class="form-label">Année scolaire</label>
                             <input type="text" name="nom" class="form-control" required>
+                            <span>@error('nom') {{ $message }} @enderror</span>
+                        </div>
+                        <div class="mb-3">
+                            <label for="date_debut" class="form-label">Date début</label>
+                            <input type="date" name="date_debut" class="form-control" required>
+                            <span>@error('date_debut') {{ $message }} @enderror</span>
+                        </div>
+                        <div class="mb-3">
+                            <label for="date_fin" class="form-label">Date fin</label>
+                            <input type="date" name="date_fin" class="form-control" required>
                             <span>@error('nom') {{ $message }} @enderror</span>
                         </div>
                     </div>
@@ -51,6 +60,8 @@
                         <th>#</th>
                         <th>Année scolaire</th>
                         <th>Code</th>
+                        <th>Debut</th>
+                        <th>Fin</th>
                         <th>Statut</th>
                         <th>Actions</th>
                     </tr>
@@ -61,6 +72,9 @@
                         <td>{{ $key + 1 }}</td>
                         <td>{{ $annee->nom }}</td>
                         <td>{{ $annee->code }}</td>
+                        <td>{{date_format(date_create($annee->date_debut),'d F Y')}}</td>
+                        <td>{{date_format(date_create($annee->date_fin),'d F Y')}}</td>
+
                         <td>
                             @if ($annee->active)
                             <span class="badge bg-success">En cours</span>
@@ -94,7 +108,7 @@
 <script>
     // Activation
     document.querySelectorAll('.btn-activer').forEach(btn => {
-        btn.addEventListener('click', function (e) {
+        btn.addEventListener('click', function(e) {
             e.preventDefault();
             const id = this.dataset.id;
 
@@ -134,7 +148,7 @@
 
     // Désactivation
     document.querySelectorAll('.btn-desactiver').forEach(btn => {
-        btn.addEventListener('click', function (e) {
+        btn.addEventListener('click', function(e) {
             e.preventDefault();
             const id = this.dataset.id;
 
@@ -148,60 +162,64 @@
                 confirmButtonText: 'Oui, désactiver'
             }).then((result) => {
                 if (result.isConfirmed) {
-                Swal.fire({
-                text: "Traitement en cours...",
-                icon: 'info',
-                allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
+                    Swal.fire({
+                        text: "Traitement en cours...",
+                        icon: 'info',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
 
-            })
+                    })
 
-                  fetch(`/administration/annee-scolaire/${id}/desactivate`, {
-    method: 'PUT',
-    headers: {
-        'X-CSRF-TOKEN': '{{ csrf_token() }}',
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({})
-})
-.then(response => {
-    Swal.close();
-    if (response.ok) {
-        Swal.fire('Succès', 'Année désactivée avec succès', 'success')
-        .then(() => {
-            location.reload();
-        });
-           
-    } else {
-        Swal.fire('Erreur', 'Impossible de désactiver l\'année', 'error');
-    }
-    
-});
+                    fetch(`/administration/annee-scolaire/${id}/desactivate`, {
+                            method: 'PUT',
+                            headers: {
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({})
+                        })
+                        .then(response => {
+                            Swal.close();
+                            if (response.ok) {
+                                Swal.fire('Succès', 'Année désactivée avec succès', 'success')
+                                    .then(() => {
+                                        location.reload();
+                                    });
+
+                            } else {
+                                Swal.fire('Erreur', 'Impossible de désactiver l\'année', 'error');
+                            }
+
+                        });
 
                 }
             });
         });
     });
-// 
+    // 
     // SweetAlert pour messages de session
     @if(session('success'))
-        Swal.fire({
-            icon: 'success',
-            title: 'Succès',
-text: {!! json_encode(session('success')) !!},
-            confirmButtonColor: '#198754'
-        });
+    Swal.fire({
+        icon: 'success',
+        title: 'Succès',
+        text: {
+            !!json_encode(session('success')) !!
+        },
+        confirmButtonColor: '#198754'
+    });
     @endif
 
     @if(session('error'))
-        Swal.fire({
-            icon: 'error',
-            title: 'Erreur',
-text: {!! json_encode(session('success')) !!},
-            confirmButtonColor: '#dc3545'
-        });
+    Swal.fire({
+        icon: 'error',
+        title: 'Erreur',
+        text: {
+            !!json_encode(session('success')) !!
+        },
+        confirmButtonColor: '#dc3545'
+    });
     @endif
 </script>
 @endsection

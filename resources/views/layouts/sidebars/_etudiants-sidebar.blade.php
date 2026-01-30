@@ -42,6 +42,7 @@
 		<label>Mon dossier</label>
 	</li>
 
+
 	<li class="pc-item">
 		<a href="{{ route('etudiants.my-space.constitution') }}" class="pc-link">
 			<span class="pc-micon">
@@ -50,6 +51,7 @@
 			<span class="pc-mtext">Constitution</span>
 		</a>
 	</li>
+
 
 	<li class="pc-item">
 		<a href="{{ route('etudiants.my-space.my-files') }}" class="pc-link">
@@ -76,12 +78,20 @@
 		</a>
 	</li>
 	<li class="pc-item">
+		<a href="{{ route('documentation.mes-documents') }}" class="pc-link">
+			<span class="pc-micon">
+				<i class="ti ti-file-text"></i>
+			</span>
+			<span class="pc-mtext">Mes documents</span>
+		</a>
+	</li>
+	<!-- <li class="pc-item">
 		<a href="{{ route('etudiants.my-space.my-payment') }}" class="pc-link">
 			<span class="pc-micon">
 				 <i class="material-icons-two-tone"> payment</i>
 			</span>
 			<span class="pc-mtext">Mes paiements</span>
 		</a>
-	</li>
+	</li> -->
 
 </ul>

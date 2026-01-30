@@ -15,11 +15,25 @@
                             Filière
                             <x-forms.required-field />
                         </label>
-                        <select class="form-control" data-trigger name="filiere_id" id="filiere_id">
+                        <select multiple class="form-control" data-trigger name="filieres[]" id="filieres">
                             @foreach ($filieres as $filiere)
-                                <option value="{{ $filiere->id }}" id="{{ $filiere->id }}"
-                                    @selected(old('filiere_id') === $filiere->id)>
+                                <option value="{{ $filiere->id }}"
+                                   @selected(collect(old('filieres') ?? $group->filieres->pluck('id'))->contains($filiere->id))>
                                     {{ $filiere->code }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group text-start">
+                        <label class="form-label" for="filiere_id">
+                            Niveau
+                            <x-forms.required-field />
+                        </label>
+                        <select class="form-control" data-trigger name="niveau_id" id="niveau_id">
+                            @foreach ($niveaux as $niveau)
+                                <option value="{{ $niveau->id }}" id="{{ $niveau->id }}"
+                                    @selected(old('niveau_id') === $niveau->id)>
+                                    {{ $niveau->libelle }}
                                 </option>
                             @endforeach
                         </select>
@@ -29,7 +43,7 @@
                             <x-forms.required-field />
                         </label>
                         <input type="text" class="form-control uppercase" id="nom" name="nom"
-                            aria-describedby="nom" placeholder="Ex: Groupe A"
+                            aria-describedby="nom" placeholder="Ex: TRONC COMMUN"
                             value="{{ old('nom', $group->getAttribute('nom')) }}">
                         {!! errorAlert($errors->first('nom'), 'nom') !!}
                     </div>

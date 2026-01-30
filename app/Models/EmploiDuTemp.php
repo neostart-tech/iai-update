@@ -25,21 +25,7 @@ class EmploiDuTemp extends Model
 
 	public $timestamps = false;
 
-	protected $fillable = [
-		'debut',
-		'fin',
-		'group_id',
-		'salle_id',
-		'uv_id',
-		'unite_enseignement_id',
-		'evenement_id',
-		'type_programme',
-		'owner_type',
-		'owner_id',
-		'slug',
-		'details',
-		'annee_scolaire_id'
-	];
+	protected $guarded = ["id"];
 
 	protected $casts = [
 		'debut' => 'datetime',

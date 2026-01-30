@@ -8,10 +8,11 @@ use App\Traits\Routing\{GenerateUniqueSlugTrait, ModelsSlugKeyTrait};
 use App\Traits\UserIdentityTrait;
 use Illuminate\Auth\Passwords\CanResetPassword;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\{BelongsToMany, HasMany, MorphOne};
+use Illuminate\Database\Eloquent\Relations\{BelongsToMany, HasMany, MorphMany, MorphOne, MorphToMany};
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
+use Laravel\Sanctum\HasApiTokens;
 
 /**
  * @method static self create(array $attributes)
@@ -27,7 +28,7 @@ use Illuminate\Support\Collection;
 class Etudiant extends Authenticatable
 {
 	use HasFactory, Notifiable, UserIdentityTrait, CanResetPassword;
-	use ModelsSlugKeyTrait, GenerateUniqueSlugTrait;
+	use ModelsSlugKeyTrait, GenerateUniqueSlugTrait, HasApiTokens;
 
 	public function hasComplexSlug(): bool
 	{
@@ -63,6 +64,17 @@ class Etudiant extends Authenticatable
 		return $this->hasMany(Note::class);
 	}
 
+
+	public function roles(): MorphToMany
+	{
+		return $this->morphToMany(
+			Role::class,
+			'user',
+			'role_user',
+			'user_id',
+			'role_id'
+		);
+	}
 	//	public function fichesDePresence(): HasMany
 	//	{
 	//		return $this->hasMany(EmploiDuTemp::class);
@@ -88,15 +100,45 @@ class Etudiant extends Authenticatable
 		return $this->belongsToMany(Group::class, 'etudiant_group')->using(EtudiantGroup::class);
 	}
 
-	public function niveaux(): BelongsToMany
+	// 	public function groupes()
+	// {
+	//     return $this->belongsToMany(Group::class, 'etudiant_group')
+	//         ->withPivot(['filiere_id', 'niveau_id', 'annee_scolaire_id'])
+	//         ->orderByDesc('etudiant_group.annee_scolaire_id');
+	// }
+
+	public function groupes()
 	{
-		return $this->belongsToMany(Niveau::class, 'etudiant_niveaux');
+		return $this->belongsToMany(Group::class, 'etudiant_group')
+			->using(EtudiantGroup::class)
+			->wherePivot('annee_scolaire_id', injectAnneeScolaireId())
+			->orderByDesc('etudiant_group.id');
 	}
 
-	public function group(): BelongsToMany
+	public function etudiantGroups()
 	{
-		return $this->groups()->latest('annee_scolaire_id');
+		return $this->hasMany(EtudiantGroup::class, 'etudiant_id')
+			->where('annee_scolaire_id', injectAnneeScolaireId())
+			->latest('id');
 	}
+
+
+
+
+	// 	public function filieres()
+	// {
+	//     return $this->belongsToMany(Filiere::class, 'etudiant_group')
+	// 	  ->using(EtudiantGroup::class)
+	// 		->wherePivot('annee_scolaire_id', injectAnneeScolaireId())
+	//          ->orderByDesc('etudiant_group.id');
+	// }
+
+
+
+	// public function group(): BelongsToMany
+	// {
+	// 	return $this->groups()->latest('annee_scolaire_id');
+	// }
 
 	public function emploiDuTemps()
 	{
@@ -173,13 +215,13 @@ class Etudiant extends Authenticatable
 		if (!$candidature) return false;
 
 		$niveau = $candidature->niveau_id;
-		$frais = \App\Models\FraisScolarite::where('niveau_id', $niveau)->first();
+		$frais = FraisScolarite::where('niveau_id', $niveau)->first();
 		if (!$frais) return false;
 
-		$tranches = \App\Models\TranchePaiement::where('frais_scolarite_id', $frais->id)->get();
+		$tranches = TranchePaiement::where('frais_scolarite_id', $frais->id)->get();
 
 		foreach ($tranches as $tranche) {
-			$totalPaye = \App\Models\Paiement::where('etudiant_id', $this->id)
+			$totalPaye = Paiement::where('etudiant_id', $this->id)
 				->where('tranche_paiement_id', $tranche->id)
 				->sum('montant');
 

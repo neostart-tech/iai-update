@@ -4,19 +4,24 @@ use App\Http\Controllers\{BlogController, ContactController, EvenementController
 use App\Models\{Announcement, Blog, Evenement};
 use Illuminate\Support\Facades\Route;
 
+Route::get('/', fn() => view('auth.login'));
+
+
+Route::get('officiel', fn() => view('welcome')
+	->with(
+		[
+			'blogs' => Blog::query()
+				->orderByDesc('publication_date')
+				->limit(2)
+				->get(),
+			'events' => Evenement::query()->orderByDesc('id')->limit(4)->get()
+		]
+	))
+	->name('home');
+
 Route::prefix('officiel')->group(function () {
 
-	Route::get('', fn () => view('welcome')
-		->with(
-			[
-				'blogs' => Blog::query()
-					->orderByDesc('publication_date')
-					->limit(2)
-					->get(),
-				'events' => Evenement::query()->orderByDesc('id')->limit(4)->get()
-			]
-		))
-		->name('home');
+
 
 	Route::view('a-propos', 'pages.about')->name('about');
 	Route::view('formulaire', 'candidatures.create')->name('formulaire');
@@ -27,8 +32,8 @@ Route::prefix('officiel')->group(function () {
 
 	Route::view('formations-alternances', 'pages.formation-alternance')->name('formations.alternance');
 	Route::view('formations-modulaires/{tab?}', 'pages.formation-modulaire')
-        ->where('tab', 'alternance|certifiante|modulaire|continue')
-        ->name('formations.modulaire');
+		->where('tab', 'alternance|certifiante|modulaire|continue')
+		->name('formations.modulaire');
 	Route::view('formations-certifiantes', 'pages.formation-certifiante')->name('formations.certifiante');
 	Route::view('formations-continues', 'pages.formation-continue')->name('formations.continues');
 

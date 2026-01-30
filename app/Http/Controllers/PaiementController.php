@@ -62,7 +62,7 @@ class PaiementController extends Controller
                 $montantPaye = Paiement::where('etudiant_id', $etudiant->id)
                     ->where('payable_type', TranchePaiement::class)
                     ->whereHas('payable', function ($q) use ($frais) {
-                        $q->where('frais_scolarite_id', $frais->id);
+                        $q->where('payable_id', $frais->id);
                     })
                     ->where('annule', false)
                     ->sum('montant');

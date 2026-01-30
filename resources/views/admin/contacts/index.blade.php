@@ -32,7 +32,7 @@
 								<td class="text-center">
 									<ul class="list-inline me-auto mb-0">
 										<li class="list-inline-item align-bottom" data-bs-toggle="tooltip" title="Détails">
-											<a href="#" onclick="handleShowModal(@js($contact))"
+											<a href="#" onclick="handleShowModal(@json($contact))"
 												 class="avtar avtar-xs btn-link-secondary btn-pc-default"
 												 data-pc-animate="blur" data-bs-toggle="modal"
 												 data-bs-target="#contactShowModal"
@@ -41,8 +41,9 @@
 											</a>
 										</li>
 
-										
-										< li class="list-inline-item align-bottom" data-bs-toggle="tooltip" title="Marquer comme lu" >
+
+
+										<li class="list-inline-item align-bottom" data-bs-toggle="tooltip" title="Marquer comme lu" >
 											<a href="#"
 										      
 												 onclick="handleReadClick('{{ route('admin.messages.read', $contact) }}')"
@@ -50,7 +51,7 @@
 											>
 												<i class="material-icons-two-tone"> check_box</i>
 											</a>
-										</>
+										</li>
 
 										<li class="list-inline-item align-bottom" data-bs-toggle="tooltip" title="Détails">
 											<a href="#"

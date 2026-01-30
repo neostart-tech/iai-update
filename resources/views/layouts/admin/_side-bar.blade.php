@@ -53,10 +53,7 @@
             @includeWhen($is_daf, 'layouts.sidebars._daf-side-bar')
             @includeWhen($is_admin, 'layouts.sidebars._admin-side-bar')
             @includeWhen($is_etudiant, 'layouts.sidebars._etudiants-sidebar')
-           
-
-
-            {{--			@include('layouts.sidebars._side-bar-unused-elements') --}}
+            {{--@include('layouts.sidebars._side-bar-unused-elements') --}}
         </div>
     </div>
 </nav>

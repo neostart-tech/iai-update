@@ -25,20 +25,125 @@ class EmploiDuTempController extends Controller
 			->exists();
 	}
 
+	// public function store(Request $request): Response|ResponseFactory|EmploiDuTempsResource
+	// {
+
+
+	// 	$rules = [
+	// 		'debut' => ['required'],
+	// 		'fin' => ['required'],
+	// 		'date' => ['required', 'date'],
+	// 		'uv_id' => ['required', 'exists:unite_valeurs,slug'],
+	// 		'type' => ['required', Rule::enum(TypeProgrammeEnum::class)],
+	// 		'grade' => ['required', 'exists:groups,slug'],
+	// 		'salle' => ['required', 'exists:salles,slug'],
+	// 		'teacher' => ['required', 'exists:users,slug'],
+	// 		'details' => ['nullable'],
+	// 		'evenement_id' => [
+	// 			'nullable',
+	// 			Rule::requiredIf(
+	// 				fn() => $request->enum('type', TypeProgrammeEnum::class) === TypeProgrammeEnum::EVENEMENT
+	// 			),
+	// 			'exists:evenements,id'
+	// 		],
+	// 	];
+
+	// 	$attributes = [
+	// 		'debut' => 'La date ou l\'heure de début',
+	// 		'fin' => 'La date ou l\'heure de fin',
+	// 		'uv_id' => 'L\'unité de valeur',
+	// 		'type' => 'Le type de programme',
+	// 		'grade' => 'Le groupe d\'étudiants',
+	// 		'salle' => 'La salle',
+	// 		'teacher' => 'L\'enseignant',
+	// 		'details' => 'Le champ détails',
+	// 		'evenement_id' => 'L\'évènement',
+	// 		'date' => 'La date de tenu de l\'enregistrement'
+	// 	];
+
+	// 	$validator = validator($request->all(), $rules, attributes: $attributes);
+
+	// 	if ($validator->fails()) {
+	// 		return __422($validator->errors()->first());
+	// 	}
+
+	// 	try {
+	// 		$date = $request->get('date');
+
+	// 		$request->merge([
+	// 			'debut' => Carbon::createFromFormat('Y-m-d H:i', $date . ' ' . $request->get('debut')),
+	// 			'fin' => Carbon::createFromFormat('Y-m-d H:i', $date . ' ' . $request->get('fin')),
+	// 		]);
+
+	// 		$salleId = Salle::query()->firstWhere('slug', $request->get('salle'))->getAttribute('id');
+	// 		$groupId = Group::query()->firstWhere('slug', $request->get('grade'))->getAttribute('id');
+	// 		$uvId = UniteValeur::query()->firstWhere('slug', $request->get('uv_id'))->getAttribute('id');
+	// 		$owner_id = User::query()->firstWhere('slug', $request->get('teacher'))->getAttribute('id');
+	// 		//			$evenementId = (int)Group::query()->firstWhere('slug', $request->get('evenement_id'))->getAttribute('id');
+
+	// 		/*	dd([
+	// 					  'debut' => $request->get('debut'),
+	// 					  'fin' => $request->get('fin'),
+	// 					  'uv_id' => $uvId,
+	// 					  'type_programme' => $request->enum('type', TypeProgrammeEnum::class),
+	// 					  'group_id' => $groupId,
+	// 					  'salle_id' => $salleId,
+	// 					  'owner_id' => $owner_id,
+	// 					  'owner_type' => User::class,
+	// 					  'details' => $request->get('details'),
+	// 	  //				'evenement_id' => $evenementId,
+	// 					  ...injectAnneeScolaireId()
+	// 				  ]);*/
+
+
+	// 		if ($request->get('fin') <= $request->get('debut')) {
+	// 			return __422("L'heure de fin doit être postérieure à l'heure de début.");
+	// 		}
+
+	// 		// Blocage si la salle est occupée (chevauchement)
+	// 		if ($this->hasSalleOverlap($salleId, $request->get('debut'), $request->get('fin'))) {
+	// 			return __422('Impossible de programmer: la salle est déjà occupée sur cette plage horaire.');
+	// 		}
+
+	// 		$emploiDuTemps = EmploiDuTemp::create([
+	// 			'debut' => $request->get('debut'),
+	// 			'fin' => $request->get('fin'),
+	// 			'uv_id' => $uvId,
+	// 			'type_programme' => $request->enum('type', TypeProgrammeEnum::class),
+	// 			'group_id' => $groupId,
+	// 			'salle_id' => $salleId,
+	// 			'owner_id' => $owner_id,
+	// 			'owner_type' => User::class,
+	// 			'details' => $request->get('details'),
+	// 			//				'evenement_id' => $evenementId,
+	// 			...injectAnneeScolaireId()
+	// 		]);
+
+	// 	} catch (Throwable $e) {
+	// 		return __500($e->getMessage());
+	// 	}
+
+	// 	return new EmploiDuTempsResource($emploiDuTemps);
+	// }
 	public function store(Request $request): Response|ResponseFactory|EmploiDuTempsResource
 	{
-
-
 		$rules = [
+			'date' => ['required', 'date'],
 			'debut' => ['required'],
 			'fin' => ['required'],
-			'date' => ['required', 'date'],
+
 			'uv_id' => ['required', 'exists:unite_valeurs,slug'],
 			'type' => ['required', Rule::enum(TypeProgrammeEnum::class)],
 			'grade' => ['required', 'exists:groups,slug'],
 			'salle' => ['required', 'exists:salles,slug'],
 			'teacher' => ['required', 'exists:users,slug'],
 			'details' => ['nullable'],
+
+			//RÉCURRENCE
+			'recurrence_type' => ['nullable', Rule::in(['aucune', 'hebdomadaire', 'quotidienne'])],
+			'recurrence_days' => ['nullable', 'array'], // ex: mo,we,fr
+			'recurrence_end_date' => ['nullable', 'date', 'after:date'],
+
 			'evenement_id' => [
 				'nullable',
 				Rule::requiredIf(
@@ -48,83 +153,67 @@ class EmploiDuTempController extends Controller
 			],
 		];
 
-		$attributes = [
-			'debut' => 'La date ou l\'heure de début',
-			'fin' => 'La date ou l\'heure de fin',
-			'uv_id' => 'L\'unité de valeur',
-			'type' => 'Le type de programme',
-			'grade' => 'Le groupe d\'étudiants',
-			'salle' => 'La salle',
-			'teacher' => 'L\'enseignant',
-			'details' => 'Le champ détails',
-			'evenement_id' => 'L\'évènement',
-			'date' => 'La date de tenu de l\'enregistrement'
-		];
-
-		$validator = validator($request->all(), $rules, attributes: $attributes);
-
+		$validator = validator($request->all(), $rules);
 		if ($validator->fails()) {
 			return __422($validator->errors()->first());
 		}
 
 		try {
-			$date = $request->get('date');
+			$debut = Carbon::createFromFormat(
+				'Y-m-d H:i',
+				$request->date . ' ' . $request->debut
+			);
 
-			$request->merge([
-				'debut' => Carbon::createFromFormat('Y-m-d H:i', $date . ' ' . $request->get('debut')),
-				'fin' => Carbon::createFromFormat('Y-m-d H:i', $date . ' ' . $request->get('fin')),
-			]);
+			$fin = Carbon::createFromFormat(
+				'Y-m-d H:i',
+				$request->date . ' ' . $request->fin
+			);
 
-			$salleId = Salle::query()->firstWhere('slug', $request->get('salle'))->getAttribute('id');
-			$groupId = Group::query()->firstWhere('slug', $request->get('grade'))->getAttribute('id');
-			$uvId = UniteValeur::query()->firstWhere('slug', $request->get('uv_id'))->getAttribute('id');
-			$owner_id = User::query()->firstWhere('slug', $request->get('teacher'))->getAttribute('id');
-			//			$evenementId = (int)Group::query()->firstWhere('slug', $request->get('evenement_id'))->getAttribute('id');
-
-			/*	dd([
-						  'debut' => $request->get('debut'),
-						  'fin' => $request->get('fin'),
-						  'uv_id' => $uvId,
-						  'type_programme' => $request->enum('type', TypeProgrammeEnum::class),
-						  'group_id' => $groupId,
-						  'salle_id' => $salleId,
-						  'owner_id' => $owner_id,
-						  'owner_type' => User::class,
-						  'details' => $request->get('details'),
-		  //				'evenement_id' => $evenementId,
-						  ...injectAnneeScolaireId()
-					  ]);*/
-
-
-			if ($request->get('fin') <= $request->get('debut')) {
+			if ($fin->lessThanOrEqualTo($debut)) {
 				return __422("L'heure de fin doit être postérieure à l'heure de début.");
 			}
 
-			// Blocage si la salle est occupée (chevauchement)
-			if ($this->hasSalleOverlap($salleId, $request->get('debut'), $request->get('fin'))) {
-				return __422('Impossible de programmer: la salle est déjà occupée sur cette plage horaire.');
+			$salleId = Salle::whereSlug($request->salle)->value('id');
+			$groupId = Group::whereSlug($request->grade)->value('id');
+			$uvId = UniteValeur::whereSlug($request->uv_id)->value('id');
+			$ownerId = User::whereSlug($request->teacher)->value('id');
+
+			//Vérification chevauchement uniquement sur le 1er jour
+			if ($this->hasSalleOverlap($salleId, $debut, $fin)) {
+				return __422('Salle déjà occupée sur cette plage horaire.');
+			}
+
+			$recurrenceType = $request->input('recurrence_type', 'aucune');
+
+			$recurrenceDays = null;
+			if ($recurrenceType === 'hebdomadaire' || $recurrenceType === "quotidienne") {
+				$recurrenceDays = implode(',', $request->input('recurrence_days', []));
 			}
 
 			$emploiDuTemps = EmploiDuTemp::create([
-				'debut' => $request->get('debut'),
-				'fin' => $request->get('fin'),
+				'debut' => $debut,
+				'fin' => $fin,
 				'uv_id' => $uvId,
 				'type_programme' => $request->enum('type', TypeProgrammeEnum::class),
 				'group_id' => $groupId,
 				'salle_id' => $salleId,
-				'owner_id' => $owner_id,
+				'owner_id' => $ownerId,
 				'owner_type' => User::class,
-				'details' => $request->get('details'),
-				//				'evenement_id' => $evenementId,
-				...injectAnneeScolaireId()
-			]);
+				'details' => $request->details,
+				'recurrence_type' => $request->recurrence_type ?? 'aucune',
+				'recurrence_days' => $recurrenceDays,
+				'recurrence_end_date' => $request->recurrence_end_date,
 
+				'evenement_id' => $request->evenement_id,
+				...injectAnneeScolaireId(),
+			]);
 		} catch (Throwable $e) {
 			return __500($e->getMessage());
 		}
 
 		return new EmploiDuTempsResource($emploiDuTemps);
 	}
+
 
 	public function destroy(Request $request): Response|ResponseFactory
 	{
@@ -137,142 +226,301 @@ class EmploiDuTempController extends Controller
 		return __200('Élément supprimé avec succès');
 	}
 
+	// public function updateDates(Request $request): Response|ResponseFactory
+	// {
+	// 	$rules = [
+	// 		'debut' => ['required',],
+	// 		'fin' => ['required',],
+	// 	];
+
+	// 	$attributes = [
+	// 		'debut' => 'La date ou l\'heure de début',
+	// 		'fin' => 'La date ou l\'heure de fin',
+	// 	];
+
+	// 	$validator = validator($request->all(), $rules, [], $attributes);
+
+	// 	if ($validator->fails()) {
+	// 		return __422($validator->errors()->first());
+	// 	}
+
+	// 	try {
+	// 		$debut = Carbon::createFromFormat('Y-m-d\TH:i:s', $request->input('debut'));
+	// 		$fin = Carbon::createFromFormat('Y-m-d\TH:i:s', $request->input('fin'));
+	// 	} catch (Throwable) {
+	// 		return __500('Le format de la nouvelle date n\'est pas valable');
+	// 	}
+
+	// 	$edt = EmploiDuTemp::query()->firstWhere('slug', $request->input('slug'));
+
+	// 	if (!$edt) {
+	// 		return __404('La modification n\'a pas pu se faire : élément introuvable.');
+	// 	}
+
+	// 	if ($edt->fin->isBefore(now())) {
+	// 		return __422('Impossible de modifier : l\'événement est déjà terminé.');
+	// 	}
+
+	// 	if ($fin->lessThanOrEqualTo($debut)) {
+	// 		return __422("L'heure de fin doit être postérieure à l'heure de début.");
+	// 	}
+
+	// 	// Vérifier les chevauchements pour la même salle en excluant l'événement courant
+	// 	if ($this->hasSalleOverlap((int)$edt->getAttribute('salle_id'), $debut, $fin, (int)$edt->getAttribute('id'))) {
+	// 		return __422('Impossible de déplacer : la salle est déjà occupée sur cette plage horaire.');
+	// 	}
+
+	// 	try {
+	// 		$edt->update(compact('debut', 'fin'));
+	// 		Log::info('edt', [$edt]);
+	// 		Log::info('values', compact('debut', 'fin'));
+	// 	} catch (Throwable) {
+	// 		return __500();
+	// 	}
+
+	// 	return __200('Élément modifié avec succès');
+	// }
 	public function updateDates(Request $request): Response|ResponseFactory
 	{
 		$rules = [
-			'debut' => ['required',],
-			'fin' => ['required',],
+			'slug' => ['required', 'exists:emploi_du_temps,slug'],
+			'debut' => ['required'],
+			'fin' => ['required'],
 		];
 
-		$attributes = [
-			'debut' => 'La date ou l\'heure de début',
-			'fin' => 'La date ou l\'heure de fin',
-		];
+		$validator = validator($request->all(), $rules);
+		if ($validator->fails()) return __422($validator->errors()->first());
 
-		$validator = validator($request->all(), $rules, [], $attributes);
+		$edt = EmploiDuTemp::whereSlug($request->slug)->first();
+		if (!$edt) return __404();
 
-		if ($validator->fails()) {
-			return __422($validator->errors()->first());
+		//BLOQUER SI RÉCURRENCE
+		if ($edt->recurrence_type !== 'aucune') {
+			return __422(
+				'Impossible de déplacer une programmation récurrente. Modifiez-la globalement.'
+			);
 		}
 
 		try {
-			$debut = Carbon::createFromFormat('Y-m-d\TH:i:s', $request->input('debut'));
-			$fin = Carbon::createFromFormat('Y-m-d\TH:i:s', $request->input('fin'));
+			$debut = Carbon::createFromFormat('Y-m-d\TH:i:s', $request->debut);
+			$fin = Carbon::createFromFormat('Y-m-d\TH:i:s', $request->fin);
 		} catch (Throwable) {
-			return __500('Le format de la nouvelle date n\'est pas valable');
-		}
-
-		$edt = EmploiDuTemp::query()->firstWhere('slug', $request->input('slug'));
-
-		if (!$edt) {
-			return __404('La modification n\'a pas pu se faire : élément introuvable.');
-		}
-
-		if ($edt->fin->isBefore(now())) {
-			return __422('Impossible de modifier : l\'événement est déjà terminé.');
+			return __500('Format de date invalide');
 		}
 
 		if ($fin->lessThanOrEqualTo($debut)) {
 			return __422("L'heure de fin doit être postérieure à l'heure de début.");
 		}
 
-		// Vérifier les chevauchements pour la même salle en excluant l'événement courant
-		if ($this->hasSalleOverlap((int)$edt->getAttribute('salle_id'), $debut, $fin, (int)$edt->getAttribute('id'))) {
-			return __422('Impossible de déplacer : la salle est déjà occupée sur cette plage horaire.');
+		if ($this->hasSalleOverlap(
+			$edt->salle_id,
+			$debut,
+			$fin,
+			$edt->id
+		)) {
+			return __422('Salle déjà occupée sur cette plage horaire.');
 		}
 
-		try {
-			$edt->update(compact('debut', 'fin'));
-			Log::info('edt', [$edt]);
-			Log::info('values', compact('debut', 'fin'));
-		} catch (Throwable) {
-			return __500();
-		}
+		$edt->update(compact('debut', 'fin'));
 
-		return __200('Élément modifié avec succès');
+		return __200('Programmation modifiée avec succès');
 	}
+
 
 	/**
 	 * Mise à jour d'une programmation (changement de salle par groupe, mise à jour des horaires, etc.)
 	 */
+	// public function update(Request $request): Response|ResponseFactory|EmploiDuTempsResource
+	// {
+	// 	$rules = [
+	// 		'slug' => ['required', 'exists:emploi_du_temps,slug'],
+	// 		'salle' => ['nullable', 'exists:salles,slug'],
+	// 		'date' => ['nullable', 'date'],
+	// 		'debut' => ['nullable'],
+	// 		'fin' => ['nullable'],
+	// 		'uv_id' => ['nullable', 'exists:unite_valeurs,slug'],
+	// 		'type' => ['nullable', Rule::enum(TypeProgrammeEnum::class)],
+	// 		'grade' => ['nullable', 'exists:groups,slug'],
+	// 		'teacher' => ['nullable', 'exists:users,slug'],
+	// 		'details' => ['nullable'],
+	// 	];
+
+	// 	$validator = validator($request->all(), $rules);
+	// 	if ($validator->fails()) {
+	// 		return __422($validator->errors()->first());
+	// 	}
+
+	// 	$edt = EmploiDuTemp::query()->firstWhere('slug', $request->get('slug'));
+	// 	if (!$edt) return __404();
+
+	// 	$payload = [];
+	// 	// Compute datetime if provided
+	// 	if ($request->filled('date') && $request->filled('debut') && $request->filled('fin')) {
+	// 		try {
+	// 			$payload['debut'] = Carbon::createFromFormat('Y-m-d H:i', $request->get('date') . ' ' . $request->get('debut'));
+	// 			$payload['fin'] = Carbon::createFromFormat('Y-m-d H:i', $request->get('date') . ' ' . $request->get('fin'));
+	// 		} catch (Throwable) {
+	// 			return __500('Format de date/heure invalide');
+	// 		}
+	// 		if ($payload['fin']->lessThanOrEqualTo($payload['debut'])) {
+	// 			return __422("L'heure de fin doit être postérieure à l'heure de début.");
+	// 		}
+	// 	}
+
+	// 	if ($request->filled('salle')) {
+	// 		$payload['salle_id'] = Salle::query()->firstWhere('slug', $request->get('salle'))?->getAttribute('id');
+	// 	}
+	// 	if ($request->filled('grade')) {
+	// 		$payload['group_id'] = Group::query()->firstWhere('slug', $request->get('grade'))?->getAttribute('id');
+	// 	}
+	// 	if ($request->filled('uv_id')) {
+	// 		$payload['uv_id'] = UniteValeur::query()->firstWhere('slug', $request->get('uv_id'))?->getAttribute('id');
+	// 	}
+	// 	if ($request->filled('teacher')) {
+	// 		$payload['owner_id'] = User::query()->firstWhere('slug', $request->get('teacher'))?->getAttribute('id');
+	// 		$payload['owner_type'] = User::class;
+	// 	}
+	// 	if ($request->filled('type')) {
+	// 		$payload['type_programme'] = $request->enum('type', TypeProgrammeEnum::class);
+	// 	}
+	// 	if ($request->filled('details')) {
+	// 		$payload['details'] = $request->get('details');
+	// 	}
+
+	// 	// If salle/time provided, check overlap on target salle
+	// 	$salleIdToCheck = $payload['salle_id'] ?? (int)$edt->getAttribute('salle_id');
+	// 	$debutToCheck = $payload['debut'] ?? $edt->getAttribute('debut');
+	// 	$finToCheck = $payload['fin'] ?? $edt->getAttribute('fin');
+
+	// 	if ($this->hasSalleOverlap($salleIdToCheck, $debutToCheck, $finToCheck, (int)$edt->getAttribute('id'))) {
+	// 		return __422('Impossible de modifier : la salle est déjà occupée sur cette plage horaire.');
+	// 	}
+
+	// 	try {
+	// 		$edt->update($payload);
+	// 	} catch (Throwable $e) {
+	// 		return __500($e->getMessage());
+	// 	}
+
+	// 	return new EmploiDuTempsResource($edt->fresh());
+	// }
 	public function update(Request $request): Response|ResponseFactory|EmploiDuTempsResource
 	{
 		$rules = [
 			'slug' => ['required', 'exists:emploi_du_temps,slug'],
 			'salle' => ['nullable', 'exists:salles,slug'],
-			'date' => ['nullable', 'date'],
-			'debut' => ['nullable'],
-			'fin' => ['nullable'],
 			'uv_id' => ['nullable', 'exists:unite_valeurs,slug'],
 			'type' => ['nullable', Rule::enum(TypeProgrammeEnum::class)],
 			'grade' => ['nullable', 'exists:groups,slug'],
 			'teacher' => ['nullable', 'exists:users,slug'],
 			'details' => ['nullable'],
+
+			// récurrence
+			'recurrence_type' => ['nullable', Rule::in(['aucune', 'hebdomadaire', 'quotidienne'])],
+			'recurrence_days' => ['nullable', 'array'],
+			'recurrence_days.*' => ['in:mo,tu,we,th,fr,sa'],
+			'recurrence_end_date' => ['nullable', 'date'],
 		];
 
 		$validator = validator($request->all(), $rules);
-		if ($validator->fails()) {
-			return __422($validator->errors()->first());
-		}
+		if ($validator->fails()) return __422($validator->errors()->first());
 
-		$edt = EmploiDuTemp::query()->firstWhere('slug', $request->get('slug'));
+		$edt = EmploiDuTemp::whereSlug($request->slug)->first();
 		if (!$edt) return __404();
 
 		$payload = [];
-		// Compute datetime if provided
-		if ($request->filled('date') && $request->filled('debut') && $request->filled('fin')) {
-			try {
-				$payload['debut'] = Carbon::createFromFormat('Y-m-d H:i', $request->get('date') . ' ' . $request->get('debut'));
-				$payload['fin'] = Carbon::createFromFormat('Y-m-d H:i', $request->get('date') . ' ' . $request->get('fin'));
-			} catch (Throwable) {
-				return __500('Format de date/heure invalide');
-			}
-			if ($payload['fin']->lessThanOrEqualTo($payload['debut'])) {
-				return __422("L'heure de fin doit être postérieure à l'heure de début.");
-			}
-		}
 
 		if ($request->filled('salle')) {
-			$payload['salle_id'] = Salle::query()->firstWhere('slug', $request->get('salle'))?->getAttribute('id');
+			$payload['salle_id'] = Salle::whereSlug($request->salle)->value('id');
 		}
-		if ($request->filled('grade')) {
-			$payload['group_id'] = Group::query()->firstWhere('slug', $request->get('grade'))?->getAttribute('id');
-		}
+
 		if ($request->filled('uv_id')) {
-			$payload['uv_id'] = UniteValeur::query()->firstWhere('slug', $request->get('uv_id'))?->getAttribute('id');
+			$payload['uv_id'] = UniteValeur::whereSlug($request->uv_id)->value('id');
 		}
+
+		if ($request->filled('grade')) {
+			$payload['group_id'] = Group::whereSlug($request->grade)->value('id');
+		}
+
 		if ($request->filled('teacher')) {
-			$payload['owner_id'] = User::query()->firstWhere('slug', $request->get('teacher'))?->getAttribute('id');
+			$payload['owner_id'] = User::whereSlug($request->teacher)->value('id');
 			$payload['owner_type'] = User::class;
 		}
+
 		if ($request->filled('type')) {
 			$payload['type_programme'] = $request->enum('type', TypeProgrammeEnum::class);
 		}
+
 		if ($request->filled('details')) {
-			$payload['details'] = $request->get('details');
+			$payload['details'] = $request->details;
 		}
 
-		// If salle/time provided, check overlap on target salle
-		$salleIdToCheck = $payload['salle_id'] ?? (int)$edt->getAttribute('salle_id');
-		$debutToCheck = $payload['debut'] ?? $edt->getAttribute('debut');
-		$finToCheck = $payload['fin'] ?? $edt->getAttribute('fin');
+		// RÉCURRENCE
+		if ($request->filled('recurrence_type')) {
 
-		if ($this->hasSalleOverlap($salleIdToCheck, $debutToCheck, $finToCheck, (int)$edt->getAttribute('id'))) {
-			return __422('Impossible de modifier : la salle est déjà occupée sur cette plage horaire.');
+			$payload['recurrence_type'] = $request->recurrence_type;
+
+			if ($request->recurrence_type === 'hebdomadaire') {
+				$payload['recurrence_days'] = implode(',', $request->recurrence_days ?? []);
+				$payload['recurrence_end_date'] = $request->recurrence_end_date;
+			} else {
+				// aucune ou quotidienne
+				$payload['recurrence_days'] = null;
+				$payload['recurrence_end_date'] = $request->recurrence_end_date;
+			}
 		}
 
-		try {
-			$edt->update($payload);
-		} catch (Throwable $e) {
-			return __500($e->getMessage());
+
+		// Vérifier conflit salle sur les horaires existants
+		$salleId = $payload['salle_id'] ?? $edt->salle_id;
+
+		if ($this->hasSalleOverlap(
+			$salleId,
+			$edt->debut,
+			$edt->fin,
+			$edt->id
+		)) {
+			return __422('Salle déjà occupée sur cette plage horaire.');
 		}
+
+		$edt->update($payload);
 
 		return new EmploiDuTempsResource($edt->fresh());
 	}
 
+
 	/**
 	 * Consultation de disponibilité d'une salle sur une plage [date + début, fin]
 	 */
+	// public function checkAvailability(Request $request): Response|ResponseFactory
+	// {
+	// 	$rules = [
+	// 		'salle' => ['required', 'exists:salles,slug'],
+	// 		'date' => ['required', 'date'],
+	// 		'debut' => ['required'],
+	// 		'fin' => ['required'],
+	// 	];
+	// 	$validator = validator($request->all(), $rules);
+	// 	if ($validator->fails()) return __422($validator->errors()->first());
+
+	// 	try {
+	// 		$debut = Carbon::createFromFormat('Y-m-d H:i', $request->get('date') . ' ' . $request->get('debut'));
+	// 		$fin = Carbon::createFromFormat('Y-m-d H:i', $request->get('date') . ' ' . $request->get('fin'));
+	// 	} catch (Throwable) {
+	// 		return __500('Format de date/heure invalide');
+	// 	}
+
+	// 	if ($fin->lessThanOrEqualTo($debut)) return __422("L'heure de fin doit être postérieure à l'heure de début.");
+
+	// 	$salleId = Salle::query()->firstWhere('slug', $request->get('salle'))?->getAttribute('id');
+	// 	$occupied = $this->hasSalleOverlap((int)$salleId, $debut, $fin);
+
+	// 	return response([
+	// 		'available' => !$occupied,
+	// 		'message' => $occupied ? 'Salle occupée sur cette plage horaire.' : 'Salle disponible.'
+	// 	]);
+	// }
+
 	public function checkAvailability(Request $request): Response|ResponseFactory
 	{
 		$rules = [
@@ -281,29 +529,39 @@ class EmploiDuTempController extends Controller
 			'debut' => ['required'],
 			'fin' => ['required'],
 		];
+
 		$validator = validator($request->all(), $rules);
 		if ($validator->fails()) return __422($validator->errors()->first());
 
 		try {
-			$debut = Carbon::createFromFormat('Y-m-d H:i', $request->get('date') . ' ' . $request->get('debut'));
-			$fin = Carbon::createFromFormat('Y-m-d H:i', $request->get('date') . ' ' . $request->get('fin'));
+			$debut = Carbon::createFromFormat(
+				'Y-m-d H:i',
+				$request->date . ' ' . $request->debut
+			);
+			$fin = Carbon::createFromFormat(
+				'Y-m-d H:i',
+				$request->date . ' ' . $request->fin
+			);
 		} catch (Throwable) {
-			return __500('Format de date/heure invalide');
+			return __500('Format de date invalide');
 		}
 
-		if ($fin->lessThanOrEqualTo($debut)) return __422("L'heure de fin doit être postérieure à l'heure de début.");
+		if ($fin->lessThanOrEqualTo($debut)) {
+			return __422("L'heure de fin doit être postérieure à l'heure de début.");
+		}
 
-		$salleId = Salle::query()->firstWhere('slug', $request->get('salle'))?->getAttribute('id');
-		$occupied = $this->hasSalleOverlap((int)$salleId, $debut, $fin);
+		$salleId = Salle::whereSlug($request->salle)->value('id');
+
+		$occupied = $this->hasSalleOverlap($salleId, $debut, $fin);
 
 		return response([
 			'available' => !$occupied,
-			'message' => $occupied ? 'Salle occupée sur cette plage horaire.' : 'Salle disponible.'
+			'message' => $occupied
+				? 'Salle occupée sur cette plage horaire.'
+				: 'Salle disponible.'
 		]);
 	}
 
-	public function setEmploiDuTempsForUser(): void
-	{
 
-	}
+	public function setEmploiDuTempsForUser(): void {}
 }

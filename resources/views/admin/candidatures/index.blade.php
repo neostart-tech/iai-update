@@ -7,6 +7,10 @@
 @includeWhen($viewContent == '_admission-validation', 'admin.candidatures._admission-validation')
 @includeWhen($viewContent == '_liste-admis', 'admin.candidatures._liste-admis')
 @includeWhen($viewContent == '_liste_des_amis', 'admin.candidatures.inscription_liste')
+@includeWhen($viewContent == '_admin_inscription_etudiant', 'admin.candidatures._admin_inscription_etudiant')
+
+
+
 
 
 

@@ -12,7 +12,6 @@
     data-pc-theme="light">
 
 
-
     @include('layouts.admin._preloader')
 
     <nav class="pc-sidebar">

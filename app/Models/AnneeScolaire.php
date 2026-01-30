@@ -14,11 +14,24 @@ class AnneeScolaire extends Model
 	protected $guarded = false;
 
 	protected $casts = [
-    'active' => 'boolean',
-];
+		'active' => 'boolean',
+	];
 
-public function scopeActive($q) { return $q->where('active', true); }
-    public static function courante() { return static::active()->first(); }
+	public function scopeActive($q)
+	{
+		return $q->where('active', true);
+	}
+	public static function courante()
+	{
+		return static::active()->first();
+	}
 
-
+	public function filieres()
+	{
+		return $this->belongsToMany(
+			Filiere::class,
+			'annee_filiere'
+		)->withPivot('date_rentree')
+			->withTimestamps();
+	}
 }

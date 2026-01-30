@@ -27,6 +27,10 @@ class EmploiDuTempsResource extends JsonResource
                 'debut' => $this->resource->debut->format('Y-m-d H:i'),
                 'date' => $this->resource->debut->format('Y-m-d H:i'),
                 'fin' => $this->resource->fin->format('Y-m-d H:i'),
+                'date_debut' => $this->resource->fin->format('Y-m-d '),
+                'date_fin' => $this->resource->recurrence_end_date ?? null,
+                'heure_debut' => $this->resource->debut->format('H:i'),
+                'heure_fin' => $this->resource->fin->format('H:i'),
                 'details' => $this->resource->details ?? 'Pas de description',
                 'type' => $this->resource->type_programme,
                 'uv' => $this->resource->uv?->nom,
@@ -45,6 +49,8 @@ class EmploiDuTempsResource extends JsonResource
                 'plageHoraire' => $this->getPlageHoraire(),
                 'is_controllable' => false,
                 'control_url' => '',
+                'recurrence_type' => $this->resource->recurrence_type ?? null,
+                'recurrence_days' => $this->resource->recurrence_days ?? null,
             ];
         }
 
@@ -57,6 +63,10 @@ class EmploiDuTempsResource extends JsonResource
             'debut' => $this->resource->debut->format('Y-m-d H:i'),
             'date' => $this->resource->debut->format('Y-m-d H:i'),
             'fin' => $this->resource->fin->format('Y-m-d H:i'),
+            'date_debut' => $this->resource->fin->format('Y-m-d '),
+            'date_fin' => $this->resource->recurrence_end_date ?? null,
+            'heure_debut' => $this->resource->debut->format('H:i'),
+            'heure_fin' => $this->resource->fin->format('H:i'),
             'details' => $this->resource->details ?? 'Pas de description',
             'type' => $this->resource->type_programme,
             'uv' => $this->resource->uv?->nom,
@@ -67,6 +77,7 @@ class EmploiDuTempsResource extends JsonResource
             'teacher' => $this->resource->owner?->nom,
             'teacher_id' => $this->resource->owner?->slug,
 
+
             'group' => $this->getGroupFullName($group),
             'group_id' => $group?->slug,
             'color' => $this->getColor(),
@@ -76,6 +87,8 @@ class EmploiDuTempsResource extends JsonResource
             'is_controllable' => ($this->isAdministrationMember()
                 && now()->isBetween($this->resource->debut, $this->resource->fin)
             ),
+            'recurrence_type' => $this->resource->recurrence_type ?? null,
+            'recurrence_days' => $this->resource->recurrence_days ?? null,
             // 'control_url' => route('admin.fiches.make', $this->getRightFiche()),
         ];
     }
@@ -94,23 +107,23 @@ class EmploiDuTempsResource extends JsonResource
     private function getTitle(): string
     {
         if ($this->color === 'info') {
-            return 'Cours: '.$this->resource->uv->nom;
+            return 'Cours: ' . $this->resource->uv->nom;
         } elseif ($this->color === 'success') {
             // Vérifiez si la relation evenement existe avant d'y accéder
             return $this->resource->evenement?->name ?? 'Événement sans nom';
         }
 
-        return 'Évaluation: '.$this->resource->uv->nom;
+        return 'Évaluation: ' . $this->resource->uv->nom;
     }
 
     private function getPlageHoraire(): string
     {
-        return $this->resource->debut->translatedFormat('d F Y H:i').' à '.$this->resource->fin->translatedFormat('d F Y H:i');
+        return $this->resource->debut->translatedFormat('d F Y H:i') . ' à ' . $this->resource->fin->translatedFormat('d F Y H:i');
     }
 
     private function getGroupFullName(?Group $group = null): string
     {
-        return $group->getAttribute('nom').' - '.$group->filiere->getAttribute('code');
+        return $group->getAttribute('nom') . ' - ' . $group->niveau->getAttribute('libelle');
     }
 
     private function isAdministrationMember(): bool

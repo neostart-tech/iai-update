@@ -114,7 +114,7 @@
 
 
 	{{-- Uvs	--}}
-	<!-- <li class="pc-item pc-hasmenu">
+	<li class="pc-item pc-hasmenu">
 		<a href="#!" class="pc-link">
 			<span class="pc-micon">
 				<svg class="pc-icon">
@@ -130,7 +130,7 @@
 			<li class="pc-item"><a class="pc-link" href="{{ route('admin.uvs.create') }}">Ajouter une Matière</a>
 			</li>
 		</ul>
-	</li> -->
+	</li>
 
 	{{-- Periodes	--}}
 	<li class="pc-item pc-hasmenu">
@@ -152,6 +152,7 @@
 			</li>
 		</ul>
 	</li>
+
 
 	{{-- Salles	--}}
 	<li class="pc-item">
@@ -182,6 +183,27 @@
 			<span class="pc-mtext">Gestion des clubs</span>
 		</a>
 	</li>
+
+	<li class="pc-item pc-hasmenu">
+		<a href="#!" class="pc-link">
+			<span class="pc-micon">
+				<svg class="pc-icon">
+					<use xlink:href="#custom-status-up"></use>
+				</svg>
+			</span>
+			<span class="pc-mtext">Etudiants</span>
+			<span class="pc-arrow"><i data-feather="chevron-right"></i></span>
+		</a>
+		<ul class="pc-submenu">
+			<li class="pc-item"><a class="pc-link" href="{{ route('admin.etudiants.index') }}">Liste des étudiants</a>
+			</li>
+		
+		</ul>
+	</li>
+	
+	
+
+
 
 
 	{{-- Rôles	--}}
@@ -282,11 +304,7 @@
 				Étude de dossier
 			</a>
 		</li>
-		<li class="pc-item">
-			<a class="pc-link" href="{{ route('admin.candidatures.liste-des-admis') }}">
-				Inscription
-			</a>
-		</li>
+		
 
 		<!-- <li class="pc-item">
 				<a class="pc-link" href="{{ route('admin.candidatures.payement-des-frais-de-participation') }}">
@@ -302,7 +320,7 @@
 				<a class="pc-link" href="{{ route('admin.candidatures.admission') }}">
 					Déclaration d'admission
 				</a>
-			</li> -->
+			</li>  -->
 		<!-- <li class="pc-item">
 			<a class="pc-link" href="{{ route('admin.candidatures.admission') }}">
 				Inscription
@@ -324,12 +342,40 @@
 				Réorientation
 			</a>
 		</li> -->
+
+		<li class="pc-item">
+			<a class="pc-link" href="{{ route('admin.candidatures.liste-des-admis') }}">
+				Inscription
+			</a>
+		</li>
+		<!-- <li class="pc-item">
+			<a class="pc-link" href="{{ route('admin.etudiants.index') }}">
+				Réinscription
+			</a>
+		</li> -->
 	</ul>
 </li>
 
 {{-- Autres --}}
 <li class="pc-item pc-caption">
 	<label>Autres</label>
+</li>
+<li class="pc-item pc-hasmenu">
+	<a href="#" class="pc-link">
+		<span class="pc-micon">
+			<i class="ti ti-photo"></i>
+		</span>
+		<span class="pc-mtext">Documentations</span>
+		<span class="pc-arrow"><i data-feather="chevron-right"></i></span>
+	</a>
+	<ul class="pc-submenu">
+		<li class="pc-item">
+			<a class="pc-link" href="{{ route('documentation.liste') }}">Liste des documents</a>
+		</li>
+		<li class="pc-item">
+			<a class="pc-link" href="{{ route('documentation.mes-documents') }}">Mes documents</a>
+		</li>
+	</ul>
 </li>
 
 @can('manage-gallery')

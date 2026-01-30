@@ -12,4 +12,9 @@ class Niveau extends Model
     {
         return $this->hasMany(FraisScolarite::class);
     }
+
+    public function groupes()
+    {
+        return $this->hasMany(Group::class);
+    }
 }

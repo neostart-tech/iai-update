@@ -16,14 +16,25 @@ class FiliereRequest extends FormRequest
 
 	public function rules(): array
 	{
-		$filiereId = (int)$this->route('filiere', new Filiere())->getAttribute('id');
+		// $filiereId = (int)$this->route('filiere', new Filiere())->getAttribute('id');
+		$afficherChoixDate = \AppGetters::getAfficherChoixDate();
+
 
 		return [
-			'nom' => ['required', Rule::unique('filieres')->ignore($filiereId)],
-			'code' => ['required', Rule::unique('filieres')->ignore($filiereId)],
+			'nom' => ['required', Rule::unique('filieres')],
+			'code' => ['required', Rule::unique('filieres')],
 			'annee_scolaire' => ['nullable', 'number'],
 			'image' => ['nullable', File::image()],
 			'description' => ['nullable'],
+			'date_debut' => [
+				$afficherChoixDate ? 'required' : 'nullable',
+				'date',
+			],
+			'date_fin' => [
+				$afficherChoixDate ? 'required' : 'nullable',
+				'date',
+				'after_or_equal:date_debut',
+			],
 		];
 	}
 
@@ -35,6 +46,8 @@ class FiliereRequest extends FormRequest
 			'description' => 'La description de la filière',
 			'annee_scolaire' => 'L\'année scolaire choisie',
 			'image' => 'L\'image d\'illustration de filière',
+			'date_debut' => "La date début",
+			'date_fin' => "La date fin",
 		];
 	}
 

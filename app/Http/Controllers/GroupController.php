@@ -6,7 +6,7 @@ use App\Enums\TypeProgrammeEnum;
 use App\Http\Resources\Admin\EmploiDuTempsResource;
 use App\Http\Resources\Admin\UniteValeurPartialRessource;
 use App\Jobs\CreatingUserBasedOnCandidatsDataJob;
-use App\Models\{Candidature, Etudiant, Filiere, Group, Salle, UniteValeur as UV};
+use App\Models\{Candidature, Etudiant, EtudiantNiveau, Filiere, Group, Salle, UniteValeur as UV};
 use App\Models\EtudiantGroup;
 use App\Models\RoleUser;
 use App\Models\Periode;
@@ -16,6 +16,7 @@ use Illuminate\Contracts\Routing\ResponseFactory;
 use Illuminate\Database\Eloquent\Builder;
 use JetBrains\PhpStorm\NoReturn;
 use Illuminate\Http\{RedirectResponse, Request, Resources\Json\AnonymousResourceCollection, Response};
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -25,8 +26,14 @@ class GroupController extends Controller
 
 	public function index(): View
 	{
+		$anneeActive = AnneeScolaire::where('active', true)->first()->getAttribute('id');
 		return view('admin.groups.index')->with([
-			'groups' => Group::with('filiere')->withCount('etudiants')->get(),
+			'groups' => Group::with(['filieres', 'niveau'])
+				->withCount(['etudiants'=>function($query) use ($anneeActive){
+					$query->where('etudiant_group.annee_scolaire_id',$anneeActive);
+				}])
+				->get(),
+			'niveaux' => Niveau::all(),
 			'filieres' => Filiere::all(),
 		]);
 	}
@@ -37,8 +44,8 @@ class GroupController extends Controller
 		// $groupId = $request->route('group', new Group())->getAttribute('id');
 
 		if (!$request->groupId) {
-			
-			$groupId = Group::query()->where('nom', $request->nom)->where('filiere_id', $request->filiere_id)->first();
+
+			$groupId = Group::query()->where('nom', $request->nom)->where('niveau_id', $request->niveau_id)->first();
 			$groupId = $groupId ? (int) $groupId->getAttribute('id') : null;
 		} else {
 			$groupId = (int) $request->groupId;
@@ -46,55 +53,64 @@ class GroupController extends Controller
 		// $groupId =  Group::query()->where('nom', $groupId)->first()->getAttribute('id');
 
 		$request->merge(['nom' => Str::upper($request->get('nom'))]);
+		$message = '';
 
 		$request->validate([
-			'nom' => [
-				'required',
-				Rule::unique('groups')->ignore($groupId)
-					// Les deux closes suivantes permettent d'assurer l'unicité des groupes par filières : ASR ne peux pas avoir 2 groupes A
-					->where(function ($builder) use ($request) {
-						/** * Cette section permet de supporter l'auto-completion de l'IDE * @var Builder $builder */
-						return $builder->where('groups.filiere_id', $request->get('grade_id'));
-					})
-					->where('nom', $request->get('nom')),
-				'filiere_id' => ['required', 'exists:filieres,id']
-			],
-			[
-				'nom.required' => 'Le nom du groupe est obligatoire',
-				'filiere_id.required' => 'La filière est obligatoire',
-				'nom.unique' => 'Un groupe portant le même nom pour la même filière existe déjà',
-			]
+			'nom' => ['required'],
+			'niveau_id' => ['required', 'exists:niveaux,id'],
+			'filieres' => ['required', 'array', 'min:1'],
+			'filieres.*' => ['exists:filieres,id'],
+		], [
+			'nom.required' => 'Le nom du groupe est obligatoire',
+			'niveau_id.required' => 'Le niveau est obligatoire',
+			'filieres.required' => 'Au moins une filière est requise',
 		]);
 
-		$group = Group::query()->where('nom', $request->get('nom'))
-			->where('filiere_id', $request->get('filiere_id'))->first();
 
+		DB::transaction(function () use ($request, &$message) {
 
-		if ($group || $request->groupId) {
-			$group = Group::query()->where('id', $request->get('groupId'))->first();
+			if ($request->groupId) {
+				// UPDATE
+				$group = Group::findOrFail($request->groupId);
 
-			$group->update($request->only(['nom', 'filiere_id']));
-		} else {
-			Group::firstOrCreate([
-				...$request->only(['nom', 'filiere_id']),
-				...injectAnneeScolaireId()
-			]);
-		}
+				$group->update([
+					'nom' => $request->nom,
+					'niveau_id' => $request->niveau_id,
+				]);
 
-		return to_route('admin.groups.index')->with(successMsg('Groupe créé/modifié avec succès'));
+				$group->filieres()->sync($request->filieres);
+
+				$message = "Groupe modifié avec succès";
+			} else {
+				$group = Group::create([
+					'nom' => $request->nom,
+					'niveau_id' => $request->niveau_id,
+					...injectAnneeScolaireId()
+				]);
+
+				$group->filieres()->attach($request->filieres);
+
+				$message = "Groupe créé avec succès";
+			}
+		});
+
+		return to_route('admin.groups.index')->with(successMsg($message));
 	}
-	
+
 	public function destroy(Request $request): RedirectResponse
 	{
-		$groupe = $request->groupe;
+		$groupe = Group::findOrFail($request->groupe);
 
-		if (EtudiantGroup::query()->where('group_id', $groupe)->exists()) {
-			return to_route('admin.groups.index')->with(errorMsg('Impossible de supprimer le groupe, il contient des étudiants'));
+		if ($groupe->etudiants()->exists()) {
+			return back()->with(errorMsg(
+				'Impossible de supprimer le groupe, il contient des étudiants'
+			));
 		}
 
-		Group::query()->where('id', $groupe)->first()->delete();
+		$groupe->delete();
+		$groupe->filieres()->detach();
 
-		return to_route('admin.groups.index')->with(successMsg('Groupe supprimé avec succès'));
+		return back()->with(successMsg('Groupe supprimé avec succès'));
 	}
 
 	// #[NoReturn]
@@ -122,51 +138,53 @@ class GroupController extends Controller
 	}
 
 	public function loadCalendar(Group $group): AnonymousResourceCollection
-{
-    try {
-        $emplois = $group->emploiDuTemps()
-            ->with([
-                'group.filiere',
-                'salle',
-                'uv',
-                'owner',
-                'evenement' => function($query) {
-                    $query->select('id', 'name'); // Sélectionnez uniquement les champs nécessaires
-                }
-            ])
-            ->get();
+	{
+		try {
+			$emplois = $group->emploiDuTemps()
+				->with([
+					'group.filiere',
+					'salle',
+					'uv',
+					'owner',
+					'evenement' => function ($query) {
+						$query->select('id', 'name'); // Sélectionnez uniquement les champs nécessaires
+					}
+				])
+				->get();
 
-        if ($emplois->isEmpty()) {
-            // Retournez une collection vide plutôt qu'une réponse JSON
-            return EmploiDuTempsResource::collection(collect());
-        }
+			if ($emplois->isEmpty()) {
+				// Retournez une collection vide plutôt qu'une réponse JSON
+				return EmploiDuTempsResource::collection(collect());
+			}
 
-        return EmploiDuTempsResource::collection($emplois);
-
-    } catch (\Exception $e) {
-        \Log::error('Error loading calendar: '.$e->getMessage());
-        // Pour respecter le type de retour, lancez une exception qui sera convertie en réponse JSON par Laravel
-        throw new \RuntimeException('Impossible de charger le calendrier');
-    }
-}
+			return EmploiDuTempsResource::collection($emplois);
+		} catch (\Exception $e) {
+			\Log::error('Error loading calendar: ' . $e->getMessage());
+			// Pour respecter le type de retour, lancez une exception qui sera convertie en réponse JSON par Laravel
+			throw new \RuntimeException('Impossible de charger le calendrier');
+		}
+	}
 	public function getEtudiants(Group $group): View
 	{
+		$anneeActive = AnneeScolaire::where('active', true)->first()->getAttribute('id');
 
-		$anneeActive=AnneeScolaire::where('active',true)->first();
+		// dd(count(EtudiantGroup::where('annee_scolaire_id',$anneeActive->id)->where('group_id',$group->id)->get()));
 
-	$anneeActive=collect($anneeActive);
-		$periodes=Periode::where('annee_scolaire_id',$anneeActive['id'])->get();
+		$etudiants = Etudiant::whereHas('groups', function ($query) use ($group, $anneeActive) {
+			$query->where('etudiant_group.group_id', $group->id)->where('etudiant_group.annee_scolaire_id', $anneeActive);
+		})->get();
 
-	
+
+
+		// $anneeActive = collect($anneeActive->pluck('id'));
+		$periodes = Periode::where('annee_scolaire_id', $anneeActive)->get();
 
 
 		return view('admin.etudiants.index', compact('group'))->with([
-			'etudiants' => $group->etudiants,
-			'niveaux'=>Niveau::all(),
-			"periodes"=>$periodes
-			,
-			'groups' => Group::where('filiere_id',$group->filiere_id)
-				->withCount('etudiants')
+			'etudiants' => $etudiants,
+			'niveaux' => Niveau::all(),
+			"periodes" => $periodes,
+			'groups' => Group::withCount('etudiants')
 				->get(),
 			'meta' => [
 				''
@@ -190,9 +208,3 @@ class GroupController extends Controller
 		return UniteValeurPartialRessource::collection($group->matieres());
 	}
 }
-
-
-
-
-
-

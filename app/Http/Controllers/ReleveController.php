@@ -200,8 +200,8 @@ class ReleveController extends Controller
         $filiere = $unite?->filiere?->nom ?? 'Filière non trouvée';
 
         // Génération du code QR avec le service
-        $qrCodeService = new QRCodeService;
-        $qrCode = $qrCodeService->generateReleveQRCode($etudiant, $data, $filiere);
+        // $qrCodeService = new QRCodeService;
+        // $qrCode = $qrCodeService->generateReleveQRCode($etudiant, $data, $filiere);
 
         // Nom du fichier
         $fileName = 'releve_'.$etudiant->id.'_'.time().'.pdf';
@@ -213,7 +213,7 @@ class ReleveController extends Controller
             'releves' => $data,
             'user' => $etudiant,
             'filiere' => $filiere,
-            'qrCode' => $qrCode,
+            // 'qrCode' => $qrCode,
         ])->setPaper('A4');
 
         FacadesStorage::disk('public')->put($relativePath, $pdf->output());
@@ -236,7 +236,7 @@ class ReleveController extends Controller
     public function checked()
     {
 
-        $userId = auth()->id();
+        $userId = auth()->id();  
 
         if (! $userId) {
             return response()->json(['error' => 'Not authenticated'], 401);

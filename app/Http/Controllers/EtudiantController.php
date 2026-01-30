@@ -35,6 +35,7 @@ class EtudiantController extends Controller
 
 	public function show(Etudiant $etudiant): View
 	{
+		$etudiant->load('etudiantGroups.filiere', 'etudiantGroups.niveau', 'etudiantGroups.group');
 		return view('admin.etudiants.show', compact('etudiant'));
 	}
 
@@ -56,19 +57,19 @@ class EtudiantController extends Controller
 
 	public function myFiles(): View
 	{
-		
-		$album=Album::query()->where('owner_id', auth()->user()->id)->first();
-	
+
+		$album = Album::query()->where('owner_id', auth()->user()->id)->first();
+
 		return view('etudiants.my-space.files')->with([
 			'album' => $album
 		]);
 	}
 
-	public function constitution(): View
+	public function constitution()
 	{
-		return view('etudiants.my-space.constitution')->with([
-			'candidature' => request()->user()
-		]);
+		$etudiant = auth()->user()->load(['etudiantGroups.group','etudiantGroups.niveau','etudiantGroups.filiere']);
+
+		return view('etudiants.my-space.constitution', compact('etudiant'));
 	}
 
 
@@ -97,37 +98,34 @@ class EtudiantController extends Controller
 		return view('etudiants.my-space.my-account');
 	}
 
-	public function myPayment(){
-		 $etudiant = auth('etudiants')->user();
-        $paiements = Paiement::where('etudiant_id', $etudiant->id)
-        ->with(['tranchePaiement.anneeScolaire'])
-		->where('annule', false) 
-        ->orderByDesc('date_paiement')
-        ->get();
+	public function myPayment()
+	{
+		$etudiant = auth('etudiants')->user();
+		$paiements = Paiement::where('etudiant_id', $etudiant->id)
+			->with(['tranchePaiement.anneeScolaire'])
+			->where('annule', false)
+			->orderByDesc('date_paiement')
+			->get();
 
-    $paiementsParAnnee = $paiements->groupBy(function($paiement) {
-        return $paiement->tranchePaiement && $paiement->tranchePaiement->anneeScolaire
-            ? $paiement->tranchePaiement->anneeScolaire->nom
-            : 'Année inconnue';
-    });
+		$paiementsParAnnee = $paiements->groupBy(function ($paiement) {
+			return $paiement->tranchePaiement && $paiement->tranchePaiement->anneeScolaire
+				? $paiement->tranchePaiement->anneeScolaire->nom
+				: 'Année inconnue';
+		});
 
-	$candidature=Candidature::where('etudiant_id',$etudiant->id)->latest()->first();
+		$candidature = Candidature::where('etudiant_id', $etudiant->id)->latest()->first();
 
-	$fraisScolairite=$candidature->niveau->fraisScolarites[0]->montant;
-	$paiementTotal= Paiement::where('etudiant_id', $candidature->etudiant_id)
-		->where('annule', false) 
-        ->get()->sum('montant');
+		$fraisScolairite = $candidature->niveau->fraisScolarites[0]->montant;
+		$paiementTotal = Paiement::where('etudiant_id', $candidature->etudiant_id)
+			->where('annule', false)
+			->get()->sum('montant');
 
-	$Ajour=false;
+		$Ajour = false;
 
-	if($fraisScolairite == $paiementTotal){
-		$Ajour=true;
-	}
-	
-	
+		if ($fraisScolairite == $paiementTotal) {
+			$Ajour = true;
+		}
 
-   
-
-    return view('etudiants.my-space.my-payment', compact('paiements','paiementsParAnnee', 'etudiant','Ajour'));
+		return view('etudiants.my-space.my-payment', compact('paiements', 'paiementsParAnnee', 'etudiant', 'Ajour'));
 	}
 }

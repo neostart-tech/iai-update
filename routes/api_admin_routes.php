@@ -47,7 +47,7 @@ Route::controller(FiliereController::class)->prefix('filieres')->name('filieres.
 	Route::get('{filiere}/modifier', 'edit')->name('edit');
 	Route::post('ajouter-une-filiere', 'store')->name('store');
 	Route::put('{filiere}/modifier', 'update')->name('update');
-	Route::delete('supprimer', 'destroy')->name('delete');
+	Route::delete('{filiere}/supprimer', 'destroy')->name('delete');
 });
 
 

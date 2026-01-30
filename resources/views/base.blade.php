@@ -13,22 +13,30 @@
     data-pc-theme="light">
 
     @php
-        $user = request()->user();
-        $is_admin = false;
-        $is_candidat = false;
-        $is_daf = false;
 
-        if ($is_etudiant = get_class($user) === App\Models\Etudiant::class) {
-            $logoutFormId = 'etudiant-logout-form';
-        } elseif ($is_candidat = get_class($user) === App\Models\Candidature::class) {
-            $logoutFormId = 'officiel-logout-form';
-        } else {
-            $is_admin = true;
-            $logoutFormId = 'logout-form';
-            // Vérifier si c'est un DAF
-    $is_daf = $user && $user->roles && $user->roles->contains('nom', 'Directeur des Affaires Financières');
-        }
+    $user = auth()->user() ?? auth()->guard('etudiants')->user();
+    $is_admin = false;
+    $is_candidat = false;
+    $is_daf = false;
+    $is_etudiant = false;
+
+    if ($user instanceof Etudiant) {
+    $is_etudiant = true;
+    $logoutFormId = 'etudiant-logout-form';
+
+    } elseif ($user instanceof Candidature) {
+    $is_candidat = true;
+    $logoutFormId = 'officiel-logout-form';
+
+    } elseif ($user) {
+    $is_admin = true;
+    $logoutFormId = 'logout-form';
+
+    // Vérifier si c'est un DAF
+    $is_daf = $user->roles?->contains('nom', 'Directeur des Affaires Financières');
+    }
     @endphp
+
 
     @include('layouts.admin._preloader')
 
@@ -41,37 +49,37 @@
     <div class="pc-container">
         <div class="pc-content">
             @isset($breadcrumbs)
-                <div class="page-header">
-                    <div class="page-block">
-                        <div class="row align-items-center">
-                            <div class="col-md-12">
-                                <ul class="breadcrumb">
-                                    @foreach ($breadcrumbs as $breadcrumb)
-                                        @if ($loop->last)
-                                            <li class="breadcrumb-item" aria-current="page">{{ $breadcrumb }}</li>
+            <div class="page-header">
+                <div class="page-block">
+                    <div class="row align-items-center">
+                        <div class="col-md-12">
+                            <ul class="breadcrumb">
+                                @foreach ($breadcrumbs as $breadcrumb)
+                                @if ($loop->last)
+                                <li class="breadcrumb-item" aria-current="page">{{ $breadcrumb }}</li>
+                                @else
+                                <li class="breadcrumb-item">
+                                    <a
+                                        href="@isset($breadcrumb['url']) {{ $breadcrumb['url'] }} @else javascript:void(0) @endisset">
+                                        @isset($breadcrumb['text'])
+                                        {{ $breadcrumb['text'] }}
                                         @else
-                                            <li class="breadcrumb-item">
-                                                <a
-                                                    href="@isset($breadcrumb['url']) {{ $breadcrumb['url'] }} @else javascript:void(0) @endisset">
-                                                    @isset($breadcrumb['text'])
-                                                        {{ $breadcrumb['text'] }}
-                                                    @else
-                                                        {{ $breadcrumb }}
-                                                    @endisset
-                                                </a>
-                                            </li>
-                                        @endif
-                                    @endforeach
-                                </ul>
-                            </div>
-                            <div class="col-md-12">
-                                <div class="page-header-title">
-                                    <h2 class="mb-0">{{ $page_name ?? 'Blank page name' }}</h2>
-                                </div>
+                                        {{ $breadcrumb }}
+                                        @endisset
+                                    </a>
+                                </li>
+                                @endif
+                                @endforeach
+                            </ul>
+                        </div>
+                        <div class="col-md-12">
+                            <div class="page-header-title">
+                                <h2 class="mb-0">{{ $page_name ?? 'Blank page name' }}</h2>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
             @endisset
             <div class="row col-12">
                 @include('layouts._error')
@@ -88,12 +96,13 @@
     @include('layouts.admin._settings')
 
     @include('layouts._scripts')
-    
-    
+
+
     <!-- Select2 JS -->
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="{{ asset('admin/assets/js/plugins/sweetalert2.all.min.js') }}"></script>
     <script src="{{ asset('admin/assets/js/plugins/choices.min.js') }}"></script>
+
 
     <script src="{{ asset('tel/build/js/intlTelInput.js') }}"></script>
     <script>

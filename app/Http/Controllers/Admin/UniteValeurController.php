@@ -21,26 +21,27 @@ class UniteValeurController extends Controller
 	public function index()
 	{
 
-		return UvResource::collection(Uv::with([
-			'ue',
-			'user'
-		])->get());
-		
-		// return view('admin.uvs.index')->with([
-		// 	'uvs' => Uv::with([
-		// 		'ue:id,code,nom,filiere_id',
-		// 		'ue.filiere:id,nom',
-		// 		'user:id,nom,prenom'
-		// 	])->get(),
-		// ]);
+		// return UvResource::collection(Uv::with([
+		// 	'ue',
+		// 	'user'
+		// ])->get());
+
+		return view('admin.uvs.index')->with([
+			'uvs' => Uv::with([
+				'ue:id,code,nom,filiere_id',
+				'ue.filiere:id,nom',
+				'user:id,nom,prenom'
+			])->get(),
+		]);
 	}
 
 	public function create(): View
 	{
-
+		$anneeScolaireId = AnneeScolaire::where('active', true)->value('id');
 		return view('admin.uvs.create')->with([
 			'uv' => new Uv(),
-			'ues' => ue::all(),
+			'ues' => Ue::all(),
+			"periodes" => Periode::where("annee_scolaire_id", $anneeScolaireId)->get(),
 			'enseignants' => User::enseignants()->get(),
 		]);
 	}
@@ -202,7 +203,7 @@ class UniteValeurController extends Controller
 			return to_route('admin.uvs.index')->with(cannotDeleteItemMessage('cette unité de valeur'));
 		}
 
-		$uv=UniteValeur::query()->where('id', $uniteValeur)->first()->delete();
+		$uv = UniteValeur::query()->where('id', $uniteValeur)->first()->delete();
 		// return new UvResource($uv);
 
 		return to_route('admin.uvs.index')->with(successMsg('Unité de valeur supprimée avec succès.'));

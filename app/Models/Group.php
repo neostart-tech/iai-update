@@ -28,19 +28,40 @@ class Group extends Model
 	protected $fillable = [
 		'nom',
 		'slug',
-		'filiere_id',
+		'niveau_id',
 		'annee_scolaire_id'
 	];
 
-	public function filiere(): BelongsTo
+	// public function filiere(): BelongsTo
+	// {
+	// 	return $this->belongsTo(Filiere::class);
+	// }
+	public function filieres()
 	{
-		return $this->belongsTo(Filiere::class);
+		return $this->belongsToMany(
+			Filiere::class,
+			'filiere_group'
+		);
 	}
 
-	public function etudiants(): BelongsToMany
+	public function niveau(): BelongsTo
 	{
-		return $this->belongsToMany(Etudiant::class, 'etudiant_group')->using(EtudiantGroup::class);
+		return $this->belongsTo(Niveau::class, 'niveau_id');
 	}
+
+
+
+	public function lesetudiants(): BelongsToMany
+	{
+		return $this->belongsToMany(Etudiant::class, 'etudiant_group')->using(EtudiantGroup::class)->withPivot('annee_scolaire_id')->orderByDesc('annee_scolaire_id');
+	}
+
+	public function etudiants()
+{
+    return $this->belongsToMany(Etudiant::class, 'etudiant_group')
+        ->withPivot(['filiere_id', 'niveau_id', 'annee_scolaire_id']);
+}
+
 
 	public function anneeScolaire(): BelongsTo
 	{
@@ -64,13 +85,17 @@ class Group extends Model
 		return $this->matieresQueryBuilder()->get();
 	}
 
-	public function uniteValeurs(){
-		return $this->hasMany(UniteValeur::class);	
+	public function uniteValeurs()
+	{
+		return $this->hasMany(UniteValeur::class);
 	}
-	
-//	public function etudiantsNotFromThisGroup()
-//	{
-//		return $this->belongsToMany(Etudiant::class)
-//		->wherePivot()
-//	}
+
+
+
+
+	//	public function etudiantsNotFromThisGroup()
+	//	{
+	//		return $this->belongsToMany(Etudiant::class)
+	//		->wherePivot()
+	//	}
 }

@@ -21,7 +21,7 @@ class Paiement extends Model
 
     public function tranchePaiement()
     {
-        return $this->belongsTo(TranchePaiement::class);
+        return $this->belongsTo(TranchePaiement::class,'payable_id');
     }
 
      public function payable()

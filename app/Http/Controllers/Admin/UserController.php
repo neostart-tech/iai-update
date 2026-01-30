@@ -163,7 +163,7 @@ class UserController extends Controller
 		return view('admin.users.teacher-calendar.calendar', compact('user'))->with([
 			'uvs' => Uv::all(),
 			'types' => TypeProgrammeEnum::cases(),
-			'groups' => Group::query()->with('filiere:code,id')->orderBy('nom')->get(),
+			'groups' => Group::query()->with('niveau')->orderBy('nom')->get(),
 			'salles' => Salle::query()->select(['nom', 'slug'])->get(),
 			'resourceUrl' => route('admin.users.load-edt', $user),
 			'meta' => [

@@ -26,19 +26,71 @@ class Filiere extends Model
 		return $this->hasMany(Grade::class);
 	}
 
-	public function groups(): HasMany
+	// public function groups(): HasMany
+	// {
+	// 	return $this->hasMany(Group::class);
+	// }
+
+	public function etudiants()
 	{
-		return $this->hasMany(Group::class);
+		return $this->belongsToMany(Etudiant::class, 'etudiant_group')
+			->withPivot('group_id', 'annee_scolaire_id');
 	}
 
-	public function etudiants(): HasManyThrough
-	{
-		return $this->hasManyThrough(EtudiantGroup::class, Group::class);
-	}
 
-	public function pathImage(){
+	public function anneesScolaires()
+    {
+        return $this->belongsToMany(
+            AnneeScolaire::class,
+            'annee_filiere'
+        )->withPivot('date_debut', 'date_fin')
+         ->withTimestamps();
+    }
+
+    /**
+     * Date de rentrée réelle de la filière pour une année donnée
+     */
+    public function dateDebutAnnee(AnneeScolaire $annee): ?string
+    {
+        $relation = $this->anneesScolaires()
+            ->where('annee_scolaire_id', $annee->id)
+            ->first();
+
+        if (! $relation) {
+            return null;
+        }
+
+        return $relation->pivot->date_debut
+            ?? $annee->date_debut;
+    }
+
+	public function dateFinAnnee(AnneeScolaire $annee): ?string
+    {
+        $relation = $this->anneesScolaires()
+            ->where('annee_scolaire_id', $annee->id)
+            ->first();
+
+        if (! $relation) {
+            return null;
+        }
+
+        return $relation->pivot->date_fin
+            ?? $annee->date_fin;
+    }
+
+
+	public function pathImage()
+	{
 		return asset(Storage::url($this->image));
 	}
 
+	public function groups()
+	{
+		return $this->belongsToMany(
+			Group::class,
+			'filiere_group'
+		);
+	}
 
+    
 }

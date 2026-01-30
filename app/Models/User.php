@@ -7,11 +7,12 @@ use App\Notifications\admins\PasswordResetLinkSentNotification;
 use App\Traits\Routing\{GenerateUniqueSlugTrait, ModelsSlugKeyTrait};
 use App\Traits\UserIdentityTrait;
 use Illuminate\Database\Eloquent\{Builder, Collection};
-use Illuminate\Database\Eloquent\Relations\{BelongsToMany, HasMany, HasManyThrough, MorphMany};
+use Illuminate\Database\Eloquent\Relations\{BelongsToMany, HasMany, HasManyThrough, MorphMany, MorphToMany};
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Storage;
+use Laravel\Sanctum\HasApiTokens;
 
 /**
  * @method static self create(array $attributes)
@@ -23,7 +24,7 @@ use Illuminate\Support\Facades\Storage;
  */
 class User extends Authenticatable
 {
-	use Notifiable, GenerateUniqueSlugTrait, ModelsSlugKeyTrait, UserIdentityTrait;
+	use Notifiable, GenerateUniqueSlugTrait, ModelsSlugKeyTrait, UserIdentityTrait, HasApiTokens;
 
 	public function hasComplexSlug(): bool
 	{
@@ -67,9 +68,15 @@ class User extends Authenticatable
 		'genre' => GenreEnum::class
 	];
 
-	public function roles(): BelongsToMany
+	public function roles(): MorphToMany
 	{
-		return $this->belongsToMany(Role::class)->using(RoleUser::class);
+		return $this->morphToMany(
+			Role::class,
+			'user',
+			'role_user',
+			'user_id',
+			'role_id'
+		);
 	}
 
 	public function permissions(): HasManyThrough
@@ -194,7 +201,4 @@ class User extends Authenticatable
 
 		return asset(Storage::url($this->image));
 	}
-
-
-	
 }

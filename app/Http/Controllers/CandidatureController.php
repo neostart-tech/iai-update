@@ -8,7 +8,7 @@ use App\Http\Resources\CandidatureResource;
 use App\Notifications\Candidatures\CandidatAbsentNotification;
 use App\Notifications\Candidatures\CandidatPresentNotification;
 use App\Jobs\{CandidatureFraisPayementJob, ConcoursResultJob, SmsSendingProcess};
-use App\Models\{AnneeScolaire, Candidature, CandidatureDocument, Etudiant, FraisInscription, Group, Inscription, Paiement, Reorientation};
+use App\Models\{AnneeScolaire, Candidature, CandidatureDocument, Etudiant, FiliereGroup, FraisInscription, Group, Inscription, Paiement, Reorientation};
 use App\Notifications\Candidatures\CandidatWelcomeNotification;
 use App\Traits\ActionsTraits\{IndexTrait, CandidatureFirstValidationTrait};
 use App\Traits\FileManagementTrait;
@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\{Auth, Hash};
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Monarobase\CountryList\CountryListFacade;
+use Sabberworm\CSS\Rule\Rule;
 use Throwable;
 
 class CandidatureController extends Controller
@@ -135,7 +136,101 @@ class CandidatureController extends Controller
 
 		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message));
 
-		return to_route('officiel.my-space.show')->with(successMsg('Votre dossier a été déposé avec succès.'));
+		return to_route('officiel.my-space.show')->with(successMsg('Le dossier a été déposé avec succès.'));
+	}
+	public function storeByAdmin(Request $request): RedirectResponse
+	{
+
+		$request->validate([
+
+			'email' => [
+				'required',
+				'email',
+				'max:255',
+				'unique:candidatures,email'
+			],
+			'email_resp' => [
+				'nullable',
+				'email',
+				'max:255',
+				'unique:responsable_frais,email'
+			],
+			'email_tuteur' => [
+				'nullable',
+				'email',
+				'max:255',
+				'unique:tuteurs,email'
+			],
+		]);
+
+
+		$candidat = Candidature::create([
+			...$request->only([
+				'nom',
+				'prenom',
+				'nom_jeune_fille',
+				'numero_table',
+				'annee_bac',
+				'serie',
+				'lettre_motivation',
+				'genre',
+				'date_naissance',
+				'lieu_naissance',
+				'email',
+				'nationalite',
+				'hobbit',
+				'tel',
+				'tel2',
+				'tel3',
+				'bp',
+				'fax',
+				'niveau_id',
+				'filiere_id',
+			]),
+			...injectAnneeScolaireId(),
+			'password' => Hash::make('password'),
+			'code' => fake()->unique()->numberBetween(9999, 100000)
+		]);
+
+		// 2. Création du responsable
+		$candidat->responsable()->create([
+			'nom' => $request->get('nom_resp'),
+			'prenom' => $request->get('prenom_resp'),
+			'profession' => $request->get('profession_resp'),
+			'employeur' => $request->get('employeur_resp'),
+			'email' => $request->get('email_resp'),
+			'tel' => $request->get('tel_resp'),
+			'adresse' => $request->get('adresse_resp'),
+			'fax' => $request->get('fax_resp'),
+			'bp' => $request->get('bp_resp'),
+		]);
+
+		// 3. Création du tuteur
+		$candidat->tuteur()->create([
+			'nom' => $request->get('nom_tuteur'),
+			'prenom' => $request->get('prenom_tuteur'),
+			'profession' => $request->get('profession_tuteur'),
+			'employeur' => $request->get('employeur_tuteur'),
+			'email' => $request->get('email_tuteur'),
+			'tel' => $request->get('tel_tuteur'),
+			'adresse' => $request->get('adresse_tuteur'),
+			'fax' => $request->get('fax_tuteur'),
+			'bp' => $request->get('bp_tuteur'),
+			'candidature_id' => $candidat->getAttribute('id')
+		]);
+
+		// 4. Création de l'album (utilise la version corrigée ci-dessus)
+		$this->createAlbum($request, $candidat);
+
+		// 5. Connexion et notification
+		Auth::guard('web_candidatures')->login($candidat);
+
+		$message = $candidat->greeting(true);
+		$message .= ", votre dossier de candidature a été déposé avec succès.";
+
+		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message));
+
+		return to_route('admin.candidatures.index')->with(successMsg('Le dossier a été déposé avec succès.'));
 	}
 
 	private function createAlbum(Request $request, Candidature $candidat)
@@ -313,47 +408,52 @@ class CandidatureController extends Controller
 		$fraisInscription = FraisInscription::latest()->first();
 		$anneId = AnneeScolaire::where('active', true)->pluck('id')->first();
 
-		$group = Group::where('filiere_id', $candidature->filiere_id)->first();
+		// $group = Group::where('filiere_id', $candidature->filiere_id)->first();
+
+		$group = FiliereGroup::where('filiere_id', $candidature->filiere_id)->first();
 
 		if (!$candidature) {
 			return;
 		}
+
+
 		// dump("Etudiant: " . $candidature->getAttribute('nom') . ' ' . $candidature->getAttribute('prenom'));
-		$etudiant = Etudiant::create([
-			'nom' => $candidature->getAttribute('nom'),
-			'nom_jeune_fille' => $candidature->getAttribute('nom_jeune_fille'),
-			'prenom' => $candidature->getAttribute('prenom'),
-			'genre' => $candidature->getAttribute('genre'),
-			'date_naissance' => $candidature->getAttribute('date_naissance'),
-			'lieu_naissance' => $candidature->getAttribute('lieu_naissance'),
-			'nationalite' => $candidature->getAttribute('nationalite'),
-			'tel' => $candidature->getAttribute('tel'),
-			'email' => $candidature->getAttribute('email'),
-			'password' => $candidature->getAttribute('password'),
-			'image' => config('images.etudiants.woman'),
-			'annee_admission' => $year = today()->year,
-			'matricule' => Str::upper($year . '_' . fake()->unique()->randomNumber(6, true)),
-		]);
+		if ($candidature->etudiant_id) {
+			$etudiant = Etudiant::findOrFail($candidature->etudiant_id);
+		} else {
+			$etudiant = Etudiant::create([
+				'nom' => $candidature->getAttribute('nom'),
+				'nom_jeune_fille' => $candidature->getAttribute('nom_jeune_fille'),
+				'prenom' => $candidature->getAttribute('prenom'),
+				'genre' => $candidature->getAttribute('genre'),
+				'date_naissance' => $candidature->getAttribute('date_naissance'),
+				'lieu_naissance' => $candidature->getAttribute('lieu_naissance'),
+				'nationalite' => $candidature->getAttribute('nationalite'),
+				'tel' => $candidature->getAttribute('tel'),
+				'email' => $candidature->getAttribute('email'),
+				'password' => $candidature->getAttribute('password'),
+				'image' => config('images.etudiants.woman'),
+				'annee_admission' => $year = today()->year,
+				'matricule' => Str::upper($year . '_' . fake()->unique()->randomNumber(6, true)),
+			]);
+		}
+
+
 
 		$etudiant->groups()->attach(
-			 $group->id,
+			$group->group_id,
 			[
-				"annee_scolaire_id" => $anneId
+				"annee_scolaire_id" => $anneId,
+				"niveau_id" => $candidature->niveau_id
 			]
 		);
-		$etudiant->niveaux()->attach(
-			$candidature->niveau_id,
-			[
-				"annee_scolaire_id" => $anneId
-			]
 
-		);
 
 		Paiement::create([
-			"etudiant_id"=>$etudiant->id,
+			"etudiant_id" => $etudiant->id,
 			"montant" => $fraisInscription->montant,
 			"mode_paiement" => "caisse",
-			"reference" => random_int(1000000,99999999),
+			"reference" => random_int(1000000, 99999999),
 			"status" => "valide",
 			"date_paiement" => now(),
 			"payable_type" => FraisInscription::class,
@@ -367,31 +467,38 @@ class CandidatureController extends Controller
 			'owner_type' => Etudiant::class,
 		];
 
-		$candidature->album->update($updatedData);
+		if ($candidature->album) {
+			$candidature->album->update($updatedData);
+		}
 
-		$candidature->responsable->update($updatedData);
+		if ($candidature->responsable) {
+			$candidature->responsable->update($updatedData);
+		}
 
-		$candidature->tuteur->update($updatedData);
+		if ($candidature->tuteur) {
+			$candidature->tuteur->update($updatedData);
+		}
 
-		$candidature->update([
-			'etudiant_id' => $etudiant->getAttribute('id'),
-			'acceptation_date' => $now = now(),
-			'end_accessibility_date' => $endAccessibilityDate = $now->addDays(3)
-		]);
 
-		return back()->with('success', "Etudiant inscript avec succes");
+		if ($candidature) {
+			$candidature->update([
+				'etudiant_id' => $etudiant->getAttribute('id'),
+				'acceptation_date' => $now = now(),
+				'end_accessibility_date' => $endAccessibilityDate = $now->addDays(3)
+			]);
+		}
 
-		// $etudiant->notify(new CandidatToEtudiantWelcomeNotification($etudiant->greeting()));
+
+		$etudiant->notify(new CandidatToEtudiantWelcomeNotification($etudiant->greeting()));
 		// $message = $candidature->greeting();
 		// $message .= '. Suite à votre admission à ' . ' ' . AppGetters::getAppName() ? AppGetters::getAppName() : "Laravel"  . ', vous avez désormais un compte étudiant. 
 		// 		Ce espace candidat vous sera accessible jusqu\'au ' . $endAccessibilityDate->translatedFormat('d F Y')
 		// 	. '. L\'accès à votre espace étudiant se fait avec les identifiants du présent compte candidat.';
 
 		// $candidature->notify(new CandidatAccountLockNotification($message));
-		// // Msg("Operations  effectué avec succees pour:  " . $candidature->getAttribute('nom') . ' ' . $candidature->getAttribute('prenom'));
+		// Msg("Operations  effectué avec succees pour:  " . $candidature->getAttribute('nom') . ' ' . $candidature->getAttribute('prenom'));
 
-
-
+		return back()->with('success', "Etudiant inscript avec succes");
 	}
 
 

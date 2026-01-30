@@ -9,7 +9,10 @@ use App\Http\Resources\EvaluationResource;
 use App\Http\Resources\EvaluationStudentResource;
 use App\Http\Resources\UserResource;
 use App\Jobs\NotifyStudentsAboutEvaluation;
+use App\Models\AnneeScolaire;
 use App\Models\EmploiDuTemp;
+use App\Models\Etudiant;
+use App\Models\EtudiantGroup;
 use App\Models\Evaluation;
 use App\Models\EvaluationAnswer;
 use App\Models\EvaluationCaseStudyContext;
@@ -236,7 +239,10 @@ class EvaluationController extends Controller
 
     public function getListEvaluationForStudent()
     {
-        $groupIds = auth()->user()->group->pluck('id');
+        $user = auth()->user();
+        $active=AnneeScolaire::where('active',true)->first()->getAttribute('id');
+        
+        $groupIds = EtudiantGroup::where('etudiant_id', $user->id)->where('annee_scolaire_id', $active)->first()->getAttribute('group_id');
         $evaluations = Evaluation::where('group_id', $groupIds)
             ->with(['salle', 'group', 'submissions', 'emploiDutemp'])
             ->where('is_online', true)

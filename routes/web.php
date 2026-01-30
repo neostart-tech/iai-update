@@ -2,6 +2,9 @@
 
 use App\Http\Controllers\{
 	CandidatureController,
+	CommitteeCahierTexteController,
+	DocumentationController,
+	EvenementController,
 	MyAccountController,
 	MyCalendarController,
 	MyDashboardController,
@@ -15,7 +18,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UrgentInfoPublicController;
 
 // Route::get('', fn() => to_route('home'));
-Route::get('', fn() => to_route('login'));
+// Route::get('', fn() =>  redirect()->intended(to_route('login')));
 
 
 // Informations urgentes (page publique)
@@ -23,20 +26,22 @@ Route::get('/informations-urgentes', [UrgentInfoPublicController::class, 'index'
 
 // Vérification publique des relevés de notes via QR Code
 use App\Http\Controllers\PublicReleveVerificationController;
+
 Route::controller(PublicReleveVerificationController::class)->prefix('verifier-releve')->name('public.releve.')->group(function () {
-    Route::get('/', 'index')->name('verify');
-    Route::post('/verification', 'verify')->name('verify.form');
-    Route::get('/verification/{hash}', 'verify')->name('verify.hash');
-    Route::post('/api/verification', 'verifyApi')->name('verify.api');
+	Route::get('/', 'index')->name('verify');
+	Route::post('/verification', 'verify')->name('verify.form');
+	Route::get('/verification/{hash}', 'verify')->name('verify.hash');
+	Route::post('/api/verification', 'verifyApi')->name('verify.api');
 });
 
 // Système de connexion unifiée
 use App\Http\Controllers\Auth\UnifiedLoginController;
+
 Route::controller(UnifiedLoginController::class)->prefix('connexion')->name('unified.')->group(function () {
-    Route::get('/', 'showLoginForm')->name('login');
-    Route::post('/', 'login')->name('login.post');
-    Route::post('/logout', 'logout')->name('logout');
-    Route::post('/check-user-type', 'checkUserType')->name('check-user-type');
+	Route::get('/', 'showLoginForm')->name('login');
+	Route::post('/', 'login')->name('login.post');
+	Route::post('/logout', 'logout')->name('logout');
+	Route::post('/check-user-type', 'checkUserType')->name('check-user-type');
 });
 
 Route::get('dashboard', function () {
@@ -44,6 +49,8 @@ Route::get('dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+	Route::get('', fn() =>  redirect()->intended(to_route('login')));
+
 	Route::controller(ProfileController::class)->prefix('profile')->name('profile.')->group(function () {
 		Route::get('', 'edit')->name('edit');
 		Route::patch('', 'update')->name('update');
@@ -86,6 +93,22 @@ Route::middleware(['auth', App\Http\Middleware\CheckDAFRole::class])->prefix('da
 	});
 });
 
+Route::controller(DocumentationController::class)->prefix('documentation')->name('documentation.')->group(function () {
+	Route::get('liste', 'index')->name('liste');
+	Route::post('store', 'store')->name('store');
+	Route::put('{document}/edit', 'edit')->name('edit');
+	Route::delete('{document}/delete', 'delete')->name('delete');
+	Route::get('{document}/download', 'download')->name('download');
+});
+
+Route::controller(DocumentationController::class)
+	->prefix('documentation')
+	->name('documentation.')
+	->group(function () {
+		Route::get('mes-documents', 'userIndex')->name('mes-documents');
+		Route::get('{document}/download', 'download')->name('download');
+	});
+
 
 
 // Routes de l'espace enseignant sont chargées via RouteServiceProvider (routes/professeur.php)
@@ -106,51 +129,23 @@ Route::controller(AuthentificationSessionController::class)->prefix('comptables'
 	Route::get('', "logincompta")->name('logincompta');
 	Route::post('/se-connecter', "storecompta")->name('storecompta');
 	Route::delete('/se-déconnecter', "destroycompta")->name('logoutcompta');
-
 });
 
 
-// Route::prefix('compta')->name('compta.')->middleware(['auth', 'comptables'])->group(function () {
-
-// 	Route::controller(FraisScolariteController::class)->prefix('frais')->name('compta.frais.')->group(function () {
-// 		Route::get('historique', 'historique')->name('historique');
-// 		Route::get('payer', 'payer')->name('payer');
-// 		Route::post('payer', 'store')->name('store');
-
-// 		// Routes pour la création et la gestion des frais de scolarité
-// 		Route::get('index', 'index')->name('index');
-// 		Route::get('create', 'create')->name('create');
-// 		Route::post('store', 'store')->name('store');
-// 		Route::get('edit/{id}', 'edit')->name('edit');
-// 		Route::put('update/{id}', 'update')->name('update');
-// 		Route::delete('destroy/{id}', 'destroy')->name('destroy');
-
-
-
-// 	});
-
-// });
-
-
-// Les routes de l'espace enseignant sont déjà chargées par le RouteServiceProvider
-
-
-// Actualités (Evenement)
-use App\Http\Controllers\EvenementController;
 Route::get('/events/search', [EvenementController::class, 'search'])->name('events.search');
-// Ensure direct /events/{evenement} resolves and takes precedence over the old '/officiel/evenements/{evenement}'
 Route::get('/events/{evenement}', [EvenementController::class, 'show'])->name('events.show');
-// Anti-spam: throttle event comments
 Route::post('/events/{evenement}/comment', [EvenementController::class, 'comment'])
 	->middleware('throttle:5,1')
 	->name('events.comment');
 
-	// Cahier de texte workflow
-Route::middleware(['web'])->group(function() {
-	Route::post('/professeur/cahier-texte/approuver', [\App\Http\Controllers\EspaceProfesseurControleur::class, 'approuverCahierTexte'])->name('prof.cahier.approuver');
-	Route::post('/comite/cahier-texte', [\App\Http\Controllers\CommitteeCahierTexteController::class, 'store'])->name('comite.cahier.store');
-	Route::post('/professeur/cahier-texte/incoherence', [\App\Http\Controllers\EspaceProfesseurControleur::class, 'marquerIncoherenceCahier'])->name('prof.cahier.incoherence');
+Route::middleware(['web'])->group(function () {
+	Route::post('/professeur/cahier-texte/approuver', [EspaceProfesseurControleur::class, 'approuverCahierTexte'])->name('prof.cahier.approuver');
+	Route::post('/comite/cahier-texte', [CommitteeCahierTexteController::class, 'store'])->name('comite.cahier.store');
+	Route::post('/professeur/cahier-texte/incoherence', [EspaceProfesseurControleur::class, 'marquerIncoherenceCahier'])->name('prof.cahier.incoherence');
 });
+
+
+
 
 
 require __DIR__ . '/auth.php';
@@ -161,4 +156,3 @@ require __DIR__ . '/etudiant.php';
 
 
 require __DIR__ . '/comptable.php';
-

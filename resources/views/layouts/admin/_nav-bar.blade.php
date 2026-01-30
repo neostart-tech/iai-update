@@ -131,7 +131,7 @@
 							<use xlink:href="#custom-notification"></use>
 						</svg>
 						@php
-							$user = request()->user();
+							$user = request()->user() ?? auth()->guard('etudiants')->user();
 						$notifications = $user->unreadNotifications;
 						$allNotificationCount = $notifications->count();
 						@endphp

@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::table('niveaux', function (Blueprint $table) {
             $table->integer("ordre")->after('libelle')->nullable();
+            $table->string("code")->after('ordre')->nullable();
         });
     }
 
@@ -23,6 +24,7 @@ return new class extends Migration
     {
         Schema::table('niveaux', function (Blueprint $table) {
             $table->dropColumn('ordre');
+            $table->dropColumn('code');
         });
     }
 };

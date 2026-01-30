@@ -40,6 +40,8 @@ class AnneeScolaireController extends Controller
         // Crée la nouvelle année scolaire et l'active
         $annee = new AnneeScolaire();
         $annee->libelle = $request->libelle;
+        $annee->date_debut = $request->date_debut;
+        $annee->date_fin = $request->date_fin;
         $annee->active = true;
         $annee->save();
 
@@ -78,9 +80,13 @@ class AnneeScolaireController extends Controller
         $request->validate([
             'libelle' => 'required|string|unique:annee_scolaires,libelle,' . $anneeScolaire->id,
             'active' => 'sometimes|boolean',
+            'date_debut'=>"required",
+            'date_fin'=>'required|after_or_equal:date_debut'
         ]);
 
         $anneeScolaire->libelle = $request->libelle;
+        $anneeScolaire->date_debut = $request->date_debut;
+        $anneeScolaire->date_fin = $request->date_fin;
 
         // Si on veut activer cette année scolaire
         if ($request->has('active') && $request->active) {

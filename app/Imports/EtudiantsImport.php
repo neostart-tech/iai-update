@@ -1,0 +1,561 @@
+<?php
+
+namespace App\Imports;
+
+use App\Models\AnneeScolaire;
+use App\Models\Etudiant;
+use App\Models\Niveau;
+use App\Models\Filiere;
+use App\Models\EtudiantGroup;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
+use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Concerns\WithBatchInserts;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Concerns\RegistersEventListeners;
+use Maatwebsite\Excel\Events\AfterImport;
+use Maatwebsite\Excel\Events\ImportFailed;
+use Illuminate\Support\Collection;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Maatwebsite\Excel\Concerns\Importable;
+
+use Carbon\Carbon;
+use Str;
+use Illuminate\Support\Facades\Log;
+
+class EtudiantsImport implements
+    ToCollection,
+    WithHeadingRow,
+    WithChunkReading,
+    WithBatchInserts,
+    WithEvents,
+    ShouldQueue
+{
+    use Importable, RegistersEventListeners;
+
+    private int $importedCount = 0;
+    private int $skippedCount = 0;
+    private array $errors = [];
+
+    private array $filiereCache = [];
+    private array $niveauCache = [];
+    private array $groupCache = [];
+
+    private array $existingMatricules = [];
+    private array $existingEmails = [];
+
+    private int $anneeScolaireId;
+    private int $roleEtudiantId;
+
+
+
+
+    /**
+     * Constructor - Initialisation
+     */
+    public function __construct()
+    {
+        $this->anneeScolaireId = AnneeScolaire::where('active', true)->first()->getAttribute('id');
+        $this->roleEtudiantId = DB::table('roles')
+            ->where('slug', 'etudiant')
+            ->value('id');
+    }
+    /**
+     * Traitement par collection (plus rapide que ToModel)
+     */
+    public function collection(Collection $rows)
+    {
+        $this->loadExistingStudentsIfNeeded();
+        // Préparer les données pour insertion batch
+        $etudiantsBatch = [];
+        $etudiantGroupsBatch = [];
+        $now = now();
+
+        foreach ($rows as $index => $row) {
+            try {
+                // Vérifier si la ligne est vide
+                if ($this->isEmptyRow($row)) {
+                    continue;
+                }
+
+                // Extraire les données
+                $nom = $this->cleanString($row['nom'] ?? '');
+                $prenom = $this->cleanString($row['prenoms'] ?? '');
+                $matricule = $this->cleanString($row['numero_matricule'] ?? $row['numero matricule'] ?? '');
+                $filiereNom = $this->cleanString($row['nom_de_la_filiere'] ?? $row['nom de la filiere'] ?? '');
+                $niveauNom = $this->cleanString($row['niveau'] ?? '');
+
+                // Validation des champs obligatoires
+                if (!$nom || !$prenom || !$matricule || !$filiereNom || !$niveauNom) {
+                    $this->skippedCount++;
+                    $this->addError($index + 2, 'Champs obligatoires manquants', $matricule);
+                    continue;
+                }
+
+                // Vérifier doublon matricule
+                if (in_array($matricule, $this->existingMatricules)) {
+                    $this->skippedCount++;
+                    $this->addError($index + 2, 'Matricule déjà existant', $matricule);
+                    continue;
+                }
+
+                // Gérer la filière (avec cache)
+                $filiereId = $this->getFiliereId($filiereNom);
+                if (!$filiereId) {
+                    $this->skippedCount++;
+                    $this->addError($index + 2, "Filière '$filiereNom' non trouvée/créée", $matricule);
+                    continue;
+                }
+
+                // Gérer le niveau (avec cache)
+                $niveauId = $this->getNiveauId($niveauNom);
+                if (!$niveauId) {
+                    $this->skippedCount++;
+                    $this->addError($index + 2, "Niveau '$niveauNom' non trouvé/créé", $matricule);
+                    continue;
+                }
+
+                // Chercher le group_id (avec cache)
+                $groupId = $this->getGroupId($filiereId, $niveauId);
+                if (!$groupId) {
+                    $this->skippedCount++;
+                    $this->addError($index + 2, "Aucun groupe pour la filière", $matricule);
+                    continue;
+                }
+
+                // Gérer le sexe
+                $sexeExcel = $this->cleanString($row['sexe'] ?? '');
+                $genre = $this->determineGenre($sexeExcel);
+
+                // Gérer la date de naissance
+                $dateNaissance = $this->parseDate($row['date_de_naissance'] ?? $row['date de naissance'] ?? '');
+
+                // Gérer les autres champs
+                $tel = $this->cleanString($row['contact'] ?? '');
+                $nation = $this->cleanString($row['nationalite'] ?? '');
+                $cni = $this->cleanString($row['numero_de_cni'] ?? $row['numero de cni'] ?? '');
+
+                // Générer email unique
+                $email = $this->generateUniqueEmail($prenom, $nom, $matricule);
+
+                // Créer le slug
+                $slug = Str::uuid();
+
+                // Préparer l'étudiant pour insertion batch
+                $etudiantsBatch[] = [
+                    'nom' => $nom,
+                    'prenom' => $prenom,
+                    'tel' => $tel,
+                    'matricule' => $matricule,
+                    'genre' => $genre,
+                    'date_naissance' => $dateNaissance,
+                    'nationalite' => $nation,
+                    'annee_admission' => now()->year,
+                    'email' => $email,
+                    'slug' => $slug,
+                    'password' => Hash::make('password'),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+
+                // Stocker l'association pour etudiant_group
+                $etudiantGroupsBatch[] = [
+                    'filiere_id' => $filiereId,
+                    'niveau_id' => $niveauId,
+                    'group_id' => $groupId,
+                    'annee_scolaire_id' => AnneeScolaire::where('active', true)->first()->getAttribute('id'),
+                    'matricule_temp' => $matricule, // Pour liaison après insertion
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+
+
+
+                // Mettre à jour les caches
+                $this->existingMatricules[] = $matricule;
+                $this->existingEmails[] = $email;
+
+                $this->importedCount++;
+
+                // Insertion par batch pour éviter trop de requêtes
+                if (count($etudiantsBatch) >= 120) {
+                    $this->insertBatch($etudiantsBatch, $etudiantGroupsBatch);
+                    $etudiantsBatch = [];
+                    $etudiantGroupsBatch = [];
+                }
+            } catch (\Exception $e) {
+                $this->skippedCount++;
+                $this->addError($index + 2, 'Erreur: ' . $e->getMessage(), $matricule ?? 'N/A');
+                continue;
+            }
+        }
+
+        // Insérer les derniers éléments
+        if (!empty($etudiantsBatch)) {
+            $this->insertBatch($etudiantsBatch, $etudiantGroupsBatch);
+        }
+    }
+
+    private function loadExistingStudentsIfNeeded()
+    {
+        if (!empty($this->existingMatricules)) {
+            return;
+        }
+
+        Etudiant::select('matricule', 'email')
+            ->chunk(1000, function ($etudiants) {
+                foreach ($etudiants as $e) {
+                    $this->existingMatricules[] = $e->matricule;
+                    $this->existingEmails[] = $e->email;
+                }
+            });
+    }
+
+
+    /**
+     * Insérer un batch d'étudiants
+     */
+    private function insertBatch(array &$etudiantsBatch, array &$etudiantGroupsBatch)
+    {
+        DB::transaction(function () use (&$etudiantsBatch, &$etudiantGroupsBatch) {
+            // Insertion des étudiants
+            $insertedIds = [];
+            foreach (array_chunk($etudiantsBatch, 50) as $chunk) {
+                DB::table('etudiants')->insert($chunk);
+
+                // Récupérer les IDs insérés
+                $matricules = array_column($chunk, 'matricule');
+                $etudiants = Etudiant::whereIn('matricule', $matricules)
+                    ->get(['id', 'matricule']);
+
+                foreach ($etudiants as $etudiant) {
+                    $insertedIds[$etudiant->matricule] = $etudiant->id;
+                }
+            }
+
+            // Préparer et insérer les etudiant_groups
+            $etudiantGroupsFinal = [];
+            foreach ($etudiantGroupsBatch as $group) {
+                if (isset($insertedIds[$group['matricule_temp']])) {
+                    $etudiantGroupsFinal[] = [
+                        'etudiant_id' => $insertedIds[$group['matricule_temp']],
+                        'group_id' => $group['group_id'],
+                        'filiere_id' => $group['filiere_id'],
+                        'niveau_id' => $group['niveau_id'],
+                        'annee_scolaire_id' => AnneeScolaire::where('active', true)->first()->getAttribute('id'),
+
+                    ];
+                }
+            }
+
+            if (!empty($etudiantGroupsFinal)) {
+                foreach (array_chunk($etudiantGroupsFinal, 50) as $chunk) {
+                    DB::table('etudiant_group')->insert($chunk);
+                }
+            }
+
+            $rolesUsersBatch = [];
+            foreach ($insertedIds as $etudiantId) {
+                $rolesUsersBatch[] = [
+                    'user_id'   => $etudiantId,
+                    'user_type' => 'App\\Models\\Etudiant',
+                    'role_id'   => $this->roleEtudiantId,
+                ];
+            }
+
+            if (!empty($rolesUsersBatch)) {
+                DB::table('role_user')->insert($rolesUsersBatch);
+            }
+
+
+            // Vider les batches
+            $etudiantsBatch = [];
+            $etudiantGroupsBatch = [];
+        });
+    }
+
+    /**
+     * Vérifier si une ligne est vide
+     */
+    private function isEmptyRow($row)
+    {
+        $requiredFields = ['nom', 'prenoms', 'numero_matricule', 'numero matricule'];
+
+        foreach ($requiredFields as $field) {
+            if (isset($row[$field]) && trim($row[$field]) !== '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Nettoyer une chaîne
+     */
+    private function cleanString($value)
+    {
+        if (is_null($value) || $value === '') {
+            return '';
+        }
+
+        return trim(strval($value));
+    }
+
+    /**
+     * Obtenir l'ID de la filière (avec cache)
+     */
+    private function getFiliereId($filiereNom)
+    {
+        if (empty($filiereNom)) {
+            return null;
+        }
+
+        $key = md5(strtolower($filiereNom));
+
+        if (!isset($this->filiereCache[$key])) {
+            $filiere = Filiere::firstOrCreate(['nom' => $filiereNom]);
+            $this->filiereCache[$key] = $filiere->id;
+        }
+
+        return $this->filiereCache[$key];
+    }
+
+    /**
+     * Obtenir l'ID du niveau (avec cache)
+     */
+    private function getNiveauId($niveauNom)
+    {
+        if (empty($niveauNom)) {
+            return null;
+        }
+
+        $key = md5(strtolower($niveauNom));
+
+        if (!isset($this->niveauCache[$key])) {
+            $niveau = Niveau::firstOrCreate(['libelle' => $niveauNom]);
+            $this->niveauCache[$key] = $niveau->id;
+        }
+
+        return $this->niveauCache[$key];
+    }
+
+    /**
+     * Obtenir l'ID du groupe (avec cache)
+     */
+    private function getGroupId(int $filiereId, int $niveauId)
+    {
+        if (!$filiereId || !$niveauId) {
+            return null;
+        }
+
+        $cacheKey = $filiereId . '_' . $niveauId;
+
+        if (!isset($this->groupCache[$cacheKey])) {
+
+            $group = DB::table('groups')
+                ->join('filiere_group', 'groups.id', '=', 'filiere_group.group_id')
+                ->where('filiere_group.filiere_id', $filiereId)
+                ->where('groups.niveau_id', $niveauId)
+                ->select('groups.id')
+                ->first();
+
+            $this->groupCache[$cacheKey] = $group ? $group->id : null;
+        }
+
+        return $this->groupCache[$cacheKey];
+    }
+
+
+    /**
+     * Déterminer le genre
+     */
+    private function determineGenre($sexe)
+    {
+        if (empty($sexe)) {
+            return 'Féminin';
+        }
+
+        $sexeLower = strtolower($sexe);
+
+        if (
+            str_contains($sexeLower, 'masc') ||
+            $sexeLower === 'm' ||
+            $sexeLower === 'homme' ||
+            $sexeLower === 'h'
+        ) {
+            return 'Masculin';
+        }
+
+        return 'Féminin';
+    }
+
+    /**
+     * Parser une date
+     */
+    private function parseDate($dateString)
+    {
+        if (empty($dateString)) {
+            return null;
+        }
+
+        try {
+            if (is_numeric($dateString) && $dateString > 25569) {
+                // Date Excel
+                return Carbon::createFromTimestamp(($dateString - 25569) * 86400);
+            }
+
+            return Carbon::parse($dateString);
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Générer un email unique
+     */
+    private function generateUniqueEmail($prenom, $nom, $matricule)
+    {
+        $prenomClean = strtolower(preg_replace('/[^a-z0-9]/', '.', iconv('UTF-8', 'ASCII//TRANSLIT', $prenom)));
+        $nomClean = strtolower(preg_replace('/[^a-z0-9]/', '.', iconv('UTF-8', 'ASCII//TRANSLIT', $nom)));
+
+        $emailBase = $prenomClean . '.' . $nomClean . '@etudiant.exemple.com';
+
+        // Si l'email n'existe pas déjà
+        if (!in_array($emailBase, $this->existingEmails)) {
+            return $emailBase;
+        }
+
+        // Ajouter le matricule
+        $emailWithMatricule = $prenomClean . '.' . $nomClean . '.' . $matricule . '@etudiant.exemple.com';
+
+        // Si encore existe, ajouter un timestamp
+        if (in_array($emailWithMatricule, $this->existingEmails)) {
+            return $prenomClean . '.' . $nomClean . '.' . $matricule . '.' . time() . '@etudiant.exemple.com';
+        }
+
+        return $emailWithMatricule;
+    }
+
+    /**
+     * Récupérer l'ID de l'année scolaire
+     */
+    private function getAnneeScolaireId()
+    {
+        if (function_exists('injectAnneeScolaireId')) {
+            return injectAnneeScolaireId();
+        }
+
+        $anneeScolaire = DB::table('annee_scolaires')
+            ->where('actif', true)
+            ->first();
+
+        if ($anneeScolaire) {
+            return $anneeScolaire->id;
+        }
+
+        // Créer une année scolaire par défaut
+        $currentYear = now()->year;
+        $nextYear = $currentYear + 1;
+
+        return DB::table('annee_scolaires')->insertGetId([
+            'libelle' => $currentYear . '-' . $nextYear,
+            'debut' => now()->startOfYear(),
+            'fin' => now()->addYear()->endOfYear(),
+            'actif' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    /**
+     * Ajouter une erreur
+     */
+    private function addError($line, $reason, $matricule = null)
+    {
+        $this->errors[] = [
+            'ligne' => $line,
+            'raison' => $reason,
+            'matricule' => $matricule ?? 'N/A'
+        ];
+
+        // Limiter le nombre d'erreurs stockées pour éviter l'explosion mémoire
+        if (count($this->errors) > 1000) {
+            array_shift($this->errors);
+        }
+    }
+
+    /**
+     * Configuration du chunk reading
+     */
+    public function chunkSize(): int
+    {
+        return 500; // Lire 500 lignes à la fois
+    }
+
+    /**
+     * Configuration du batch insert
+     */
+    public function batchSize(): int
+    {
+        return 120; // Insérer par lots de 120
+    }
+
+    /**
+     * Événement après l'import
+     */
+    public static function afterImport(AfterImport $event)
+    {
+        $import = $event->getConcernable();
+
+        Log::info('Import étudiants terminé', [
+            'imported' => $import->importedCount,
+            'skipped' => $import->skippedCount,
+            'errors_count' => count($import->errors)
+        ]);
+    }
+
+    /**
+     * Événement en cas d'échec
+     */
+    public static function importFailed(ImportFailed $event)
+    {
+        $e = $event->getException();
+        Log::error('Import étudiants échoué', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+    }
+
+    /**
+     * Getters pour les résultats
+     */
+    public function getResults()
+    {
+        return [
+            'imported' => $this->importedCount,
+            'skipped' => $this->skippedCount,
+            'errors' => $this->errors,
+            'has_errors' => !empty($this->errors)
+        ];
+    }
+
+    /**
+     * Getter pour les erreurs
+     */
+    public function getErrors()
+    {
+        return $this->errors;
+    }
+
+    /**
+     * Getter pour le compte
+     */
+    public function getImportedCount()
+    {
+        return $this->importedCount;
+    }
+}

@@ -4,10 +4,10 @@
         <div class="card">
             <div class="card-header">
                 <div class="text-end p-4 pb-sm-2">
-                    <button type="button" class="btn btn-primary" data-bs-toggle="modal"
-                        data-bs-target="#candidatureModal">
+                    <a href="{{route('admin.candidatures.create')}}" class="btn btn-primary" >
+                       
                         <i class="ti ti-plus f-18"></i> Nouvelle candidature
-                    </button>
+                    </a>
                 </div>
             </div>
             <div class="card-body">
@@ -64,7 +64,6 @@
                     @endif
                 </div>
             </div>
-        @include('admin.candidatures._admin_inscription_etudiant')
 
         </div>
     </div>

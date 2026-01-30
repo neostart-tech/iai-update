@@ -1,5 +1,6 @@
 <?php
 
+use App\Exports\EtudiantsExport;
 use App\Http\Controllers\{
 	Admin\AnnouncementController,
 	Admin\BlogController,
@@ -39,6 +40,9 @@ use App\Http\Controllers\AnneeScolaireController;
 use App\Http\Controllers\Admin\EvaluationRoomController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use App\Http\Controllers\Admin\EtudiantController as AdminEtudiantController;
+use App\Models\AnneeScolaire;
+use Maatwebsite\Excel\Facades\Excel;
 
 Route::controller(FiliereController::class)->prefix('filieres')->name('filieres.')->group(function () {
 	Route::get('liste', 'index')->name('index');
@@ -143,6 +147,8 @@ Route::controller(SurveillantController::class)->prefix('surveillants')->name('s
 
 Route::controller(CandidatureController::class)->prefix('candidature')->name('candidatures.')->group(function () {
 	Route::get('liste', 'index')->name('index');
+	Route::get('creation-d-une-candidature', 'inscriptionIndexForm')->name('create');
+	Route::post("store-by-admin", "storeByAdmin")->name("store-by-admin");
 	Route::get('payement-des-frais-de-participation', 'payementCandidaturesIndex')->name('payement-des-frais-de-participation');
 	Route::get('participation-au-concours', 'participantCandidaturesIndex')->name('participation-au-concours');
 	Route::get('admission-a-' . Str::slug(env('APP_NAME')), 'admisCandidaturesIndex')->name('admission');
@@ -160,10 +166,7 @@ Route::controller(CandidatureController::class)->prefix('candidature')->name('ca
 	Route::put('{candidature}/rejeter', 'rejectCandidature')->name('reject');
 	Route::put('{candidature}/demander-rectification', 'askForRectificationOnCandidature')->name('ask-for-rectification');
 	Route::post('{candidature}/reorienter', 'reorienter')->name('reorienter');
-		Route::post('{candidature}/inscrire-un-etudiant', 'insertStudent')->name('inscrire-un-etudiant');
-
-
-	
+	Route::post('{candidature}/inscrire-un-etudiant', 'insertStudent')->name('inscrire-un-etudiant');
 });
 
 Route::controller(AgendaController::class)->prefix('agenda')->name('agenda.')->group(function () {
@@ -411,4 +414,16 @@ Route::controller(ReleveController::class)->prefix('releves')->name('releves.')-
 // Routes pour les cartes étudiants
 Route::controller(CarteEtudiantController::class)->prefix('carte')->name('carte.')->group(function () {
 	Route::get('{etudiant}', 'genererCarteEtudiant')->name('index');
+});
+
+Route::controller(AdminEtudiantController::class)->prefix('etudiants')->name('etudiants.')->group(function () {
+	Route::get('liste', 'index')->name('index');
+	Route::post('import', 'importEtudiant')->name('import');
+	$anneActive = AnneeScolaire::where('active', true)->first()->nom;
+	Route::get('export', function () use ($anneActive) {
+		return Excel::download(
+			new EtudiantsExport,
+			'liste_des_etudiants_' . $anneActive . '.xlsx' 
+		);
+	})->name('export');
 });

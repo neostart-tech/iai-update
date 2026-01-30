@@ -21,6 +21,7 @@ class FiliereResource extends JsonResource
             'slug' => $this->resource->slug,
             'description' => $this->resource->description,
             'image' => $this->resource->pathImage(),
+            'etudiant_counts'=>$this->etudiants_count,
             // 'annee_scolaire' => new AnneeScolaireResource($this->resource->annee_scolaire_id),
         ];
     }

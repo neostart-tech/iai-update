@@ -1,3 +1,5 @@
+
+
 <script>
 	const url = "{{ $resourceUrl  }}";
 	const updateDatesUrl = "{{ route('admin.edt.update-dates') }}";
@@ -22,11 +24,11 @@
 			right: 'dayGridMonth,timeGridWeek,timeGridDay,listMonth'
 		},
 		buttonText: {
-			today:    'Aujourd\'hui',
-			month:    'Mois',
-			week:     'Semaine',
-			day:      'Jour',
-			list:     'liste',
+			today: 'Aujourd\'hui',
+			month: 'Mois',
+			week: 'Semaine',
+			day: 'Jour',
+			list: 'liste',
 		},
 		weekends: false,
 		locale: 'fr',
@@ -56,7 +58,7 @@
 		editable: true,
 		dayMaxEvents: true,
 		handleWindowResize: true,
-		select: function (info) {
+		select: function(info) {
 			let sdt = new Date(info.start);
 			let edt = new Date(info.end);
 			document.getElementById('pc-e-sdate').value = sdt.getFullYear() + '-' + getRound(sdt.getMonth() + 1) + '-' + getRound(sdt.getDate());
@@ -64,7 +66,7 @@
 			// calendarOffCanvas.show();
 			calendar.unselect();
 		},
-		eventClick: function (info) {
+		eventClick: function(info) {
 			selectedEvent = info.event;
 			const props = info.event.extendedProps;
 			let e_title = selectedEvent.title === undefined ? '' : selectedEvent.title;
@@ -81,7 +83,7 @@
 
 			calendarModal.show();
 		},
-		eventDrop: function (info) {
+		eventDrop: function(info) {
 			let droppedElement = info.event;
 			$.post(updateDatesUrl, {
 				_token: token,
@@ -99,7 +101,7 @@
 	});
 
 	calendar.render();
-	document.addEventListener('DOMContentLoaded', function () {
+	document.addEventListener('DOMContentLoaded', function() {
 		let calbtn = document.querySelectorAll('.fc-toolbar-chunk');
 		for (let t = 0; t < calbtn.length; t++) {
 			let c = calbtn[t];
@@ -111,7 +113,7 @@
 	// Suppression
 	let pc_event_remove = document.querySelector('#pc_event_remove');
 	if (pc_event_remove) {
-		pc_event_remove.addEventListener('click', function () {
+		pc_event_remove.addEventListener('click', function() {
 			const swalWithBootstrapButtons = Swal.mixin({
 				customClass: {
 					confirmButton: 'btn btn-light-success',
@@ -138,7 +140,7 @@
 	// Édition
 	let pc_event_edit = document.querySelector('#pc_event_edit');
 	if (pc_event_edit) {
-		pc_event_edit.addEventListener('click', function () {
+		pc_event_edit.addEventListener('click', function() {
 			const props = selectedEvent.extendedProps;
 			console.log(props);
 			document.getElementById('create-debut').setAttribute("value", `${props.start.slice(11)}`)
@@ -206,33 +208,187 @@
 		calendar.addEvent(parseIntoCalendarEvent(newEvent));
 	}
 
+	// function parseIntoCalendarEvent(event) {
+	// 	return {
+	// 		title: event.title,
+	// 		start: event.debut,
+	// 		end: event.fin,
+	// 		allDay: false,
+	// 		description: event.details,
+	// 		venue: event.salle,
+	// 		className: `event-${event.color}`,
+	// 		extendedProps: {
+	// 			teacher: event.teacher,
+	// 			teacher_id: event.teacher_id,
+	// 			salle: event.salle,
+	// 			salle_id: event.salle_id,
+	// 			type: event.type,
+	// 			uv: event.uv,
+	// 			uv_id: event.uv_id,
+	// 			group: event.group,
+	// 			groupId: event.group_id,
+	// 			start: event.debut,
+	// 			end: event.fin,
+	// 			plageHoraire: event.plageHoraire,
+	// 			slug: event.slug,
+	// 			date: event.date,
+	// 		}
+	// 	};
+	// }
+	// function parseIntoCalendarEvent(event) {
+	// 	// 🔁 CAS RÉCURRENT
+	// 	if (event.recurrence_type && event.recurrence_type !== 'aucune') {
+	// 		let freq = null;
+	// 		// dtstart doit inclure la date et l'heure de début (format ISO)
+	// 		let dtstart = event.debut.replace(' ', 'T') + ':00';
+	// 		// until doit inclure la date de fin de récurrence (fin de la dernière occurrence)
+	// 		let until = event.date_fin ? (event.date_fin + 'T' + event.heure_debut + ':00') : undefined;
+	// 		let rrule = { dtstart: dtstart };
+	// 		if (until) rrule.until = until;
+	// 		switch (event.recurrence_type) {
+	// 			case 'quotidienne':
+	// 				freq = 'daily';
+	// 				break;
+	// 			case 'hebdomadaire':
+	// 				freq = 'weekly';
+	// 				if (event.recurrence_days) {
+	// 					rrule.byweekday = event.recurrence_days.split(',');
+	// 				}
+	// 				break;
+	// 			case 'mensuelle':
+	// 				freq = 'monthly';
+	// 				break;
+	// 			case 'annuelle':
+	// 				freq = 'yearly';
+	// 				break;
+	// 		}
+	// 		if (freq) {
+	// 			rrule.freq = freq;
+	// 			return {
+	// 				title: event.title,
+	// 				// Utiliser heure_debut et heure_fin si présents, sinon fallback sur debut/fin
+	// 				startTime: event.heure_debut || event.debut.slice(11, 16),
+	// 				endTime: event.heure_fin || event.fin.slice(11, 16),
+	// 				rrule: rrule,
+	// 				allDay: false,
+	// 				className: `event-${event.color}`,
+	// 				extendedProps: {
+	// 					slug: event.slug,
+	// 					teacher: event.teacher,
+	// 					salle: event.salle,
+	// 					uv: event.uv,
+	// 					uv_id: event.uv_id,
+	// 					group: event.group,
+	// 					type: event.type,
+	// 					plageHoraire: event.plageHoraire,
+	// 				}
+	// 			};
+	// 		}
+	// 	}
+
+	// 	// 🔹 CAS PONCTUEL (COMME AVANT)
+	// 	return {
+	// 		title: event.title,
+	// 		start: event.debut,
+	// 		end: event.fin,
+	// 		allDay: false,
+	// 		description: event.details,
+	// 		venue: event.salle,
+	// 		className: `event-${event.color}`,
+	// 		extendedProps: {
+	// 			teacher: event.teacher,
+	// 			teacher_id: event.teacher_id,
+	// 			salle: event.salle,
+	// 			salle_id: event.salle_id,
+	// 			type: event.type,
+	// 			uv: event.uv,
+	// 			uv_id: event.uv_id,
+	// 			group: event.group,
+	// 			groupId: event.group_id,
+	// 			start: event.debut,
+	// 			end: event.fin,
+	// 			plageHoraire: event.plageHoraire,
+	// 			slug: event.slug,
+	// 			date: event.date,
+	// 		}
+	// 	};
+	// }
 	function parseIntoCalendarEvent(event) {
-		return {
-			title: event.title,
-			start: event.debut,
-			end: event.fin,
-			allDay: false,
-			description: event.details,
-			venue: event.salle,
-			className: `event-${event.color}`,
-			extendedProps: {
-				teacher: event.teacher,
-				teacher_id: event.teacher_id,
-				salle: event.salle,
-				salle_id: event.salle_id,
-				type: event.type,
-				uv: event.uv,
-				uv_id: event.uv_id,
-				group: event.group,
-				groupId: event.group_id,
-				start: event.debut,
-				end: event.fin,
-				plageHoraire: event.plageHoraire,
-				slug: event.slug,
-				date: event.date,
-			}
-		};
-	}
+
+  // 🔁 RÉCURRENT
+  if (event.recurrence_type && event.recurrence_type !== 'aucune') {
+
+    const freqMap = {
+      quotidienne: 'DAILY',
+      hebdomadaire: 'WEEKLY',
+      mensuelle: 'MONTHLY',
+      annuelle: 'YEARLY'
+    };
+
+    const freq = freqMap[event.recurrence_type];
+    if (!freq) return null;
+
+    const dtstart = event.debut.replace(' ', 'T'); // PAS de Z
+
+    const until = event.date_fin
+      ? event.date_fin + 'T23:59:59'
+      : null;
+
+    const byweekday = event.recurrence_days
+      ? event.recurrence_days.split(',').map(d => d.toLowerCase())
+      : undefined;
+
+    return {
+      id: event.slug,
+      title: event.title,
+
+      startTime: event.heure_debut,
+      endTime: event.heure_fin,
+
+      rrule: {
+        freq: freq,
+        interval: 1,
+        dtstart: dtstart,
+        ...(until && { until }),
+        ...(byweekday && { byweekday })
+      },
+
+      allDay: false,
+      className: `event-${event.color}`,
+
+      extendedProps: {
+        slug: event.slug,
+        teacher: event.teacher,
+        salle: event.salle,
+        uv: event.uv,
+        group: event.group,
+        type: event.type,
+        plageHoraire: event.plageHoraire
+      }
+    };
+  }
+
+  // 🔹 PONCTUEL
+  return {
+    id: event.slug,
+    title: event.title,
+    start: event.debut,
+    end: event.fin,
+    allDay: false,
+    className: `event-${event.color}`,
+    extendedProps: {
+      slug: event.slug,
+      teacher: event.teacher,
+      salle: event.salle,
+      uv: event.uv,
+      group: event.group,
+      type: event.type,
+      plageHoraire: event.plageHoraire
+    }
+  };
+}
+
+
 
 	function addEvents(events) {
 		console.log(events);
@@ -241,6 +397,7 @@
 
 	const handleEventCreateOrUpdateSubmitForm = () => {
 		let action = "{{ route('admin.edt.store') }}";
+		const recurenceDays = [];
 
 		let event = {
 			debut: document.getElementById('create-debut').value,
@@ -252,6 +409,14 @@
 			salle: (document.getElementById('create-salle-id')?.value || salleId),
 			teacher: document.getElementById('create-teacher-id').value,
 			details: document.getElementById('create-details').value,
+			recurrence_type: document.getElementById('recurrence-type').value,
+
+			recurrence_days: Array.from(
+				document.querySelectorAll('#recurrence-days input:checked')
+			).map(el => el.value),
+
+
+			recurrence_end_date: document.getElementById('recurrence-end-date')?.value || null,
 			// eventId: document.getElementById('create-ev'),
 			_token: token,
 		};
@@ -261,7 +426,12 @@
 		const isUpdate = !!(edtIdInput && edtIdInput.value);
 		const slug = (selectedEvent?.extendedProps?.slug) || (edtIdInput?.value);
 
-		const ensureAvailability = () => $.get(checkAvailabilityUrl, { salle: event.salle, date: event.date, debut: event.debut, fin: event.fin });
+		const ensureAvailability = () => $.get(checkAvailabilityUrl, {
+			salle: event.salle,
+			date: event.date,
+			debut: event.debut,
+			fin: event.fin
+		});
 
 		if (isUpdate && slug) {
 			const payload = {
@@ -285,7 +455,11 @@
 						showToast(av.message || 'Salle occupée', 'danger');
 						return Promise.reject('occupied');
 					}
-					return $.ajax({ url: updateEdtUrl, method: 'POST', data: payload });
+					return $.ajax({
+						url: updateEdtUrl,
+						method: 'POST',
+						data: payload
+					});
 				})
 				.then(resp => {
 					showToast('Programmation mise à jour', 'success');
@@ -312,12 +486,11 @@
 				return $.post(action, event)
 			})
 			.then(response => {
-					console.log(response)
-					showToast('Planification ajoutée avec succès', 'success');
-					addEvent(response.data)
-					$('#calendar-create_event-close_button').modal('hide');
-				}
-			).catch(error => {
+				console.log(response)
+				showToast('Planification ajoutée avec succès', 'success');
+				addEvent(response.data)
+				$('#calendar-create_event-close_button').modal('hide');
+			}).catch(error => {
 				const body = error?.responseJSON;
 				if (body && body.code === 422) {
 					showToast(body.message, 'danger');
@@ -353,5 +526,4 @@
 
 	$('#handle-event-create-submit-form').click(handleEventCreateOrUpdateSubmitForm)
 	$(document).ready(handleEventsLoading)
-
 </script>

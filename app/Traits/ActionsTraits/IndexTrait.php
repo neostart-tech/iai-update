@@ -53,6 +53,22 @@ trait IndexTrait
 	}
 
 
+	public function inscriptionIndexForm(): View
+	{
+		return view('admin.candidatures.index')->with([
+			'filieres' => Filiere::all(),
+			'niveaux' => Niveau::all(),
+			'metaData' => [
+				'title' => 'Formulaire d\'inscription',
+				'breadcrumbs' => ['Administration', 'Candidatures', 'Formulaire d\'inscription'],
+				'page_name' => 'Formulaire d\'inscription'
+			],
+			"viewContent" => '_admin_inscription_etudiant'
+		]);
+	}
+
+
+
 	public function payementCandidaturesIndex()
 	{
 		//  $payementCandidatures = Candidature::query()

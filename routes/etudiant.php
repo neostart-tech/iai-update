@@ -129,4 +129,7 @@ Route::prefix('espace-etudiant')->name('etudiants.')->group(function () {
         Route::put('password', [PasswordController::class, 'update'])->name('password.update');
     });
 
+
+    
+
 });
