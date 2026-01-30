@@ -1,7 +1,7 @@
 @extends('base', [
 	'title' => 'Emploi du temps du ' . $group->nom,
 	'page_name' => 'Emploi du temps du ' . $group->nom,
-	'breadcrumbs' => ['Administration', 'Gestion des emploi du temps', $group->nom . ' - ' . $group->filiere->getAttribute('code')]
+	'breadcrumbs' => ['Administration', 'Gestion des emploi du temps',  $group->niveau->getAttribute('libelle'). ' - ' . $group->nom ]
 ])
 
 @section('content')

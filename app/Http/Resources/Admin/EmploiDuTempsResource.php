@@ -19,7 +19,6 @@ class EmploiDuTempsResource extends JsonResource
     public function toArray(Request $request): array
     {
         $group = $this->resource->group;
-
         // Si aucun owner → renvoyer quand même une structure valide
         if (! $this->resource->owner) {
             return [
@@ -42,7 +41,7 @@ class EmploiDuTempsResource extends JsonResource
                 'teacher' => null,
                 'teacher_id' => null,
 
-                'group' => $this->getGroupFullName($group),
+                'group' => $group ? $this->getGroupFullName($group) : "--",
                 'group_id' => $group?->slug,
                 'color' => $this->getColor(),
                 'title' => $this->getTitle(),
@@ -123,7 +122,7 @@ class EmploiDuTempsResource extends JsonResource
 
     private function getGroupFullName(?Group $group = null): string
     {
-        return $group->getAttribute('nom') . ' - ' . $group->niveau->getAttribute('libelle');
+        return $group->getAttribute('nom') . ' - ' . $group?->niveau?->getAttribute('libelle');
     }
 
     private function isAdministrationMember(): bool

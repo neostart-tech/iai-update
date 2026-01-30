@@ -68,7 +68,7 @@
                             <select class="form-control" data-trigger name="create_grade_id" id="create-grade-id">
                                 @foreach ($groups as $group)
                                     <option value="{{ $group->slug }}" @selected(old('grade_id') === $group->slug)>
-                                        {{ $group->nom . ' - ' . $group->filiere->code }}
+                                        {{ $group->niveau->libelle . ' - ' . $group->nom }}
                                     </option>
                                 @endforeach
                             </select>
@@ -181,7 +181,7 @@
                             <select class="form-control" data-trigger name="create_grade_id" id="create-grade-id">
                                 @foreach ($groups as $group)
                                     <option value="{{ $group->slug }}" @selected(old('grade_id') === $group->slug)>
-                                        {{ $group->nom . ' - ' . $group->filiere->code }}
+                                        {{ $group->nom . ' - ' . $group->niveau->libelle }}
                                     </option>
                                 @endforeach
                             </select>

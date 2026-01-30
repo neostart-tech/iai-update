@@ -66,7 +66,7 @@ class SalleController extends Controller
 		return view('admin.salles.calendar', compact('salle'))->with([
 			'uvs' => Uv::all(),
 			'types' => TypeProgrammeEnum::cases(),
-			'groups' => Group::query()->with('filiere:id,code,slug')->orderBy('nom')->get(),
+			'groups' => Group::query()->with('niveau')->orderBy('nom')->get(),
 			'teachers' => User::enseignants()->get(),
 			'resourceUrl' => route('admin.salles.load-calendar', $salle)
 		]);
