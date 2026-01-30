@@ -115,7 +115,7 @@
                             <ul class="list-inline mb-0">
 
 
-                                <li class="list-inline-item" data-bs-toggle="tooltip" title="Changer de groupe">
+                                <!-- <li class="list-inline-item" data-bs-toggle="tooltip" title="Changer de groupe">
                                     <a href="#" data-bs-toggle="modal"
                                         data-bs-target="#animateModal"
                                         onclick="handleGroupeUpdate(
@@ -125,7 +125,7 @@
                                         class="avtar avtar-xs btn-link-secondary">
                                         <i data-feather="edit"></i>
                                     </a>
-                                </li>
+                                </li> -->
 
 
                                 <li class="list-inline-item" data-bs-toggle="tooltip" title="Détails">
@@ -136,7 +136,7 @@
                                 </li>
 
 
-                                <li class="list-inline-item" data-bs-toggle="tooltip" title="Voir relevé">
+                                <!-- <li class="list-inline-item" data-bs-toggle="tooltip" title="Voir relevé">
                                     <a onclick="releveliste({{ $etudiant->id }})"
                                         data-bs-toggle="modal"
                                         data-bs-target="#exampleModalToggle2"
@@ -150,7 +150,7 @@
                                         class="avtar avtar-xs btn-link-secondary">
                                         <i data-feather="download"></i>
                                     </a>
-                                </li>
+                                </li> -->
 
                                 <li class="list-inline-item" data-bs-toggle="tooltip" title="Carte étudiant">
                                     <a href="{{ route('admin.carte.index', $etudiant->slug) }}"
