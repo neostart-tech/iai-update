@@ -256,18 +256,18 @@ class UserController extends Controller
 			];
 		});
 
-		return view('admin.users.hours-summary')->with([
-			'summary' => $summary,
-			'date_debut' => $request->query('date_debut'),
-			'date_fin' => $request->query('date_fin'),
-		]);
-		//  return TeacherHoursSummaryResource::collection($summary)
-		// ->additional([
-		//     'filters' => [
-		//         'date_debut' => $request->query('date_debut'),
-		//         'date_fin' => $request->query('date_fin'),
-		//     ],
+		// return view('admin.users.hours-summary')->with([
+		// 	'summary' => $summary,
+		// 	'date_debut' => $request->query('date_debut'),
+		// 	'date_fin' => $request->query('date_fin'),
 		// ]);
+		 return TeacherHoursSummaryResource::collection($summary)
+		->additional([
+		    'filters' => [
+		        'date_debut' => $request->query('date_debut'),
+		        'date_fin' => $request->query('date_fin'),
+		    ],
+		]);
 	}
 
 	public function updateEmploiDuTemps(Request $request)
@@ -331,7 +331,7 @@ class UserController extends Controller
 			'annee_scolaire_id' => session('annee_scolaire_id'),
 		]);
 
-		// return new EmploiDuTempsResource($emploi);
-		return to_route('admin.users.index')->with('success', 'Emploi du temps modifié avec succès.');
+		return new EmploiDuTempsResource($emploi);
+		// return to_route('admin.users.index')->with('success', 'Emploi du temps modifié avec succès.');
 	}
 }
