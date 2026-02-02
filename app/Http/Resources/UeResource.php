@@ -20,7 +20,8 @@ class UeResource extends JsonResource
             'code' => $this->resource->code,
             'slug' => $this->resource->slug,
             'credit' => $this->resource->credit,
-            'periode'=>new PeriodeResource($this->resource->periode)
+            'periode'=>new PeriodeResource($this->resource->periode),
+            'filiere'=>new FiliereResource($this->resource->filiere)
         ];
     }
 }

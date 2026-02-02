@@ -44,8 +44,8 @@ class EvaluationController extends Controller
             'evaluations' => Evaluation::query()
                 ->with([
                     'salle:id,nom',
-                    'group:id,nom,filiere_id',
-                    'group.filiere:id,code',
+                    'group:id,nom',
+                    'group.niveau',
                     'matiere:id,nom,code',
                     'fiche.surveillants',
                 ])

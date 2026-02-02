@@ -37,6 +37,11 @@ class UniteValeur extends Model
 		return $this->hasMany(EmploiDuTemp::class, 'uv_id');
 	}
 
+	public function filiere()
+	{
+		return $this->belongsTo(Filiere::class, 'filiere_id');
+	}
+
 	// public function enseignants(): BelongsToMany
 	// {
 	// 	return $this->belongsToMany(User::class, 'enseignant_id')->using(UserUniteValeur::class);
@@ -63,22 +68,19 @@ class UniteValeur extends Model
 		return $this->uniteEnseignement();
 	}
 
-	
+
 	public function user()
-    {
-        return $this->belongsToMany(User::class, 'user_unite_valeur', 'unite_valeur_id', 'user_id');
-    
-    }
+	{
+		return $this->belongsToMany(User::class, 'user_unite_valeur', 'unite_valeur_id', 'user_id');
+	}
 
 	public function evaluations(): HasMany
 	{
 		return $this->hasMany(Evaluation::class);
 	}
 
-    public function weightings(): HasMany
-    {
-        return $this->hasMany(UVWeighting::class, 'unite_valeur_id');
-    }
-
-
+	public function weightings(): HasMany
+	{
+		return $this->hasMany(UVWeighting::class, 'unite_valeur_id');
+	}
 }

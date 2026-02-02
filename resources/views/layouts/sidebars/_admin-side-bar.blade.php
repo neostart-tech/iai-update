@@ -45,7 +45,7 @@
 			</li>
 		</ul>
 	</li>
-	
+
 	<li class="pc-item">
 		<a href="{{ route('admin.agenda.index') }}" class="pc-link">
 			<span class="pc-micon">
@@ -94,6 +94,8 @@
 	</li>
 
 	{{-- Ues	--}}
+
+	@if(!appGetters::getSystemePedagogique()==="ue")
 	<li class="pc-item pc-hasmenu">
 		<a href="#!" class="pc-link">
 			<span class="pc-micon">
@@ -111,6 +113,7 @@
 			</li>
 		</ul>
 	</li>
+	@endif
 
 
 	{{-- Uvs	--}}
@@ -197,11 +200,11 @@
 		<ul class="pc-submenu">
 			<li class="pc-item"><a class="pc-link" href="{{ route('admin.etudiants.index') }}">Liste des étudiants</a>
 			</li>
-		
+
 		</ul>
 	</li>
-	
-	
+
+
 
 
 
@@ -304,7 +307,7 @@
 				Étude de dossier
 			</a>
 		</li>
-		
+
 
 		<!-- <li class="pc-item">
 				<a class="pc-link" href="{{ route('admin.candidatures.payement-des-frais-de-participation') }}">

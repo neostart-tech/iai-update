@@ -18,13 +18,13 @@ class UnitValeurRequest extends FormRequest
 		return [
 			'nom' => ['required', Rule::unique('unite_valeurs')->ignore($this->route('uv'), 'nom')],
 			'code' => ['required', Rule::unique('unite_valeurs')->ignore($this->route('uv'), 'code')],
-			'cm' => ['required', 'numeric', 'integer', 'min:1'],
-			'td' => ['required', 'numeric', 'integer', 'min:1'],
-			'tp' => ['required', 'numeric', 'integer', 'min:1'],
-			'ec' => ['required', 'numeric', 'integer', 'min:1'],
-			'coefficient' => ['required', 'numeric', 'integer', 'min:1'],
-//			'annee_scolaire_id' => ['nullable', 'exists:annee_scolaire,id'],
-			'ue_id' => ['required', 'exists:unite_enseignements,id'],
+			'cm' => ['nullable', 'numeric', 'integer', 'min:1'],
+			'td' => ['nullable', 'numeric', 'integer', 'min:1'],
+			'tp' => ['nullable', 'numeric', 'integer', 'min:1'],
+			'ec' => ['nullable', 'numeric', 'integer', 'min:1'],
+			'coefficient' => ['nullable', 'numeric', 'integer', 'min:1'],
+			//			'annee_scolaire_id' => ['nullable', 'exists:annee_scolaire,id'],
+			'ue_id' => ['nullable', 'exists:unite_enseignements,id'],
 			'enseignant_id' => ['required'],
 			// Optional weighting fields (0-100)
 			'poids_devoir' => ['nullable', 'integer', 'min:0', 'max:100'],
@@ -32,6 +32,8 @@ class UnitValeurRequest extends FormRequest
 			'poids_examen' => ['nullable', 'integer', 'min:0', 'max:100'],
 			'poids_tp' => ['nullable', 'integer', 'min:0', 'max:100'],
 			'poids_expose' => ['nullable', 'integer', 'min:0', 'max:100'],
+			"filiere_id" => 'nullable',
+			"volume_horaire" => "nullable",
 		];
 	}
 
@@ -47,19 +49,24 @@ class UnitValeurRequest extends FormRequest
 			'coefficient' => 'Le coefficient de cette unité d\'enseignement',
 			'ue_id' => 'L\'unité d\'enseignement',
 			'enseignant_id' => 'L\'enseignent de cette unité d\'enseignement',
+			"filiere_id" => "La filiere",
+			"volume_horaire" => "Le volume horaire",
 		];
 	}
 
 	protected function passedValidation()
 	{
+		if ($this->filled('ue_id')) {
+			$this->merge([
+				'unite_enseignement_id' => (int) $this->ue_id,
+			]);
+		}
 		$this->whenHas('annee_scolaire_id', function (string $input) {
 			$this->merge(['annee_scolaire_id' => (int)$input]);
 		}, function () {
 			$this->merge(injectAnneeScolaireId());
 		});
-		$this->merge([
-			'unite_enseignement_id' => $this->integer('ue_id'),
-		]);
+		
 	}
 
 	public function withValidator($validator)
@@ -71,7 +78,9 @@ class UnitValeurRequest extends FormRequest
 			foreach ($keys as $k) {
 				$v = (int) $this->input($k, 0);
 				$values[] = $v;
-				if ($v > 0) { $anyProvided = true; }
+				if ($v > 0) {
+					$anyProvided = true;
+				}
 			}
 			$sum = array_sum($values);
 			if ($anyProvided && $sum !== 100) {

@@ -21,18 +21,19 @@ class UniteValeurController extends Controller
 	public function index()
 	{
 
-		// return UvResource::collection(Uv::with([
-		// 	'ue',
-		// 	'user'
-		// ])->get());
+		return UvResource::collection(Uv::with([
+			'ue',
+			'user',
+			'filiere'
+		])->get());
 
-		return view('admin.uvs.index')->with([
-			'uvs' => Uv::with([
-				'ue:id,code,nom,filiere_id',
-				'ue.filiere:id,nom',
-				'user:id,nom,prenom'
-			])->get(),
-		]);
+		// return view('admin.uvs.index')->with([
+		// 	'uvs' => Uv::with([
+		// 		'ue:id,code,nom,filiere_id',
+		// 		'ue.filiere:id,nom',
+		// 		'user:id,nom,prenom'
+		// 	])->get(),
+		// ]);
 	}
 
 	public function create(): View
@@ -51,8 +52,6 @@ class UniteValeurController extends Controller
 		/**
 		 * @var Uv $uv
 		 */
-
-
 		$anneeScolaireId = AnneeScolaire::where('active', true)->first(); // Ou récupère-la d'une autre manière
 
 		$enseignantIds = $request->collect('enseignant_id')->toArray();
@@ -60,8 +59,8 @@ class UniteValeurController extends Controller
 		$uv = Uv::query()->create($request->except([
 			'_token',
 			'ue_id',
-			'search_terms',
 			'enseignant_id',
+			'search_terms',
 			'poids_devoir',
 			'poids_interrogation',
 			'poids_examen',
@@ -104,7 +103,7 @@ class UniteValeurController extends Controller
 		// 	['annee_scolaire_id' => $anneeScolaireId]
 		// );
 
-		successMsg('Unité de valeur ajoutée avec succès.');
+		// successMsg('Unité de valeur ajoutée avec succès.');
 
 		return new UvResource($uv);
 		// return to_route('admin.uvs.index');
@@ -179,33 +178,51 @@ class UniteValeurController extends Controller
 				], $weights);
 			}
 		}
-		// return new UvResource($uv);
+		return new UvResource($uv);
 
-		return to_route('admin.uvs.index')->with(successMsg('Unité de valeur mise à jour avec succès.'));
+		// return to_route('admin.uvs.index')->with(successMsg('Unité de valeur mise à jour avec succès.'));
 	}
 
 
 
 
-	public function destroy(Request $request)
-	{
-		$request->validate([
-			"iduv" => "required"
-		], [
-			"iduv.required" => "L'unité de valeur est requise ou patienter jusqu'au chargement de la page"
-		]);
-		$uniteValeur = $request->iduv;
+	// public function destroy(Request $request)
+	// {
+	// 	$request->validate([
+	// 		"iduv" => "required"
+	// 	], [
+	// 		"iduv.required" => "L'unité de valeur est requise ou patienter jusqu'au chargement de la page"
+	// 	]);
+	// 	$uniteValeur = $request->iduv;
 
-		$unite_valeur_note = Note::query()->where('unite_valeur_id', $uniteValeur)->get();
-		$unite_valeur_emploi_du_temps = EmploiDuTemp::query()->where('uv_id', $uniteValeur)->get();
+	// 	$unite_valeur_note = Note::query()->where('unite_valeur_id', $uniteValeur)->get();
+	// 	$unite_valeur_emploi_du_temps = EmploiDuTemp::query()->where('uv_id', $uniteValeur)->get();
+
+	// 	if ($unite_valeur_note->isNotEmpty() or $unite_valeur_emploi_du_temps->isNotEmpty()) {
+	// 		return to_route('admin.uvs.index')->with(cannotDeleteItemMessage('cette unité de valeur'));
+	// 	}
+
+	// 	$uv = UniteValeur::query()->where('id', $uniteValeur)->first()->delete();
+	// 	// return new UvResource($uv);
+
+	// 	return to_route('admin.uvs.index')->with(successMsg('Unité de valeur supprimée avec succès.'));
+	// }
+	public function destroy(UniteValeur $uv)
+	{
+
+
+
+		$unite_valeur_note = Note::query()->where('unite_valeur_id', $uv->id)->get();
+		$unite_valeur_emploi_du_temps = EmploiDuTemp::query()->where('uv_id', $uv->id)->get();
 
 		if ($unite_valeur_note->isNotEmpty() or $unite_valeur_emploi_du_temps->isNotEmpty()) {
-			return to_route('admin.uvs.index')->with(cannotDeleteItemMessage('cette unité de valeur'));
+			return __422('Impossible de supprimer');
+			// return to_route('admin.uvs.index')->with(cannotDeleteItemMessage('cette unité de valeur'));
 		}
 
-		$uv = UniteValeur::query()->where('id', $uniteValeur)->first()->delete();
-		// return new UvResource($uv);
+		$uv->delete();
+		return new UvResource($uv);
 
-		return to_route('admin.uvs.index')->with(successMsg('Unité de valeur supprimée avec succès.'));
+		// return to_route('admin.uvs.index')->with(successMsg('Unité de valeur supprimée avec succès.'));
 	}
 }

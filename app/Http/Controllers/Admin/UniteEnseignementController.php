@@ -17,10 +17,10 @@ class UniteEnseignementController extends Controller
 	public function index()
 	{
 
-		// return UeResource::collection(Ue::with(['filiere', 'periode'])->orderBy('nom')->get());
-		return view('admin.ues.index')->with([
-			'ues' => Ue::with(['filiere:id,code,nom','periode:id,nom'])->orderBy('nom')->get()
-		]);
+		return UeResource::collection(Ue::with(['filiere', 'periode'])->orderBy('nom')->get());
+		// return view('admin.ues.index')->with([
+		// 	'ues' => Ue::with(['filiere:id,code,nom', 'periode:id,nom'])->orderBy('nom')->get()
+		// ]);
 	}
 
 	public function create(): View
@@ -45,15 +45,15 @@ class UniteEnseignementController extends Controller
 			...injectAnneeScolaireId()
 		]);
 
-		// return new UeResource($uniteEnseignement);
-		return to_route('admin.ues.index')->with(successMsg('Unité d\'enseignement ajoutée avec succès.'));
+		return new UeResource($uniteEnseignement);
+		// return to_route('admin.ues.index')->with(successMsg('Unité d\'enseignement ajoutée avec succès.'));
 	}
 
-	public function show(Ue $uniteEnseignement)
+	public function show(Ue $ue)
 	{
-		// return new UeResource($uniteEnseignement);
+		return new UeResource($ue);
 
-		return view('admin.ues.show', compact('uniteEnseignement'));
+		// return view('admin.ues.show', compact('uniteEnseignement'));
 	}
 
 	public function edit(Ue $ue): View
@@ -76,22 +76,36 @@ class UniteEnseignementController extends Controller
 			]),
 			...injectAnneeScolaireId()
 		]);
-		// return new UeResource($ue);
+		return new UeResource($ue);
 
-		return to_route('admin.ues.index')->with(successMsg('Unité d\'enseignement mise à jour avec succès.'));
+		// return to_route('admin.ues.index')->with(successMsg('Unité d\'enseignement mise à jour avec succès.'));
 	}
 
-	public function destroy(Request $request)
+	// public function destroy(Request $request)
+	// {
+	// 	$ue = intval($request->idue);
+	// 	$uniteDeValeurs = UniteValeur::query()->where('unite_enseignement_id', $ue)->get();
+	// 	if ($uniteDeValeurs->isNotEmpty()) {
+	// 		// return to_route('admin.ues.index')->with(cannotDeleteItemMessage('cette unité d\'enseignement'));
+	// 		return __404("Impossible de supprimer cette unité d'enseignement");
+	// 	}
+	// 	$ue = UniteEnseignement::query()->where('id', $ue)->first()->delete();
+	// 	// return new UeResource($ue);
+
+	// 	return to_route('admin.ues.index')->with(successMsg('Unité d\'enseignement supprimée avec succès.'));
+	// }
+
+	public function destroy(UniteEnseignement $ue)
 	{
-		$ue = intval($request->idue);
-		$uniteDeValeurs = UniteValeur::query()->where('unite_enseignement_id', $ue)->get();
+
+		$uniteDeValeurs = UniteValeur::query()->where('unite_enseignement_id', $ue->id)->get();
 		if ($uniteDeValeurs->isNotEmpty()) {
 			// return to_route('admin.ues.index')->with(cannotDeleteItemMessage('cette unité d\'enseignement'));
 			return __404("Impossible de supprimer cette unité d'enseignement");
 		}
-		$ue = UniteEnseignement::query()->where('id', $ue)->first()->delete();
-		// return new UeResource($ue);
+		$ue->delete();
+		return new UeResource($ue);
 
-		return to_route('admin.ues.index')->with(successMsg('Unité d\'enseignement supprimée avec succès.'));
+		// return to_route('admin.ues.index')->with(successMsg('Unité d\'enseignement supprimée avec succès.'));
 	}
 }

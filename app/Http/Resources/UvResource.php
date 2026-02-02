@@ -26,6 +26,7 @@ class UvResource extends JsonResource
             "coefficient" => $this->resource->coefficient,
             "ue" => new UeResource($this->resource->ue),
             "user"=> UserResource::collection($this->resource->user) ?? null,
+            'filiere'=>new FiliereResource($this->resource->filiere) ?? null,
         ];
     }
 }

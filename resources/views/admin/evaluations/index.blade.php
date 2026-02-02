@@ -43,7 +43,7 @@
 													 value="{{ $evaluation->slug }}" id="{{ $evaluation->slug  }}"
 													 data-slug="{{ $evaluation->slug }}"
 													 data-group="{{ $evaluation->group->nom }}"
-													 data-filiere="{{ $evaluation->group->filiere->code }}">
+													 data-filiere="{{ $evaluation->group->niveau->libelle ?? '--' }}">
 										<label class="form-check-label" id="label-{{ $evaluation->slug }}" for="{{ $evaluation->slug  }}">
 											{{$evaluation->published ? 'Publié' : 'Non publiée'}}
 										</label>

@@ -1,19 +1,19 @@
 <form method="post" action="{{ $action }}" enctype="multipart/form-data">
     @csrf
     @isset($edit)
-        @method('put')
+    @method('put')
     @endisset
 
     <div class="row mb-3">
-
-        <div class="col-lg-6 col-md-11 col-sm-12 mb-3">
+        
+    <div class="col-lg-6 col-md-11 col-sm-12 mb-3">
             <x-forms.label content="Unité d'enseignement" for="ue_id" required="{{ true }}" />
             <select class="form-control" data-trigger name="ue_id" id="ue_id">
                 <option>Attribuez une unité d'enseignement à la matière</option>
                 @foreach ($ues as $ue)
-                    <option value="{{ $ue->id }}" @selected(old('ue_id', $uv->unite_enseignement_id) === $ue->id)>
-                        {{ $ue->nom . ' (' . $ue->code . ')' }}
-                    </option>
+                <option value="{{ $ue->id }}" @selected(old('ue_id', $uv->unite_enseignement_id) === $ue->id)>
+                    {{ $ue->nom . ' (' . $ue->code . ')' }}
+                </option>
                 @endforeach
             </select>
 
@@ -100,12 +100,12 @@
                 required="{{ true }}" />
             <select class="form-control" data-trigger name="enseignant_id[]" id="enseignant_id" multiple>
                 @foreach ($enseignants as $enseignant)
-                    <option value="{{ $enseignant->id }}"
-                        @if (!empty($enseignantsSelected)) @if (in_array($enseignant->id, old('enseignant_id', $enseignantsSelected))) selected @endif
-                        @endif
-                        >
-                        {{ $enseignant->nom . ' ' . $enseignant->prenom }}
-                    </option>
+                <option value="{{ $enseignant->id }}"
+                    @if (!empty($enseignantsSelected)) @if (in_array($enseignant->id, old('enseignant_id', $enseignantsSelected))) selected @endif
+                    @endif
+                    >
+                    {{ $enseignant->nom . ' ' . $enseignant->prenom }}
+                </option>
                 @endforeach
             </select>
 
@@ -147,52 +147,54 @@
         </div>
         {{-- <div class="form-group col-6 col-md-2">
             <x-forms.label content="Interrogation %" for="poids_interrogation" required="{{ false }}" />
-            <input type="number" class="form-control" min="0" max="100" name="poids_interrogation"
-                id="poids_interrogation" value="{{ old('poids_interrogation') }}">
-        </div> --}}
-        <div class="form-group col-6 col-md-2">
-            <x-forms.label content="Examen %" for="poids_examen" required="{{ false }}" />
-            <input type="number" class="form-control" min="1" max="100" name="poids_examen"
-                id="poids_examen" value="{{ old('poids_examen') }}">
-        </div>
-        {{-- <div class="form-group col-6 col-md-2">
+        <input type="number" class="form-control" min="0" max="100" name="poids_interrogation"
+            id="poids_interrogation" value="{{ old('poids_interrogation') }}">
+    </div> --}}
+    <div class="form-group col-6 col-md-2">
+        <x-forms.label content="Examen %" for="poids_examen" required="{{ false }}" />
+        <input type="number" class="form-control" min="1" max="100" name="poids_examen"
+            id="poids_examen" value="{{ old('poids_examen') }}">
+    </div>
+    {{-- <div class="form-group col-6 col-md-2">
             <x-forms.label content="TP %" for="poids_tp" required="{{ false }}" />
-            <input type="number" class="form-control" min="0" max="100" name="poids_tp"
-                id="poids_tp" value="{{ old('poids_tp') }}">
-        </div>
-        <div class="form-group col-6 col-md-2">
-            <x-forms.label content="Exposé %" for="poids_expose" required="{{ false }}" />
-            <input type="number" class="form-control" min="0" max="100" name="poids_expose"
-                id="poids_expose" value="{{ old('poids_expose') }}">
-        </div> --}}
-        <div class="form-group col-12">
-            <small class="text-muted">Si aucun pourcentage n'est indiqué, les valeurs par défaut seront utilisées
-                (Devoir 40, Examen 60).</small>
-        </div>
+    <input type="number" class="form-control" min="0" max="100" name="poids_tp"
+        id="poids_tp" value="{{ old('poids_tp') }}">
+    </div>
+    <div class="form-group col-6 col-md-2">
+        <x-forms.label content="Exposé %" for="poids_expose" required="{{ false }}" />
+        <input type="number" class="form-control" min="0" max="100" name="poids_expose"
+            id="poids_expose" value="{{ old('poids_expose') }}">
+    </div> --}}
+    <div class="form-group col-12">
+        <small class="text-muted">Si aucun pourcentage n'est indiqué, les valeurs par défaut seront utilisées
+            (Devoir 40, Examen 60).</small>
+    </div>
     </div>
 
     <button type="submit" class="btn btn-primary mb-4">Soumettre</button>
 </form>
 
 @section('other-js')
-    @include('layouts._select-search-script')
-    <script>
-        function validateWeightsSum() {
-            const vals = ['poids_devoir'; 'poids_examen']
-                .map(id => parseInt(document.getElementById(id)?.value || '0', 10));
-            const sum = vals.reduce((a, b) => a + b, 0);
-            if (sum !== 0 && sum !== 100) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Somme invalide',
-                    text: `La somme des pourcentages doit être égale à 100 (actuellement ${sum}).`
-                });
-                return false;
-            }
-            return true;
+@include('layouts._select-search-script')
+<script>
+    function validateWeightsSum() {
+        const vals = ['poids_devoir';
+                'poids_examen'
+            ]
+            .map(id => parseInt(document.getElementById(id)?.value || '0', 10));
+        const sum = vals.reduce((a, b) => a + b, 0);
+        if (sum !== 0 && sum !== 100) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Somme invalide',
+                text: `La somme des pourcentages doit être égale à 100 (actuellement ${sum}).`
+            });
+            return false;
         }
-        document.querySelector('form').addEventListener('submit', function(e) {
-            if (!validateWeightsSum()) e.preventDefault();
-        });
-    </script>
+        return true;
+    }
+    document.querySelector('form').addEventListener('submit', function(e) {
+        if (!validateWeightsSum()) e.preventDefault();
+    });
+</script>
 @endsection

@@ -34,16 +34,16 @@ class FiliereController extends Controller
 		// 	$q->where('annee_filiere.annee_scolaire_id', $anneeActiveId)->first();
 		// }])->get());
 
-		return view('admin.filieres.index')->with([
-			'filieres' => Filiere::with(['anneesScolaires' => function ($q) use ($anneeActiveId) {
-				$q->where('annee_filiere.annee_scolaire_id', $anneeActiveId)->get();
-			}])->withCount([
-				'etudiants as etudiants_count' => function ($query) use ($anneeActiveId) {
-					$query->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
-						->distinct('etudiants.id');
-				}
-			])->get()->reverse()
-		]);
+		// return view('admin.filieres.index')->with([
+		// 	'filieres' => Filiere::with(['anneesScolaires' => function ($q) use ($anneeActiveId) {
+		// 		$q->where('annee_filiere.annee_scolaire_id', $anneeActiveId)->get();
+		// 	}])->withCount([
+		// 		'etudiants as etudiants_count' => function ($query) use ($anneeActiveId) {
+		// 			$query->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
+		// 				->distinct('etudiants.id');
+		// 		}
+		// 	])->get()->reverse()
+		// ]);
 
 		// dd(Filiere::withCount([
 		// 	'etudiants as etudiants_count' => function ($query) use ($anneeActiveId) {
@@ -51,12 +51,14 @@ class FiliereController extends Controller
 		// 			->distinct('etudiants.id');
 		// 	}
 		// ])->get()->reverse());
-		// return FiliereResource::collection(Filiere::withCount([
-		// 	'etudiants as etudiants_count' => function ($query) use ($anneeActiveId) {
-		// 		$query->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
-		// 			->distinct('etudiants.id');
-		// 	}
-		// ])->get()->reverse());
+		return FiliereResource::collection(Filiere::with(['anneesScolaires' => function ($q) use ($anneeActiveId) {
+			$q->where('annee_filiere.annee_scolaire_id', $anneeActiveId)->get();
+		}])->withCount([
+			'etudiants as etudiants_count' => function ($query) use ($anneeActiveId) {
+				$query->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
+					->distinct('etudiants.id');
+			}
+		])->get()->reverse());
 	}
 
 	public function create(): View
@@ -78,7 +80,9 @@ class FiliereController extends Controller
 		$request->merge(['image' => $filePath]);
 		$filiere = Filiere::create($request->except([
 			'date_debut',
-			'date_fin'
+			'date_fin',
+			'inscrits'
+
 		]));
 
 		if (\AppGetters::getAfficherChoixDate()) {
@@ -93,10 +97,10 @@ class FiliereController extends Controller
 
 
 
-		// return new FiliereResource($filiere);
+		return new FiliereResource($filiere);
 
 
-		return to_route('admin.filieres.index')->with(successMsg('Filière ajoutée avec succès.'));
+		// return to_route('admin.filieres.index')->with(successMsg('Filière ajoutée avec succès.'));
 	}
 
 	public function show(Filiere $filiere)
@@ -125,7 +129,9 @@ class FiliereController extends Controller
 		$filiere->update([
 			...$request->except([
 				'date_debut',
-				'date_fin'
+				'date_fin',
+				'inscrits',
+				'id'
 			]),
 			'image' => $filePath
 		]);
@@ -154,57 +160,56 @@ class FiliereController extends Controller
 			}
 		}
 
-		// return new FiliereResource($filiere);
+		return new FiliereResource($filiere);
 
 
-		return to_route('admin.filieres.index')->with(successMsg('Filière mise à jour avec succès.'));
+		// return to_route('admin.filieres.index')->with(successMsg('Filière mise à jour avec succès.'));
 	}
 
-	public function destroy(Request $request)
-	{
-		$filiere = $request->idfil;
-
-		$grades = Grade::query()->where('filiere_id', $filiere)->get();
-
-		if ($grades->isNotEmpty()) {
-			return back()->with(cannotDeleteItemMessage('cette filière'));
-		}
-		$fil = Filiere::query()->where('id', $filiere)->first();
-
-		if ($fil->image) {
-			$this->deleteFile($fil->image);
-		}
-
-		if ($fil->anneesScolaires()) {
-			$fil->anneesScolaires()->delete();
-		}
-		$fil->delete();
-
-		// return new FiliereResource($filiere);
-
-		return to_route('admin.filieres.index')->with(successMsg('Filière supprimée avec succès.'));
-	}
-
-	// public function destroy(Filiere $filiere)
+	// public function destroy(Request $request)
 	// {
-
+	// 	$filiere = $request->idfil;
 
 	// 	$grades = Grade::query()->where('filiere_id', $filiere)->get();
 
 	// 	if ($grades->isNotEmpty()) {
-	// 		return response()->json([
-	// 			"message" => "Impossible de supprimer cette filiere"
-	// 		]);
+	// 		return back()->with(cannotDeleteItemMessage('cette filière'));
+	// 	}
+	// 	$fil = Filiere::query()->where('id', $filiere)->first();
+
+	// 	if ($fil->image) {
+	// 		$this->deleteFile($fil->image);
 	// 	}
 
-
-	// 	if ($filiere->image) {
-	// 		$this->deleteFile($filiere->image);
+	// 	if ($fil->anneesScolaires()) {
+	// 		$fil->anneesScolaires()->delete();
 	// 	}
-	// 	$filiere->delete();
+	// 	$fil->delete();
 
-	// 	// return new FiliereResource($filiere);
+	// 	return new FiliereResource($filiere);
 
-	// 	return to_route('admin.filieres.index')->with(successMsg('Filière supprimée avec succès.'));
+	// 	// return to_route('admin.filieres.index')->with(successMsg('Filière supprimée avec succès.'));
 	// }
+
+	public function destroy(Filiere $filiere)
+	{
+
+
+		$grades = Grade::query()->where('filiere_id', $filiere)->get();
+
+		if ($grades->isNotEmpty()) {
+			return response()->json([
+				"message" => "Impossible de supprimer cette filiere"
+			]);
+		}
+
+		if ($filiere->image) {
+			$this->deleteFile($filiere->image);
+		}
+		$filiere->delete();
+
+		return new FiliereResource($filiere);
+
+		// return to_route('admin.filieres.index')->with(successMsg('Filière supprimée avec succès.'));
+	}
 }

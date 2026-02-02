@@ -2,12 +2,16 @@
 
 use App\Http\Controllers\Api\Admin\CandidaturePresenceController;
 use App\Http\Controllers\Api\SemoaCallBackController;
+use App\Http\Controllers\MyCalendarController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
+
+Route::get('load-calendar', MyCalendarController::class)->middleware('auth:sanctum');
+
 
 Route::post('administration/candidature/presence', CandidaturePresenceController::class)->name('admin.candidatures.presence');
 

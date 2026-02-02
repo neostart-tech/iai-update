@@ -18,8 +18,8 @@ class PeriodeResource extends JsonResource
             "id" => $this->resource->id,
             "nom" => $this->resource->nom,
             "description" => $this->resource->description,
-            "debut" => $this->resource->debut,
-            "fin" => $this->resource->fin,
+            "debut" => date_format(date_create($this->resource->debut),'d F Y') ?? '--',
+            "fin" => date_format(date_create($this->resource->fin),'d F Y') ?? '--',
             "slug" => $this->resource->slug,
             "status" => $this->resource->is_active,
 
