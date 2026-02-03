@@ -160,7 +160,7 @@ class GroupController extends Controller
 		try {
 			$emplois = $group->emploiDuTemps()
 				->with([
-					'group.filiere',
+					'group.niveau',
 					'salle',
 					'uv',
 					'owner',
@@ -216,15 +216,18 @@ class GroupController extends Controller
 	}
 
 	public function displayCalendar(Group $group): View
-	{
-		return view('admin.groups.calendar', compact('group'))->with([
-			'uvs' => $group->matieres(),
-			'types' => TypeProgrammeEnum::cases(),
-			'salles' => Salle::query()->select(['nom', 'slug'])->orderBy('nom')->get(),
-			// 'teachers' => $group->matieresQueryBuilder()->with('enseignant:id,nom,prenom,slug')->get()->map(fn(Uv $uniteValeur) => $uniteValeur->enseignant)->unique(),
-			'resourceUrl' => route('admin.groups.load-calendar', $group)
-		]);
-	}
+{
+    return view('admin.groups.calendar', compact('group'))->with([
+        'uvs' => $group->matieres(),
+        'types' => TypeProgrammeEnum::cases(),
+        'salles' => Salle::query()
+            ->select(['nom', 'slug'])
+            ->orderBy('nom')
+            ->get(),
+        'resourceUrl' => route('admin.groups.load-calendar', $group),
+    ]);
+}
+
 	// public function displayCalendar(Group $group)
 	// {
 	// 	$group->load([

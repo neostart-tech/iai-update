@@ -16,7 +16,7 @@
                 Génération en cours... <i class="fa fa-spinner fa-spin"></i>
             </span> --}}
             <div class="d-flex gap-3 col-md-6">
-                <select class="form-select" name="niveau" data-trigger>
+                <!-- <select class="form-select" name="niveau" data-trigger>
                     @forelse ($niveaux as $niveau)
                         <option value="{{ $niveau->id }}">{{ $niveau->libelle }}</option>
                     @empty
@@ -27,10 +27,10 @@
                     @error('niveau')
                         {{ $message }}
                     @enderror
-                </span>
+                </span> -->
 
                 
-                 <select class="form-select" name="periode" data-trigger>   
+                 <!-- <select class="form-select" name="periode" data-trigger>   
                     @if (!empty($periodes))        
                      @foreach ($periodes as $periode)
                         <option value="{{ $periode->id }}">{{ $periode->nom }}</option>
@@ -44,7 +44,7 @@
                     @error('periode')
                         {{ $message }}
                     @enderror
-                </span>
+                </span> -->
 
                  
             </div>
@@ -72,15 +72,7 @@
                                     <td>{{ $etudiant->genre->value }}</td>
                                     <td class="text-center">
                                         <ul class="list-inline me-auto mb-0">
-                                            <li class="list-inline-item align-bottom" data-bs-toggle="tooltip"
-                                                title="Changer de groupe">
-                                                <a href="#" data-pc-animate="just-me" data-bs-toggle="modal"
-                                                    onclick="handleGroupeUpdate('{{ route('admin.etudiants.change-group', $etudiant) }}', '{{ $etudiant->group->first()->nom }}')"
-                                                    class="avtar avtar-xs btn-link-secondary btn-pc-default"
-                                                    data-bs-target="#animateModal">
-                                                    <i data-feather="edit" class="f-18"></i>
-                                                </a>
-                                            </li>
+                                         
                                             <li class="list-inline-item align-bottom" data-bs-toggle="tooltip"
                                                 title="Détails">
                                                 <a href="{{ route('admin.etudiants.show', $etudiant) }}"

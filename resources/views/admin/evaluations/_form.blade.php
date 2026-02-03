@@ -9,7 +9,7 @@
 			<select class="form-control" name="niveau_id" id="niveau_id">
 				<option value="">-- Optionnel --</option>
 				@foreach(($niveaux ?? []) as $niveau)
-					<option value="{{ $niveau->id }}" @selected(old('niveau_id', $evaluation->niveau_id) == $niveau->id)>{{ $niveau->nom ?? ($niveau->code ?? $niveau->id) }}</option>
+					<option value="{{ $niveau->id }}" @selected(old('niveau_id', $evaluation->niveau_id) == $niveau->id)>{{ $niveau->nom ?? ($niveau->libelle ?? $niveau->id) }}</option>
 				@endforeach
 			</select>
 			{!! errorAlert($errors->first('niveau_id'), 'niveau_id') !!}
@@ -39,7 +39,7 @@
 			<select class="form-control" data-trigger name="group_id" id="group">
 				@foreach($groups as $group)
 					<option value="{{ $group->slug }}" id="{{ $group->slug }}" @selected($evaluation->group_id === $group->id)>
-						{{ $group->nom . ' - '. $group->filiere->code }}
+						{{ $group->nom . ' - '. $group->niveau->libelle }}
 					</option>
 				@endforeach
 			</select>

@@ -119,8 +119,9 @@ class EvaluationController extends Controller
                 'debut' => '12:00',
                 'fin' => '14:00',
                 'correction_end_date' => now()->addWeeks(2),
+                
             ]),
-            'groups' => Group::all(),
+            'groups' => Group::with('niveau')->get(),
             'salles' => Salle::all(),
             'types' => TypeEvaluationEnum::cases(),
             'niveaux' => \App\Models\Niveau::all(),
