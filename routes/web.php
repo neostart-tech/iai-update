@@ -19,7 +19,7 @@ use App\Http\Controllers\UrgentInfoPublicController;
 
 // Route::get('', fn() => to_route('home'));
 // Route::get('', fn() =>  redirect()->intended(to_route('login')));
-
+Route::get('/', fn() => view('auth.login'));
 
 // Informations urgentes (page publique)
 Route::get('/informations-urgentes', [UrgentInfoPublicController::class, 'index'])->name('urgent.info');

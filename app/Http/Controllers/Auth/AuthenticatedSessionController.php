@@ -25,38 +25,38 @@ class AuthenticatedSessionController extends Controller
 	 */
 	public function store(LoginRequest $request)
 	{
-		// $request->authenticate();
+		$request->authenticate();
 
-		// $request->session()->regenerate();
-		// // Flashy::success($request->user()->greeting(), icon: 'waving_hand');
-		// // return redirect()->intended(route('mon-dashboard'));
-		// 		return redirect()->intended(route('my-calendar'));
+		$request->session()->regenerate();
+		// Flashy::success($request->user()->greeting(), icon: 'waving_hand');
+		// return redirect()->intended(route('mon-dashboard'));
+				return redirect()->intended(route('my-calendar'));
 
-		$request->validated();
-		$credentials = $request->only('email', 'password');
-		//Retouner une repsonse json vu que cette route sera comme uen api en nuxt 
-		$user = User::where('email', $credentials['email'])->first();
-		if ($user) {
-			if (!Hash::check($credentials['password'], $user->password)) {
-				return response()->json([
-					'message' => 'Les informations de connexion sont invalides.'
-				], 422);
-			}
+		// $request->validated();
+		// $credentials = $request->only('email', 'password');
+		// //Retouner une repsonse json vu que cette route sera comme uen api en nuxt 
+		// $user = User::where('email', $credentials['email'])->first();
+		// if ($user) {
+		// 	if (!Hash::check($credentials['password'], $user->password)) {
+		// 		return response()->json([
+		// 			'message' => 'Les informations de connexion sont invalides.'
+		// 		], 422);
+		// 	}
 
-			Auth::login($user);
+		// 	Auth::login($user);
 
-			$token = $user->createToken('auth_token')->plainTextToken;
-		} else {
-			return response()->json([
-				'message' => 'Les informations de connexion sont invalides.'
-			], 422);
-		}
+		// 	$token = $user->createToken('auth_token')->plainTextToken;
+		// } else {
+		// 	return response()->json([
+		// 		'message' => 'Les informations de connexion sont invalides.'
+		// 	], 422);
+		// }
 
-		return response()->json([
-			'message' => 'Connexion réussie.',
-			'user' => $user->load('roles'),
-			'token' => $token,
-		], 200);
+		// return response()->json([
+		// 	'message' => 'Connexion réussie.',
+		// 	'user' => $user->load('roles'),
+		// 	'token' => $token,
+		// ], 200);
 	}
 
 	/**

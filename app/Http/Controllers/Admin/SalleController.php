@@ -20,10 +20,10 @@ class SalleController extends Controller
 {
 	public function index()
 	{
-		return SalleResource::collection(Salle::query()->orderBy('nom')->get());
-		// return view('admin.salles.index')->with([
-		// 	'salles' => Salle::query()->orderBy('nom')->get()
-		// ]);
+		// return SalleResource::collection(Salle::query()->orderBy('nom')->get());
+		return view('admin.salles.index')->with([
+			'salles' => Salle::query()->orderBy('nom')->get()
+		]);
 	}
 
 	public function store(Request $request)
@@ -42,16 +42,16 @@ class SalleController extends Controller
 				'nom' => $nom,
 				'effectif' => $request->effectif
 			]);
-
-			return __200('Salle modifiée avec succès.');
+			return redirect()->back();
+			// return __200('Salle modifiée avec succès.');
 		} else {
 			$salle = Salle::query()->create([
 				'nom' => $nom,
 				'effectif' => $request->effectif,
 				...injectAnneeScolaireId()
 			]);
-
-			return __200('Salle enregistrée avec succès.');
+			return redirect()->back();
+			// return __200('Salle enregistrée avec succès.');
 		}
 
 		return new SalleResource($salle);
@@ -83,9 +83,9 @@ class SalleController extends Controller
 		}
 		$salle->delete();
 
-		return new SalleResource($salle);
+		// return new SalleResource($salle);
 
 		// Todo Gérer la suppression des fichiers
-		// return to_route('admin.salles.index')->with(successMsg('Salle supprimée avec succès.'));
+		return to_route('admin.salles.index')->with(successMsg('Salle supprimée avec succès.'));
 	}
 }

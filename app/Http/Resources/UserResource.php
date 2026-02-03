@@ -34,6 +34,7 @@ class UserResource extends JsonResource
             'group' => new GroupeResource($this->resource->group),
             'supervisor_type' => $this->resource->supervisor_type,
             'supervisor_notes' => $this->resource->supervisor_notes,
+            'roles'=>RoleResource::collection($this->resource->roles),
         ];
     }
 }

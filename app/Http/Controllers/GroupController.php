@@ -32,16 +32,16 @@ class GroupController extends Controller
 
 	public function index()
 	{
-		// $anneeActive = AnneeScolaire::where('active', true)->first()->getAttribute('id');
-		// return view('admin.groups.index')->with([
-		// 	'groups' => Group::with(['filieres', 'niveau'])
-		// 		->withCount(['etudiants'=>function($query) use ($anneeActive){
-		// 			$query->where('etudiant_group.annee_scolaire_id',$anneeActive);
-		// 		}])
-		// 		->get(),
-		// 	'niveaux' => Niveau::all(),
-		// 	'filieres' => Filiere::all(),
-		// ]);
+		$anneeActive = AnneeScolaire::where('active', true)->first()->getAttribute('id');
+		return view('admin.groups.index')->with([
+			'groups' => Group::with(['filieres', 'niveau'])
+				->withCount(['etudiants'=>function($query) use ($anneeActive){
+					$query->where('etudiant_group.annee_scolaire_id',$anneeActive);
+				}])
+				->get(),
+			'niveaux' => Niveau::all(),
+			'filieres' => Filiere::all(),
+		]);
 		$anneeActive = injectAnneeScolaireId();
 
 		$groups = Group::with(['filieres', 'niveau'])
@@ -111,8 +111,8 @@ class GroupController extends Controller
 				$message = "Groupe créé avec succès";
 			}
 		});
-		return new GroupeResource($group);
-		// return to_route('admin.groups.index')->with(successMsg($message));
+		// return new GroupeResource($group);
+		return to_route('admin.groups.index')->with(successMsg($message));
 	}
 
 	public function destroy(Group $groupe)
@@ -126,8 +126,8 @@ class GroupController extends Controller
 		$groupe->filieres()->detach();
 
 		$groupe->delete();
-		return new GroupeResource($groupe);
-		// return back()->with(successMsg('Groupe supprimé avec succès'));
+		// return new GroupeResource($groupe);
+		return back()->with(successMsg('Groupe supprimé avec succès'));
 	}
 
 	// #[NoReturn]
@@ -200,56 +200,56 @@ class GroupController extends Controller
 
 		$groups = Group::withCount('etudiants')->get();
 
-		// return view('admin.etudiants.index', compact('group'))->with([
-		// 	'etudiants' => $etudiants,
-		// 	'niveaux' => Niveau::all(),
-		// 	"periodes" => $periodes,
-		// 	'groups' => Group::withCount('etudiants')
-		// 		->get(),
-		// 	'meta' => [
-		// 		''
-		// 	]
-		// ]);
-		return response()->json([
-			'data' => EtudiantRessource::collection($etudiants),
+		return view('admin.etudiants.index', compact('group'))->with([
+			'etudiants' => $etudiants,
+			'niveaux' => Niveau::all(),
+			"periodes" => $periodes,
+			'groups' => Group::withCount('etudiants')
+				->get(),
+			'meta' => [
+				''
+			]
 		]);
+		// return response()->json([
+		// 	'data' => EtudiantRessource::collection($etudiants),
+		// ]);
 	}
 
-	// public function displayCalendar(Group $group): View
+	public function displayCalendar(Group $group): View
+	{
+		return view('admin.groups.calendar', compact('group'))->with([
+			'uvs' => $group->matieres(),
+			'types' => TypeProgrammeEnum::cases(),
+			'salles' => Salle::query()->select(['nom', 'slug'])->orderBy('nom')->get(),
+			// 'teachers' => $group->matieresQueryBuilder()->with('enseignant:id,nom,prenom,slug')->get()->map(fn(Uv $uniteValeur) => $uniteValeur->enseignant)->unique(),
+			'resourceUrl' => route('admin.groups.load-calendar', $group)
+		]);
+	}
+	// public function displayCalendar(Group $group)
 	// {
-	// 	return view('admin.groups.calendar', compact('group'))->with([
-	// 		'uvs' => $group->matieres(),
-	// 		'types' => TypeProgrammeEnum::cases(),
-	// 		'salles' => Salle::query()->select(['nom', 'slug'])->orderBy('nom')->get(),
-	// 		// 'teachers' => $group->matieresQueryBuilder()->with('enseignant:id,nom,prenom,slug')->get()->map(fn(Uv $uniteValeur) => $uniteValeur->enseignant)->unique(),
-	// 		'resourceUrl' => route('admin.groups.load-calendar', $group)
+	// 	$group->load([
+	// 		'matieres.enseignant:id,nom,prenom',
+	// 	]);
+
+	// 	return response()->json([
+	// 		'data' => [
+	// 			'group' => new GroupeResource($group),
+	// 			'uvs' => UvResource::collection($group->matieres),
+	// 		],
+
+	// 		'meta' => [
+	// 			'types' => collect(TypeProgrammeEnum::cases())
+	// 				->map(fn($type) => [
+	// 					'name' => $type->name,
+	// 					'value' => $type->value,
+	// 				]),
+
+	// 			'salles' => SalleResource::collection(
+	// 				Salle::select('nom', 'slug')->orderBy('nom')->get()
+	// 			),
+	// 		],
 	// 	]);
 	// }
-	public function displayCalendar(Group $group)
-	{
-		$group->load([
-			'matieres.enseignant:id,nom,prenom',
-		]);
-
-		return response()->json([
-			'data' => [
-				'group' => new GroupeResource($group),
-				'uvs' => UvResource::collection($group->matieres),
-			],
-
-			'meta' => [
-				'types' => collect(TypeProgrammeEnum::cases())
-					->map(fn($type) => [
-						'name' => $type->name,
-						'value' => $type->value,
-					]),
-
-				'salles' => SalleResource::collection(
-					Salle::select('nom', 'slug')->orderBy('nom')->get()
-				),
-			],
-		]);
-	}
 
 	public function getMatieres(Group $group): AnonymousResourceCollection
 	{

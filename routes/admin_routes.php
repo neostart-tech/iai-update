@@ -75,7 +75,7 @@ Route::controller(UniteValeurController::class)->prefix('unites-de-valeur')->nam
 	Route::get('{uv}/modifier', 'edit')->name('edit');
 	Route::post('ajouter-une-matiere', 'store')->name('store');
 	Route::put('{uv}/modifier', 'update')->name('update');
-	Route::delete('{uv}/supprimer', 'destroy')->name('delete');
+	Route::delete('supprimer', 'destroy')->name('delete');
 });
 
 // Gestion des périodes par l'administration
@@ -125,13 +125,14 @@ Route::controller(UserController::class)->prefix('users')->name('users.')->group
 	Route::post('create', 'store')->name('store');
 	Route::get('{user}/edit', 'edit')->name('edit');
 	Route::put('{user}/update', 'update')->name('update');
-	Route::delete('{user}/destroy', 'destroy')->name('delete');
+	Route::delete('/destroy', 'destroy')->name('delete');
 	Route::get('{user}/load-edt', 'loadEmploiDuTemps')->name('load-edt'); // charge les edt de l'utilisateur
 	Route::get('{user}/emploi-du-temps', 'ShowEmploiDuTemps')->name('show-edt'); // charge les edt de l'utilisateur
 	Route::post('{user}/add-edt', 'storeEmploiDuTemps')->name('store-edt'); // charge les edt de l'utilisateur
 	Route::get('teachers/hours-summary', 'hoursSummary')->name('teachers.hours-summary'); // récapitulatif heures enseignants
 
 	Route::put('/update-edt', 'updateEmploiDuTemps')->name('update-edt'); // charge les edt de l'utilisateur
+	Route::post('/import','importUsers');
 
 });
 

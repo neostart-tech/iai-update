@@ -137,6 +137,7 @@ Route::middleware('auth:sanctum')->group(function () {
 		Route::get('teachers/hours-summary', 'hoursSummary')->name('teachers.hours-summary'); // récapitulatif heures enseignants
 		Route::get('/liste-des-enseignants', 'getEnseignant');
 		Route::put('/update-edt', 'updateEmploiDuTemps')->name('update-edt'); // charge les edt de l'utilisateur
+		Route::post('/import','importUsers');
 
 	});
 

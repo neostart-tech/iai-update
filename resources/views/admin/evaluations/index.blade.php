@@ -42,7 +42,7 @@
 										onchange="handlePublishFromAttrs(this)"
 													 value="{{ $evaluation->slug }}" id="{{ $evaluation->slug  }}"
 													 data-slug="{{ $evaluation->slug }}"
-													 data-group="{{ $evaluation->group->nom }}"
+													 data-group="{{ $evaluation->group ? $evaluation->group->nom : "--" }}"
 													 data-filiere="{{ $evaluation->group->niveau->libelle ?? '--' }}">
 										<label class="form-check-label" id="label-{{ $evaluation->slug }}" for="{{ $evaluation->slug  }}">
 											{{$evaluation->published ? 'Publié' : 'Non publiée'}}
@@ -56,8 +56,8 @@
 									    onclick="event.preventDefault(); displayShowModalFromAttrs(this)"
 									    data-bs-toggle="modal" data-bs-target="#show-modal"
 									    data-type="{{ $evaluation->type->value }}"
-									    data-group="{{ $evaluation->group->nom }}"
-									    data-filiere="{{ $evaluation->group->filiere->code }}"
+									    data-group="{{$evaluation->group ? $evaluation->group->nom :'--' }}"
+									    data-filiere="{{ $evaluation?->group?->filiere ? $evaluation->group->filiere->code : '--' }}"
 									    data-matiere="{{ $evaluation->matiere->nom }}"
 									    data-salle="{{ $evaluation->salle->nom }}"
 									    data-date="{{ $evaluation->dateFormatted }}"

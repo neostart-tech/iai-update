@@ -40,6 +40,23 @@ class EvaluationController extends Controller
 {
     public function index()
     {
+        // dd( Evaluation::query()
+        //         ->with([
+        //             'salle',
+        //             'group',
+        //             'group.niveau',
+        //             'matiere:id,nom,code',
+        //             'fiche.surveillants',
+        //         ])
+        //         ->orderByDesc('debut')
+        //         ->get()
+        //         ->map(function (Evaluation $evaluation) {
+        //             $evaluation->setAttribute('dateFormatted', $evaluation->getAttribute('debut')->translatedFormat('d F Y'));
+        //             $evaluation->setAttribute('debutFormatted', $evaluation->getAttribute('debut')->translatedFormat('H:i'));
+        //             $evaluation->setAttribute('finFormatted', $evaluation->getAttribute('fin')->translatedFormat('H:i'));
+
+        //             return $evaluation;
+        //         }));
         return view('admin.evaluations.index')->with([
             'evaluations' => Evaluation::query()
                 ->with([
@@ -63,13 +80,20 @@ class EvaluationController extends Controller
         // $evaluations = Evaluation::query()
         //     ->with([
         //         'salle:id,nom',
-        //         'group:id,nom,filiere_id',
-        //         'group.filiere:id,code',
+        //         'group:id,nom',
+        //         'group.niveau',
         //         'matiere:id,nom,code',
         //         'fiche.surveillants',
         //     ])
         //     ->orderByDesc('debut')
-        //     ->get();
+        //     ->get()
+        //     ->map(function (Evaluation $evaluation) {
+        //         $evaluation->setAttribute('dateFormatted', $evaluation->getAttribute('debut')->translatedFormat('d F Y'));
+        //         $evaluation->setAttribute('debutFormatted', $evaluation->getAttribute('debut')->translatedFormat('H:i'));
+        //         $evaluation->setAttribute('finFormatted', $evaluation->getAttribute('fin')->translatedFormat('H:i'));
+
+        //         return $evaluation;
+        //     });
 
         // return response()->json([
         //     'evaluations' => EvaluationResource::collection($evaluations),
@@ -240,8 +264,8 @@ class EvaluationController extends Controller
     public function getListEvaluationForStudent()
     {
         $user = auth()->user();
-        $active=AnneeScolaire::where('active',true)->first()->getAttribute('id');
-        
+        $active = AnneeScolaire::where('active', true)->first()->getAttribute('id');
+
         $groupIds = EtudiantGroup::where('etudiant_id', $user->id)->where('annee_scolaire_id', $active)->first()->getAttribute('group_id');
         $evaluations = Evaluation::where('group_id', $groupIds)
             ->with(['salle', 'group', 'submissions', 'emploiDutemp'])
