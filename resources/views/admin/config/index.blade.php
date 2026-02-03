@@ -16,7 +16,7 @@
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">
-                        <i class="ti ti-settings"></i> Paramètres de configuration
+                        <i class="ti ti-settings"></i> Paramètres de configurations
                     </h5>
                 </div>
 
