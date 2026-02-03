@@ -22,11 +22,13 @@ class UvResource extends JsonResource
             "td" => $this->resource->td,
             "tp" => $this->resource->tp,
             "ec" => $this->resource->ec,
+            'volume_horaire'=> $this->resource->volume_horaire,
             "slug" => $this->resource->slug,
             "coefficient" => $this->resource->coefficient,
             "ue" => new UeResource($this->resource->ue),
             "user"=> UserResource::collection($this->resource->user) ?? null,
             'filiere'=>new FiliereResource($this->resource->filiere) ?? null,
+            'periode'=>new PeriodeResource($this->resource->periode) ?? null,
         ];
     }
 }

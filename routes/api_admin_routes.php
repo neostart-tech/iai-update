@@ -1,5 +1,6 @@
 <?php
 
+use App\Exports\EtudiantsExport;
 use App\Http\Controllers\{
 	Admin\AnnouncementController,
 	Admin\BlogController,
@@ -10,6 +11,7 @@ use App\Http\Controllers\{
 	EvaluationController,
 	GroupController,
 	ConfigurationController,
+	NiveauController,
 	ReleveController,
 };
 use App\Http\Controllers\Admin\{
@@ -17,6 +19,7 @@ use App\Http\Controllers\Admin\{
 	AnonymousSheetController,
 	ContactController,
 	EmploiDuTempController,
+	EtudiantController as AdminEtudiantController,
 	EventController,
 	FicheDePresenceController,
 	FiliereController,
@@ -37,9 +40,10 @@ use App\Http\Controllers\Admin\ClassCommitteeController;
 use App\Http\Controllers\CarteEtudiantController;
 use App\Http\Controllers\AnneeScolaireController;
 use App\Http\Controllers\Admin\EvaluationRoomController;
+use App\Models\AnneeScolaire;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
-
+use Maatwebsite\Excel\Facades\Excel;
 
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -97,7 +101,7 @@ Route::middleware('auth:sanctum')->group(function () {
 		Route::post('ajouter-une-salle', 'store')->name('store');
 		Route::get('{salle}/emploi-du-temps', 'displayCalendar')->name('display-calendar');
 		Route::get('{salle}/load-edt', 'loadCalendar')->name('load-calendar');
-		Route::delete('supprimer-une-salle', 'destroy')->name('delete');
+		Route::delete('{salle}/supprimer-une-salle', 'destroy')->name('delete');
 	});
 
 	Route::controller(EmploiDuTempController::class)->prefix('emploi-du-temps')->name('edt.')->group(function () {
@@ -181,6 +185,14 @@ Route::middleware('auth:sanctum')->group(function () {
 		Route::put('/desactivate', 'desactiver')->name('desactiver');
 	});
 
+	Route::controller(NiveauController::class)->prefix('niveau')->name('niveau.')->group(function () {
+		Route::get('/liste', 'index')->name('liste');
+	});
+
+
+
+
+
 	Route::controller(ConfigurationController::class)->prefix('parametre')->name('configuration.')->group(function () {
 		Route::get('configuration', 'index')->name('index');
 		Route::put('parametre/modification', 'update')->name('update');
@@ -196,7 +208,7 @@ Route::middleware('auth:sanctum')->group(function () {
 		Route::post('{group}/emploi-du-temps', 'updateCalendar')->name('update-calendar');
 		Route::post('ajouter', 'store')->name('store');
 		Route::post('{group}/attribution-aux-etudiants-enregistrement', 'storeGroupAssignment')->name('store-attribution');
-		Route::delete('supprimer', 'destroy')->name('delete');
+		Route::delete('{groupe}/supprimer', 'destroy')->name('delete');
 	});
 
 	Route::controller(ClubController::class)->prefix('club')->name('club.')->group(function () {
@@ -224,6 +236,7 @@ Route::middleware('auth:sanctum')->group(function () {
 		Route::get('{etudiant}/details', 'show')->name('show');
 		Route::put('{etudiant}/changer-de-groupe', 'changeGroup')->name('change-group');
 	});
+
 
 
 
@@ -412,5 +425,17 @@ Route::middleware('auth:sanctum')->group(function () {
 	// Routes pour les cartes étudiants
 	Route::controller(CarteEtudiantController::class)->prefix('carte')->name('carte.')->group(function () {
 		Route::get('{etudiant}', 'genererCarteEtudiant')->name('index');
+	});
+
+	Route::controller(AdminEtudiantController::class)->prefix('etudiants')->name('etudiants.')->group(function () {
+		Route::get('liste', 'index')->name('index');
+		Route::post('import', 'importEtudiant')->name('import');
+		$anneActive = AnneeScolaire::where('active', true)->first()->nom;
+		Route::get('export', function () use ($anneActive) {
+			return Excel::download(
+				new EtudiantsExport,
+				'liste_des_etudiants_' . $anneActive . '.xlsx'
+			);
+		})->name('export');
 	});
 });

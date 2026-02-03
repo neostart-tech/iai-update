@@ -15,10 +15,12 @@ class GroupeResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            "id" => $this->resource->id,
-            "nom" => $this->resource->nom,
-            "slug" => $this->resource->slug,
-            "filiere" => new FiliereResource($this->resource->filiere),
+            "id" => $this->resource->id ?? null,
+            "nom" => $this->resource->nom ?? null,
+            "slug" => $this->resource->slug ?? null,
+            "niveau" => new NiveauResource($this->resource->niveau) ?? null,
+            "filieres" => FiliereResource::collection($this->resource->filieres) ?? null,
+            "inscrits"=>$this->resource->etudiants_count,
         ];
     }
 }

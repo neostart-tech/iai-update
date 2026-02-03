@@ -24,7 +24,8 @@ class UniteValeurController extends Controller
 		return UvResource::collection(Uv::with([
 			'ue',
 			'user',
-			'filiere'
+			'filiere',
+			'periode',
 		])->get());
 
 		// return view('admin.uvs.index')->with([

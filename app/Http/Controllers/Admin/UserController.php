@@ -11,6 +11,7 @@ use App\Http\Resources\SalleResource;
 use App\Http\Resources\TeacherHoursSummaryResource;
 use App\Http\Resources\UserResource;
 use App\Http\Resources\UvResource;
+use App\Imports\UsersImport;
 use App\Mail\Admins\AdminWelcomeMail;
 use App\Models\{Group, Role, Salle, UniteValeur as UV, User};
 use App\Models\EmploiDuTemp;
@@ -221,7 +222,7 @@ class UserController extends Controller
 	{
 		$user->roles()->delete();
 		$user->delete();
-	
+
 		return new UserResource($user);
 		// return to_route('admin.users.index')->with(successMsg('Élément supprimé avec succès'));
 	}
@@ -261,13 +262,13 @@ class UserController extends Controller
 		// 	'date_debut' => $request->query('date_debut'),
 		// 	'date_fin' => $request->query('date_fin'),
 		// ]);
-		 return TeacherHoursSummaryResource::collection($summary)
-		->additional([
-		    'filters' => [
-		        'date_debut' => $request->query('date_debut'),
-		        'date_fin' => $request->query('date_fin'),
-		    ],
-		]);
+		return TeacherHoursSummaryResource::collection($summary)
+			->additional([
+				'filters' => [
+					'date_debut' => $request->query('date_debut'),
+					'date_fin' => $request->query('date_fin'),
+				],
+			]);
 	}
 
 	public function updateEmploiDuTemps(Request $request)
@@ -333,5 +334,24 @@ class UserController extends Controller
 
 		return new EmploiDuTempsResource($emploi);
 		// return to_route('admin.users.index')->with('success', 'Emploi du temps modifié avec succès.');
+	}
+
+
+	public function importUsers(Request $request)
+	{
+		$request->validate([
+			'file'   => 'required|file|mimes:xlsx',
+			'roles'  => 'nullable|array',
+			'roles.*' => 'exists:roles,id',
+		]);
+
+		(new UsersImport($request->roles)) // tableau de rôles
+			->queue($request->file('file'))
+			->allOnQueue('imports');
+
+		return response()->json([
+			'status'  => 'queued',
+			'message' => 'Import des utilisateurs lancé avec succès'
+		]);
 	}
 }

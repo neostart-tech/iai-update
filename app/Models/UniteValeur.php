@@ -42,6 +42,11 @@ class UniteValeur extends Model
 		return $this->belongsTo(Filiere::class, 'filiere_id');
 	}
 
+	public function periode()
+	{
+		return $this->belongsTo(Periode::class);
+	}
+
 	// public function enseignants(): BelongsToMany
 	// {
 	// 	return $this->belongsToMany(User::class, 'enseignant_id')->using(UserUniteValeur::class);

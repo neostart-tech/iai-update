@@ -15,10 +15,10 @@ class PeriodeController extends Controller
 	public function index()
 	{
 
-		// return PeriodeResource::collection(Periode::query()->orderByDesc('debut')->get());
-		return view('admin.periodes.index')->with([
-			'periodes' => Periode::query()->orderByDesc('debut')->get()
-		]);
+		return PeriodeResource::collection(Periode::query()->orderByDesc('debut')->get());
+		// return view('admin.periodes.index')->with([
+		// 	'periodes' => Periode::query()->orderByDesc('debut')->get()
+		// ]);
 	}
 
 	public function create(): View

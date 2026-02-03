@@ -5,6 +5,12 @@ namespace App\Http\Controllers;
 use App\Enums\TypeProgrammeEnum;
 use App\Http\Resources\Admin\EmploiDuTempsResource;
 use App\Http\Resources\Admin\UniteValeurPartialRessource;
+use App\Http\Resources\EtudiantRessource;
+use App\Http\Resources\GroupeResource;
+use App\Http\Resources\NiveauResource;
+use App\Http\Resources\PeriodeResource;
+use App\Http\Resources\SalleResource;
+use App\Http\Resources\UvResource;
 use App\Jobs\CreatingUserBasedOnCandidatsDataJob;
 use App\Models\{Candidature, Etudiant, EtudiantNiveau, Filiere, Group, Salle, UniteValeur as UV};
 use App\Models\EtudiantGroup;
@@ -24,21 +30,32 @@ use Illuminate\View\View;
 class GroupController extends Controller
 {
 
-	public function index(): View
+	public function index()
 	{
-		$anneeActive = AnneeScolaire::where('active', true)->first()->getAttribute('id');
-		return view('admin.groups.index')->with([
-			'groups' => Group::with(['filieres', 'niveau'])
-				->withCount(['etudiants'=>function($query) use ($anneeActive){
-					$query->where('etudiant_group.annee_scolaire_id',$anneeActive);
-				}])
-				->get(),
-			'niveaux' => Niveau::all(),
-			'filieres' => Filiere::all(),
-		]);
+		// $anneeActive = AnneeScolaire::where('active', true)->first()->getAttribute('id');
+		// return view('admin.groups.index')->with([
+		// 	'groups' => Group::with(['filieres', 'niveau'])
+		// 		->withCount(['etudiants'=>function($query) use ($anneeActive){
+		// 			$query->where('etudiant_group.annee_scolaire_id',$anneeActive);
+		// 		}])
+		// 		->get(),
+		// 	'niveaux' => Niveau::all(),
+		// 	'filieres' => Filiere::all(),
+		// ]);
+		$anneeActive = injectAnneeScolaireId();
+
+		$groups = Group::with(['filieres', 'niveau'])
+			->withCount([
+				'etudiants' => function ($query) use ($anneeActive) {
+					$query->where('etudiant_group.annee_scolaire_id', $anneeActive);
+				}
+			])
+			->get();
+
+		return GroupeResource::collection($groups);
 	}
 
-	public function store(Request $request): RedirectResponse
+	public function store(Request $request)
 	{
 		// Récupération du groupe dans l'URL
 		// $groupId = $request->route('group', new Group())->getAttribute('id');
@@ -54,6 +71,7 @@ class GroupController extends Controller
 
 		$request->merge(['nom' => Str::upper($request->get('nom'))]);
 		$message = '';
+		$group = null;
 
 		$request->validate([
 			'nom' => ['required'],
@@ -67,7 +85,7 @@ class GroupController extends Controller
 		]);
 
 
-		DB::transaction(function () use ($request, &$message) {
+		DB::transaction(function () use ($request, &$message, &$group) {
 
 			if ($request->groupId) {
 				// UPDATE
@@ -93,24 +111,23 @@ class GroupController extends Controller
 				$message = "Groupe créé avec succès";
 			}
 		});
-
-		return to_route('admin.groups.index')->with(successMsg($message));
+		return new GroupeResource($group);
+		// return to_route('admin.groups.index')->with(successMsg($message));
 	}
 
-	public function destroy(Request $request): RedirectResponse
+	public function destroy(Group $groupe)
 	{
-		$groupe = Group::findOrFail($request->groupe);
 
 		if ($groupe->etudiants()->exists()) {
-			return back()->with(errorMsg(
+			return __422(
 				'Impossible de supprimer le groupe, il contient des étudiants'
-			));
+			);
 		}
-
-		$groupe->delete();
 		$groupe->filieres()->detach();
 
-		return back()->with(successMsg('Groupe supprimé avec succès'));
+		$groupe->delete();
+		return new GroupeResource($groupe);
+		// return back()->with(successMsg('Groupe supprimé avec succès'));
 	}
 
 	// #[NoReturn]
@@ -126,15 +143,16 @@ class GroupController extends Controller
 									  ]);*/
 	}
 
-	public function storeGroupAssignment(Request $request, Group $group): RedirectResponse
+	public function storeGroupAssignment(Request $request, Group $group)
 	{
 		CreatingUserBasedOnCandidatsDataJob::dispatch(
 			$request->collect('candidats'),
 			(int) $group->getAttribute('id')
 		);
 
-		successMsg('Opération effectué avec succès. Patientez quelques instants pour l\'exécution des tâches en arrière plan.');
-		return to_route('admin.groups.index');
+		// successMsg('Opération effectué avec succès. Patientez quelques instants pour l\'exécution des tâches en arrière plan.');
+		// return to_route('admin.groups.index');
+		return new GroupeResource($group);
 	}
 
 	public function loadCalendar(Group $group): AnonymousResourceCollection
@@ -159,12 +177,13 @@ class GroupController extends Controller
 
 			return EmploiDuTempsResource::collection($emplois);
 		} catch (\Exception $e) {
-			\Log::error('Error loading calendar: ' . $e->getMessage());
+			// Log::error('Error loading calendar: ' . $e->getMessage());
+			__422($e);
 			// Pour respecter le type de retour, lancez une exception qui sera convertie en réponse JSON par Laravel
 			throw new \RuntimeException('Impossible de charger le calendrier');
 		}
 	}
-	public function getEtudiants(Group $group): View
+	public function getEtudiants(Group $group)
 	{
 		$anneeActive = AnneeScolaire::where('active', true)->first()->getAttribute('id');
 
@@ -179,27 +198,56 @@ class GroupController extends Controller
 		// $anneeActive = collect($anneeActive->pluck('id'));
 		$periodes = Periode::where('annee_scolaire_id', $anneeActive)->get();
 
+		$groups = Group::withCount('etudiants')->get();
 
-		return view('admin.etudiants.index', compact('group'))->with([
-			'etudiants' => $etudiants,
-			'niveaux' => Niveau::all(),
-			"periodes" => $periodes,
-			'groups' => Group::withCount('etudiants')
-				->get(),
-			'meta' => [
-				''
-			]
+		// return view('admin.etudiants.index', compact('group'))->with([
+		// 	'etudiants' => $etudiants,
+		// 	'niveaux' => Niveau::all(),
+		// 	"periodes" => $periodes,
+		// 	'groups' => Group::withCount('etudiants')
+		// 		->get(),
+		// 	'meta' => [
+		// 		''
+		// 	]
+		// ]);
+		return response()->json([
+			'data' => EtudiantRessource::collection($etudiants),
 		]);
 	}
 
-	public function displayCalendar(Group $group): View
+	// public function displayCalendar(Group $group): View
+	// {
+	// 	return view('admin.groups.calendar', compact('group'))->with([
+	// 		'uvs' => $group->matieres(),
+	// 		'types' => TypeProgrammeEnum::cases(),
+	// 		'salles' => Salle::query()->select(['nom', 'slug'])->orderBy('nom')->get(),
+	// 		// 'teachers' => $group->matieresQueryBuilder()->with('enseignant:id,nom,prenom,slug')->get()->map(fn(Uv $uniteValeur) => $uniteValeur->enseignant)->unique(),
+	// 		'resourceUrl' => route('admin.groups.load-calendar', $group)
+	// 	]);
+	// }
+	public function displayCalendar(Group $group)
 	{
-		return view('admin.groups.calendar', compact('group'))->with([
-			'uvs' => $group->matieres(),
-			'types' => TypeProgrammeEnum::cases(),
-			'salles' => Salle::query()->select(['nom', 'slug'])->orderBy('nom')->get(),
-			// 'teachers' => $group->matieresQueryBuilder()->with('enseignant:id,nom,prenom,slug')->get()->map(fn(Uv $uniteValeur) => $uniteValeur->enseignant)->unique(),
-			'resourceUrl' => route('admin.groups.load-calendar', $group)
+		$group->load([
+			'matieres.enseignant:id,nom,prenom',
+		]);
+
+		return response()->json([
+			'data' => [
+				'group' => new GroupeResource($group),
+				'uvs' => UvResource::collection($group->matieres),
+			],
+
+			'meta' => [
+				'types' => collect(TypeProgrammeEnum::cases())
+					->map(fn($type) => [
+						'name' => $type->name,
+						'value' => $type->value,
+					]),
+
+				'salles' => SalleResource::collection(
+					Salle::select('nom', 'slug')->orderBy('nom')->get()
+				),
+			],
 		]);
 	}
 

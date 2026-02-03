@@ -20,10 +20,10 @@ class SalleController extends Controller
 {
 	public function index()
 	{
-		// return SalleResource::collection(Salle::query()->orderBy('nom')->get());
-		return view('admin.salles.index')->with([
-			'salles' => Salle::query()->orderBy('nom')->get()
-		]);
+		return SalleResource::collection(Salle::query()->orderBy('nom')->get());
+		// return view('admin.salles.index')->with([
+		// 	'salles' => Salle::query()->orderBy('nom')->get()
+		// ]);
 	}
 
 	public function store(Request $request)
@@ -31,32 +31,30 @@ class SalleController extends Controller
 		$nom = Str::upper($request->get('nom'));
 
 		$request->validate([
-			'nom' => ['required', Rule::unique('salles')->ignore($nom, 'nom')],
+			'nom' => ['required', Rule::unique('salles', 'nom')->ignore($nom, 'nom')],
 			'effectif' => ['required', 'numeric', 'min:1']
-		], [
-			'nom.required' => 'Le nom de la salle est obligatoire',
-			'nom.unique' => 'Une salle portant le même nom existe déjà',
-			'effectif.required' => 'L\'effectif de la salle est obligatoire',
-			'effectif.numeric' => 'L\'effectif de la salle doit être un nombre entier',
-			'effectif.min' => 'L\'effectif de la salle doit être supérieur ou égal à 1',
 		]);
 
 		$salle = Salle::query()->firstWhere('nom', $nom);
 
 		if ($salle) {
-			$salle = $salle->update($request->only(['nom', 'effectif']));
-			successMsg('Salle modifiée avec succès.');
+			$salle->update([
+				'nom' => $nom,
+				'effectif' => $request->effectif
+			]);
+
+			return __200('Salle modifiée avec succès.');
 		} else {
 			$salle = Salle::query()->create([
 				'nom' => $nom,
-				'effectif' => $request->get('effectif'),
+				'effectif' => $request->effectif,
 				...injectAnneeScolaireId()
 			]);
-			successMsg('Salle enrégistrée avec succès.');
-		}
-		// return new SalleResource($salle);
 
-		return to_route('admin.salles.index');
+			return __200('Salle enregistrée avec succès.');
+		}
+
+		return new SalleResource($salle);
 	}
 
 	public function displayCalendar(Salle $salle)
@@ -77,18 +75,17 @@ class SalleController extends Controller
 		return EmploiDuTempsResource::collection($salle->emploiDuTemps);
 	}
 
-	public function destroy(Request $request): RedirectResponse
+	public function destroy(Salle $salle)
 	{
-		$salle = $request->deleteSalleForm;
-		$emploidutemps = EmploiDuTemp::query()->where('salle_id', $salle)->get();
+		$emploidutemps = EmploiDuTemp::query()->where('salle_id', $salle->id)->get();
 		if ($emploidutemps->isNotEmpty()) {
-			return back()->with(cannotDeleteItemMessage('cette salle'));
+			return __404('Impossible de supprimer cette salle');
 		}
-		$salle = Salle::query()->where('id', $salle)->first()->delete();
+		$salle->delete();
 
-		// return new SalleResource($salle);
+		return new SalleResource($salle);
 
 		// Todo Gérer la suppression des fichiers
-		return to_route('admin.salles.index')->with(successMsg('Salle supprimée avec succès.'));
+		// return to_route('admin.salles.index')->with(successMsg('Salle supprimée avec succès.'));
 	}
 }
