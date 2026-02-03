@@ -16,7 +16,7 @@
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">
-                        <i class="ti ti-settings"></i> Paramètres de configurations
+                        <i class="ti ti-settings"></i> Paramètres de configuration
                     </h5>
                 </div>
 
@@ -32,6 +32,15 @@
                             @foreach ($configurations as $config)
                                 @php
                                     $name = Str::slug($config->key, '_');
+                                    $hasValidFile = false;
+                                    
+                                    if ($config->type === 'file' && $config->value) {
+                                        try {
+                                            $hasValidFile = Storage::disk('public')->exists($config->value);
+                                        } catch (\Exception $e) {
+                                            $hasValidFile = false;
+                                        }
+                                    }
                                 @endphp
 
                                 <div class="col-md-12">
@@ -40,68 +49,96 @@
 
                                             {{-- FILE --}}
                                             @if ($config->type === 'file')
-                                                <label class="form-label fw-bold">
+                                                <label class="form-label fw-bold d-block mb-3">
                                                     <i class="ti ti-photo"></i>
                                                     {{ $config->valueKey ?? $config->key }}
                                                 </label>
+                                                
                                                 <input type="file"
                                                        id="file_{{ $name }}"
                                                        name="config_value[{{ $name }}]"
                                                        class="d-none"
                                                        accept="image/*">
-
-                                                @if ($config->value && Storage::disk('public')->exists($config->value))
-                                                    <div id="existing_{{ $name }}" class="text-center mb-3">
-                                                        <img src="{{ Storage::url($config->value) }}"
-                                                             class="img-fluid rounded shadow-sm"
-                                                             style="max-height:220px;object-fit:contain">
-
-                                                        <div class="mt-2 d-flex justify-content-center gap-2">
-                                                            <button type="button"
-                                                                    class="btn btn-sm btn-outline-primary"
-                                                                    onclick="openFile('{{ $name }}')">
-                                                                <i class="ti ti-edit"></i> Modifier
-                                                            </button>
-                                                            <button type="button"
-                                                                    class="btn btn-sm btn-outline-danger"
-                                                                    onclick="removeImage('{{ $name }}')">
-                                                                <i class="ti ti-trash"></i> Supprimer
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                @endif
-
-                                                <div id="zone_{{ $name }}"
-                                                     class="upload-zone {{ $config->value ? 'd-none' : '' }}"
+                                                
+                                                <!-- Zone de dépôt TOUJOURS visible -->
+                                                <div id="zone_{{ $name }}" 
+                                                     class="upload-zone"
                                                      data-input="file_{{ $name }}">
-                                                    <i class="ti ti-cloud-upload fs-1"></i>
-                                                    <p class="mb-1 fw-semibold">Glissez l’image ici</p>
-                                                    <small class="text-muted">ou cliquez pour sélectionner</small>
+                                                    <div class="upload-content">
+                                                        <i class="ti ti-cloud-upload fs-1 mb-2"></i>
+                                                        <p class="mb-1 fw-semibold">Glissez l'image ici</p>
+                                                        <small class="text-muted d-block">ou cliquez pour sélectionner</small>
+                                                        <small class="text-muted d-block mt-1">Formats : JPG, PNG, GIF, SVG (max 2MB)</small>
+                                                    </div>
                                                 </div>
-
-                                                <div id="preview_{{ $name }}" class="text-center mt-3 d-none">
-                                                    <img id="preview_img_{{ $name }}"
-                                                         class="img-fluid rounded shadow-sm"
-                                                         style="max-height:220px;object-fit:contain">
-                                                    <div class="mt-2">
+                                                
+                                                <!-- Image existante (si valide) -->
+                                                @if($hasValidFile)
+                                                <div id="existing_{{ $name }}" class="text-center mb-3 mt-3">
+                                                    <p class="text-muted mb-2">
+                                                        <i class="ti ti-photo-check"></i> Image actuelle
+                                                    </p>
+                                                    <img src="{{ Storage::url($config->value) }}"
+                                                         class="img-fluid rounded shadow-sm border"
+                                                         style="max-height:200px;object-fit:contain"
+                                                         onerror="handleImageError('{{ $name }}')">
+                                                    
+                                                    <div class="mt-3 d-flex justify-content-center gap-2">
                                                         <button type="button"
-                                                                class="btn btn-sm btn-outline-secondary"
-                                                                onclick="cancelPreview('{{ $name }}')">
-                                                            Annuler
+                                                                class="btn btn-sm btn-outline-primary"
+                                                                onclick="openFile('{{ $name }}')">
+                                                            <i class="ti ti-refresh"></i> Remplacer
+                                                        </button>
+                                                        <button type="button"
+                                                                class="btn btn-sm btn-outline-danger"
+                                                                onclick="removeImage('{{ $name }}')">
+                                                            <i class="ti ti-trash"></i> Supprimer
                                                         </button>
                                                     </div>
                                                 </div>
+                                                @endif
+                                                
+                                                <!-- Prévisualisation de la nouvelle image -->
+                                                <div id="preview_{{ $name }}" class="text-center mt-3 d-none">
+                                                    <p class="text-muted mb-2">
+                                                        <i class="ti ti-photo-up"></i> Nouvelle image
+                                                    </p>
+                                                    <img id="preview_img_{{ $name }}"
+                                                         class="img-fluid rounded shadow-sm border"
+                                                         style="max-height:200px;object-fit:contain">
+                                                    <div class="mt-3 d-flex justify-content-center gap-2">
+                                                        <button type="button"
+                                                                class="btn btn-sm btn-outline-success"
+                                                                onclick="confirmUpload('{{ $name }}')">
+                                                            <i class="ti ti-check"></i> Conserver
+                                                        </button>
+                                                        <button type="button"
+                                                                class="btn btn-sm btn-outline-secondary"
+                                                                onclick="cancelUpload('{{ $name }}')">
+                                                            <i class="ti ti-x"></i> Annuler
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Message d'erreur -->
+                                                <div id="error_{{ $name }}" class="alert alert-danger mt-3 d-none"></div>
+                                                
+                                                <!-- Champ caché pour suppression -->
+                                                <input type="hidden" 
+                                                       id="delete_flag_{{ $name }}" 
+                                                       name="delete_file[{{ $name }}]" 
+                                                       value="0">
 
                                             {{-- BOOLEAN --}}
                                             @elseif ($config->type === 'boolean')
-                                                <div class="form-check form-switch mt-4">
+                                                <div class="form-check form-switch mt-3">
                                                     <input class="form-check-input"
                                                            type="checkbox"
                                                            id="{{ $name }}"
                                                            name="config_value[{{ $name }}]"
                                                            value="1"
                                                            {{ $config->value ? 'checked' : '' }}>
-                                                    <label class="form-check-label fw-semibold">
+                                                    <label class="form-check-label fw-semibold ms-2">
                                                         {{ $config->valueKey ?? $config->key }}
                                                     </label>
                                                 </div>
@@ -110,7 +147,14 @@
                                             @elseif ($config->type === 'select')
                                                 @php
                                                     $options = collect(explode(',', $config->options))
-                                                        ->map(fn($o) => explode('|', $o));
+                                                        ->map(function($option) {
+                                                            $parts = explode('|', $option);
+                                                            return [
+                                                                'value' => $parts[0] ?? '',
+                                                                'label' => $parts[1] ?? $parts[0] ?? ''
+                                                            ];
+                                                        })
+                                                        ->filter(fn($opt) => !empty($opt['value']));
                                                 @endphp
 
                                                 <label class="form-label fw-semibold mb-2">
@@ -121,10 +165,11 @@
                                                     <select name="config_value[{{ $name }}]" 
                                                             class="form-select mb-3" 
                                                             id="systeme_pedagogique_select">
-                                                        @foreach ($options as [$val, $label])
-                                                            <option value="{{ $val }}"
-                                                                @selected($config->value === $val)>
-                                                                {{ $label }}
+                                                        <option value="">-- Sélectionnez --</option>
+                                                        @foreach ($options as $option)
+                                                            <option value="{{ $option['value'] }}"
+                                                                @selected($config->value === $option['value'])>
+                                                                {{ $option['label'] }}
                                                             </option>
                                                         @endforeach
                                                     </select>
@@ -133,7 +178,7 @@
                                                     <div id="options_unites" class="mt-2 p-3 border rounded-2 bg-light" style="display:none;">
                                                         <div class="form-check">
                                                             <input type="checkbox" class="form-check-input" name="afficher_unites" id="afficher_unites">
-                                                            <label class="form-check-label fw-semibold">Afficher les unités d’enseignement</label>
+                                                            <label class="form-check-label fw-semibold">Afficher les unités d'enseignement</label>
                                                         </div>
                                                     </div>
 
@@ -145,9 +190,11 @@
                                                     </div>
                                                 @else
                                                     <select name="config_value[{{ $name }}]" class="form-select">
-                                                        @foreach ($options as [$val, $label])
-                                                            <option value="{{ $val }}" @selected($config->value === $val)>
-                                                                {{ $label }}
+                                                        <option value="">-- Sélectionnez --</option>
+                                                        @foreach ($options as $option)
+                                                            <option value="{{ $option['value'] }}" 
+                                                                    @selected($config->value === $option['value'])>
+                                                                {{ $option['label'] }}
                                                             </option>
                                                         @endforeach
                                                     </select>
@@ -155,23 +202,31 @@
 
                                             {{-- TEXTAREA --}}
                                             @elseif ($config->type === 'textarea')
-                                                <label class="form-label fw-semibold">
+                                                <label class="form-label fw-semibold mb-2">
                                                     {{ $config->valueKey ?? $config->key }}
                                                 </label>
                                                 <textarea name="config_value[{{ $name }}]"
                                                           class="form-control"
-                                                          rows="4">{{ $config->value }}</textarea>
+                                                          rows="4"
+                                                          placeholder="Entrez la valeur ici...">{{ old('config_value.' . $name, $config->value) }}</textarea>
 
                                             {{-- TEXT --}}
                                             @else
-                                                <label class="form-label fw-semibold">
+                                                <label class="form-label fw-semibold mb-2">
                                                     {{ $config->valueKey ?? $config->key }}
                                                 </label>
                                                 <input type="text"
                                                        name="config_value[{{ $name }}]"
-                                                       value="{{ $config->value }}"
-                                                       class="form-control">
+                                                       value="{{ old('config_value.' . $name, $config->value) }}"
+                                                       class="form-control"
+                                                       placeholder="Entrez la valeur ici...">
                                             @endif
+
+                                            @error('config_value.' . $name)
+                                                <div class="text-danger mt-1">
+                                                    <small>{{ $message }}</small>
+                                                </div>
+                                            @enderror
 
                                         </div>
                                     </div>
@@ -181,12 +236,19 @@
 
                         <div class="mt-4 pt-3 border-top d-flex justify-content-between align-items-center">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" required>
-                                <label class="form-check-label fw-semibold">Je confirme les modifications</label>
+                                <input class="form-check-input" type="checkbox" id="confirm_changes" required>
+                                <label class="form-check-label fw-semibold" for="confirm_changes">
+                                    <i class="ti ti-shield-check"></i> Je confirme les modifications
+                                </label>
                             </div>
-                            <button class="btn btn-primary px-4">
-                                <i class="ti ti-device-floppy"></i> Enregistrer
-                            </button>
+                            <div>
+                                <button type="button" class="btn btn-outline-secondary px-4 me-2" onclick="resetForm()">
+                                    <i class="ti ti-reload"></i> Réinitialiser
+                                </button>
+                                <button type="submit" class="btn btn-primary px-4" id="submit-btn">
+                                    <i class="ti ti-device-floppy"></i> Enregistrer
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -203,82 +265,359 @@
     text-align: center;
     cursor: pointer;
     border-radius: 10px;
-    transition: .3s;
+    transition: all 0.3s ease;
+    background: #f8fafc;
+    min-height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .upload-zone:hover {
     background: #f1f5f9;
     border-color: #3b82f6;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
-.upload-zone.drag {
+.upload-zone.drag-active {
     background: #dbeafe;
+    border-color: #1d4ed8;
+    border-style: solid;
 }
-.card-body input.form-check-input {
-    transform: scale(1.2);
+.upload-content {
+    color: #64748b;
+}
+.upload-zone:hover .upload-content {
+    color: #3b82f6;
+}
+.form-check-input:checked {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
+}
+.form-select:focus, .form-control:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
+}
+.btn-outline-primary:hover {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
 }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Drag & Drop
-    document.querySelectorAll('.upload-zone').forEach(zone => {
-        const input = document.getElementById(zone.dataset.input);
-        const name = zone.id.replace('zone_', '');
-
-        zone.onclick = () => input.click();
-        zone.ondragover = e => { e.preventDefault(); zone.classList.add('drag'); };
-        zone.ondragleave = () => zone.classList.remove('drag');
-        zone.ondrop = e => {
-            e.preventDefault();
-            zone.classList.remove('drag');
-            input.files = e.dataTransfer.files;
-            preview(input, name);
-        };
-        input.onchange = () => preview(input, name);
-    });
-
-    function preview(input, name) {
+    // Configuration
+    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+    const ALLOWED_TYPES = [
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/gif',
+        'image/svg+xml'
+    ];
+    
+    // Initialiser toutes les zones de dépôt
+    initUploadZones();
+    
+    // Initialiser le sélecteur système pédagogique
+    initSystemePedagogique();
+    
+    // Initialiser la gestion du formulaire
+    initFormHandling();
+    
+    // Fonction pour initialiser les zones de dépôt
+    function initUploadZones() {
+        document.querySelectorAll('.upload-zone').forEach(zone => {
+            const inputId = zone.dataset.input;
+            const input = document.getElementById(inputId);
+            const name = zone.id.replace('zone_', '');
+            
+            if (!input) return;
+            
+            // Clic sur la zone
+            zone.addEventListener('click', (e) => {
+                if (!e.target.closest('button')) {
+                    input.click();
+                }
+            });
+            
+            // Drag & Drop
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                zone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+            });
+            
+            // Effets visuels du drag & drop
+            ['dragenter', 'dragover'].forEach(eventName => {
+                zone.addEventListener(eventName, () => {
+                    zone.classList.add('drag-active');
+                });
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                zone.addEventListener(eventName, () => {
+                    zone.classList.remove('drag-active');
+                });
+            });
+            
+            // Gestion du drop
+            zone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFileSelection(files[0], name);
+                }
+            });
+            
+            // Changement via l'input file
+            input.addEventListener('change', (e) => {
+                if (input.files.length > 0) {
+                    handleFileSelection(input.files[0], name);
+                }
+            });
+        });
+    }
+    
+    // Fonction pour gérer la sélection d'un fichier
+    function handleFileSelection(file, name) {
+        const errorDiv = document.getElementById(`error_${name}`);
+        
+        // Réinitialiser les erreurs
+        clearError(name);
+        
+        // Validation
+        if (!validateFile(file, name)) {
+            return;
+        }
+        
+        // Prévisualisation
         const reader = new FileReader();
-        reader.onload = e => {
-            document.getElementById(`preview_img_${name}`).src = e.target.result;
-            document.getElementById(`preview_${name}`).classList.remove('d-none');
-            document.getElementById(`zone_${name}`)?.classList.add('d-none');
-            document.getElementById(`existing_${name}`)?.classList.add('d-none');
+        reader.onload = (e) => {
+            // Afficher la prévisualisation
+            const previewImg = document.getElementById(`preview_img_${name}`);
+            const previewDiv = document.getElementById(`preview_${name}`);
+            
+            if (previewImg && previewDiv) {
+                previewImg.src = e.target.result;
+                previewDiv.classList.remove('d-none');
+                
+                // Masquer la zone de dépôt et l'image existante
+                document.getElementById(`zone_${name}`).classList.add('d-none');
+                const existingDiv = document.getElementById(`existing_${name}`);
+                if (existingDiv) {
+                    existingDiv.classList.add('d-none');
+                }
+                
+                // Réinitialiser le drapeau de suppression
+                document.getElementById(`delete_flag_${name}`).value = '0';
+            }
         };
-        reader.readAsDataURL(input.files[0]);
+        reader.readAsDataURL(file);
     }
-
-    window.cancelPreview = function(name) {
-        document.getElementById(`preview_${name}`).classList.add('d-none');
-        document.getElementById(`zone_${name}`).classList.remove('d-none');
-        document.getElementById(`file_${name}`).value = '';
+    
+    // Fonction de validation de fichier
+    function validateFile(file, name) {
+        const errorDiv = document.getElementById(`error_${name}`);
+        
+        // Vérifier le type
+        if (!ALLOWED_TYPES.includes(file.type)) {
+            showError(name, 'Type de fichier non supporté. Utilisez JPG, PNG, GIF ou SVG.');
+            return false;
+        }
+        
+        // Vérifier la taille
+        if (file.size > MAX_FILE_SIZE) {
+            showError(name, `Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(2)} MB). Maximum 2MB.`);
+            return false;
+        }
+        
+        return true;
     }
-
-    window.openFile = function(name) { document.getElementById(`file_${name}`).click(); }
-    window.removeImage = function(name) {
-        if (!confirm('Supprimer cette image ?')) return;
-        document.getElementById(`existing_${name}`)?.classList.add('d-none');
-        document.getElementById(`zone_${name}`).classList.remove('d-none');
-    }
-
-    // Système pédagogique
-    const selectSysteme = document.getElementById('systeme_pedagogique_select');
-    const optsUnites = document.getElementById('options_unites');
-    const optsUEUV = document.getElementById('options_ue_uv');
-
-    function updateOptions() {
-        if (selectSysteme.value === 'unites') {
-            optsUnites.style.display = 'block';
-            optsUEUV.style.display = 'none';
-        } else if (selectSysteme.value === 'ue_uv') {
-            optsUnites.style.display = 'none';
-            optsUEUV.style.display = 'block';
-        } else {
-            optsUnites.style.display = 'none';
-            optsUEUV.style.display = 'none';
+    
+    // Fonctions utilitaires d'erreur
+    function showError(name, message) {
+        const errorDiv = document.getElementById(`error_${name}`);
+        if (errorDiv) {
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('d-none');
+            
+            // Masquer automatiquement après 5 secondes
+            setTimeout(() => {
+                errorDiv.classList.add('d-none');
+            }, 5000);
         }
     }
-
-    selectSysteme.addEventListener('change', updateOptions);
-    updateOptions(); 
+    
+    function clearError(name) {
+        const errorDiv = document.getElementById(`error_${name}`);
+        if (errorDiv) {
+            errorDiv.textContent = '';
+            errorDiv.classList.add('d-none');
+        }
+    }
+    
+    // Fonctions globales
+    window.openFile = function(name) {
+        const input = document.getElementById(`file_${name}`);
+        if (input) {
+            input.click();
+        }
+    };
+    
+    window.removeImage = function(name) {
+        if (!confirm('Êtes-vous sûr de vouloir supprimer cette image ?')) {
+            return;
+        }
+        
+        // Activer le drapeau de suppression
+        const deleteFlag = document.getElementById(`delete_flag_${name}`);
+        if (deleteFlag) {
+            deleteFlag.value = '1';
+        }
+        
+        // Masquer l'image existante
+        const existingDiv = document.getElementById(`existing_${name}`);
+        if (existingDiv) {
+            existingDiv.classList.add('d-none');
+        }
+        
+        // Afficher la zone de dépôt
+        const zoneDiv = document.getElementById(`zone_${name}`);
+        if (zoneDiv) {
+            zoneDiv.classList.remove('d-none');
+        }
+        
+        // Masquer la prévisualisation
+        const previewDiv = document.getElementById(`preview_${name}`);
+        if (previewDiv) {
+            previewDiv.classList.add('d-none');
+        }
+        
+        // Réinitialiser l'input file
+        const input = document.getElementById(`file_${name}`);
+        if (input) {
+            input.value = '';
+        }
+        
+        clearError(name);
+    };
+    
+    window.cancelUpload = function(name) {
+        // Masquer la prévisualisation
+        const previewDiv = document.getElementById(`preview_${name}`);
+        if (previewDiv) {
+            previewDiv.classList.add('d-none');
+        }
+        
+        // Afficher la zone de dépôt
+        const zoneDiv = document.getElementById(`zone_${name}`);
+        if (zoneDiv) {
+            zoneDiv.classList.remove('d-none');
+        }
+        
+        // Afficher l'image existante si elle existe
+        const existingDiv = document.getElementById(`existing_${name}`);
+        if (existingDiv) {
+            existingDiv.classList.remove('d-none');
+        }
+        
+        // Réinitialiser l'input file
+        const input = document.getElementById(`file_${name}`);
+        if (input) {
+            input.value = '';
+        }
+        
+        clearError(name);
+    };
+    
+    window.confirmUpload = function(name) {
+        // Juste masquer le message de prévisualisation
+        const previewDiv = document.getElementById(`preview_${name}`);
+        if (previewDiv) {
+            previewDiv.classList.add('d-none');
+        }
+        
+        // Le fichier reste sélectionné dans l'input
+        clearError(name);
+    };
+    
+    window.handleImageError = function(name) {
+        // Si l'image existante ne se charge pas
+        const existingDiv = document.getElementById(`existing_${name}`);
+        if (existingDiv) {
+            existingDiv.classList.add('d-none');
+        }
+        
+        // Afficher la zone de dépôt
+        const zoneDiv = document.getElementById(`zone_${name}`);
+        if (zoneDiv) {
+            zoneDiv.classList.remove('d-none');
+        }
+        
+        // Activer le drapeau de suppression automatique
+        const deleteFlag = document.getElementById(`delete_flag_${name}`);
+        if (deleteFlag) {
+            deleteFlag.value = '1';
+        }
+    };
+    
+    // Système pédagogique
+    function initSystemePedagogique() {
+        const selectSysteme = document.getElementById('systeme_pedagogique_select');
+        const optsUnites = document.getElementById('options_unites');
+        const optsUEUV = document.getElementById('options_ue_uv');
+        
+        if (selectSysteme && optsUnites && optsUEUV) {
+            function updateOptions() {
+                const value = selectSysteme.value;
+                optsUnites.style.display = value === 'unites' ? 'block' : 'none';
+                optsUEUV.style.display = value === 'ue_uv' ? 'block' : 'none';
+            }
+            
+            selectSysteme.addEventListener('change', updateOptions);
+            updateOptions(); // Initialiser
+        }
+    }
+    
+    // Gestion du formulaire
+    function initFormHandling() {
+        const form = document.getElementById('config-form');
+        const confirmCheckbox = document.getElementById('confirm_changes');
+        const submitBtn = document.getElementById('submit-btn');
+        
+        if (form && confirmCheckbox && submitBtn) {
+            form.addEventListener('submit', function(e) {
+                if (!confirmCheckbox.checked) {
+                    e.preventDefault();
+                    alert('Veuillez confirmer les modifications en cochant la case de confirmation.');
+                    confirmCheckbox.focus();
+                    return;
+                }
+                
+                // Désactiver le bouton pendant l'envoi
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="ti ti-loader-2 spin"></i> Enregistrement...';
+            });
+        }
+    }
+    
+    window.resetForm = function() {
+        if (confirm('Voulez-vous vraiment réinitialiser tous les changements ? Les modifications non enregistrées seront perdues.')) {
+            window.location.reload();
+        }
+    };
 });
+
+// Ajouter le style pour l'animation de spin
+const style = document.createElement('style');
+style.textContent = `
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+.spin {
+    animation: spin 1s linear infinite;
+}
+`;
+document.head.appendChild(style);
 </script>
