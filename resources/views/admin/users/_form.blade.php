@@ -73,7 +73,7 @@
 		<textarea id="pc-tinymce-2" name="biographie" class="tox-target">{{ old('biographie', $user->biographie) }}</textarea>
 	</div>
 
-	@if(auth()->user()->hasRoles(14))
+	
 		<div class="form-group">
 			<label class="form-label" for="choices-multiple-default">Rôles
 				<x-forms.required-field/>
@@ -87,7 +87,7 @@
 			</select>
 			{!! errorAlert($errors->first('roles'), 'roles') !!}
 		</div>
-	@endif
+
 
 
 	{{--<div class="form-group">
