@@ -34,31 +34,31 @@ class FiliereController extends Controller
 		// 	$q->where('annee_filiere.annee_scolaire_id', $anneeActiveId)->first();
 		// }])->get());
 
-		return view('admin.filieres.index')->with([
-			'filieres' => Filiere::with(['anneesScolaires' => function ($q) use ($anneeActiveId) {
-				$q->where('annee_filiere.annee_scolaire_id', $anneeActiveId)->get();
-			}])->withCount([
-				'etudiants as etudiants_count' => function ($query) use ($anneeActiveId) {
-					$query->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
-						->distinct('etudiants.id');
-				}
-			])->get()->reverse()
-		]);
+		// return view('admin.filieres.index')->with([
+		// 	'filieres' => Filiere::with(['anneesScolaires' => function ($q) use ($anneeActiveId) {
+		// 		$q->where('annee_filiere.annee_scolaire_id', $anneeActiveId)->get();
+		// 	}])->withCount([
+		// 		'etudiants as etudiants_count' => function ($query) use ($anneeActiveId) {
+		// 			$query->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
+		// 				->distinct('etudiants.id');
+		// 		}
+		// 	])->get()->reverse()
+		// ]);
 
-		dd(Filiere::withCount([
-			'etudiants as etudiants_count' => function ($query) use ($anneeActiveId) {
-				$query->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
-					->distinct('etudiants.id');
-			}
-		])->get()->reverse());
-		// return FiliereResource::collection(Filiere::with(['anneesScolaires' => function ($q) use ($anneeActiveId) {
-		// 	$q->where('annee_filiere.annee_scolaire_id', $anneeActiveId)->get();
-		// }])->withCount([
+		// dd(Filiere::withCount([
 		// 	'etudiants as etudiants_count' => function ($query) use ($anneeActiveId) {
 		// 		$query->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
 		// 			->distinct('etudiants.id');
 		// 	}
 		// ])->get()->reverse());
+		return FiliereResource::collection(Filiere::with(['anneesScolaires' => function ($q) use ($anneeActiveId) {
+			$q->where('annee_filiere.annee_scolaire_id', $anneeActiveId)->get();
+		}])->withCount([
+			'etudiants as etudiants_count' => function ($query) use ($anneeActiveId) {
+				$query->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
+					->distinct('etudiants.id');
+			}
+		])->get()->reverse());
 	}
 
 	public function create(): View
@@ -211,5 +211,10 @@ class FiliereController extends Controller
 		return new FiliereResource($filiere);
 
 		// return to_route('admin.filieres.index')->with(successMsg('Filière supprimée avec succès.'));
+	}
+
+	public function getMatiere(Filiere $filiere)
+	{
+		
 	}
 }

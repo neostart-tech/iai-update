@@ -268,4 +268,33 @@ class Etudiant extends Authenticatable
 			->withPivot('date_adhesion')
 			->withTimestamps();
 	}
+
+	public function ueValidations(): HasMany
+	{
+		return $this->hasMany(UeValidation::class);
+	}
+
+
+	public function uvValidations(): HasMany
+	{
+		return $this->hasMany(UvValidation::class);
+	}
+
+	public function releveNotes(): HasMany
+	{
+		return $this->hasMany(ReleveNote::class);
+	}
+
+	public function dernierReleve(?int $periodeId = null): ?ReleveNote
+	{
+		$query = $this->releveNotes()
+			->with(['ueValidations.uniteEnseignement', 'uvValidations.uniteValeur'])
+			->latest('calcule_le');
+
+		if ($periodeId) {
+			$query->where('periode_id', $periodeId);
+		}
+
+		return $query->first();
+	}
 }

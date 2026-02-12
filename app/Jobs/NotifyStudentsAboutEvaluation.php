@@ -15,7 +15,7 @@ class NotifyStudentsAboutEvaluation implements ShouldQueue
 {
 	use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-	public function __construct(private readonly Evaluation $evaluation){}
+	public function __construct(private readonly Evaluation $evaluation) {}
 
 	public function handle(): void
 	{
@@ -34,15 +34,16 @@ class NotifyStudentsAboutEvaluation implements ShouldQueue
 		]);
 
 		// Envoi de notifications aux étudiants concernés
-		$this->evaluation->group->etudiants->each(function (Etudiant $etudiant) {
-			dump($etudiant->getAttribute('nom'));
-			Notification::send(
-				$etudiant,
-				new EvaluationNotification(
-					$etudiant->greeting(),
-					$this->evaluation->getDataAsString()
-				)
-			);
-		});
+		if ($this->evaluation->group?->etudiants?->isNotEmpty()) {
+			$this->evaluation->group->etudiants->each(function (Etudiant $etudiant) {
+				Notification::send(
+					$etudiant,
+					new EvaluationNotification(
+						$etudiant->greeting(),
+						$this->evaluation->getDataAsString()
+					)
+				);
+			});
+		}
 	}
 }

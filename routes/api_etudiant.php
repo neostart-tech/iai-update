@@ -27,8 +27,8 @@ Route::prefix('espace-etudiant')->name('etudiants.')->group(function () {
     });
 
     // Route::middleware('auth:etudiants')->group(function () {
-   Route::group([],function () {
-        Route::view('', 'etudiants.dashboard')->name('dashboard');
+   Route::middleware('auth:sanctum')->group([],function () {
+        // Route::view('', 'etudiants.dashboard')->name('dashboard');
         Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('auth.logout');
 
         Route::controller(EtudiantController::class)->group(function () {

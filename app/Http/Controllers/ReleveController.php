@@ -21,7 +21,157 @@ use Illuminate\Support\Facades\Storage as FacadesStorage;
 
 class ReleveController extends Controller
 {
-  public function genererReleve($etudiant_id)
+//   public function genererReleve($etudiant_id)
+// {
+//     $anne = '2023-2024';
+
+//     $user = Etudiant::findOrFail($etudiant_id);
+
+//     // Récupération du groupe de l'étudiant
+//     $groupe = EtudiantGroup::with('group')->where('etudiant_id', $etudiant_id)->first();
+//     if (! $groupe) {
+//         return response()->json(['message' => 'Aucun groupe trouvé pour cet étudiant'], 404);
+//     }
+
+//     // Récupération de l'évaluation pour ce groupe
+//     $evaluation = Evaluation::where('group_id', $groupe->group_id)->first();
+//     if (! $evaluation) {
+//         return response()->json(['message' => 'Aucune évaluation trouvée pour ce groupe'], 404);
+//     }
+
+//     $uv = UniteValeur::find($evaluation->unite_valeur_id);
+//     $ue = UniteEnseignement::find($uv->unite_enseignement_id);
+
+//     $filiere_id = $ue->filiere_id;
+//     $periode_id = $ue->periode_id;
+//     $periode_nom = $ue->periode->nom;
+
+//     // Toutes les UE de la filière et de la période
+//     $ues = UniteEnseignement::where('filiere_id', $filiere_id)
+//         ->where('periode_id', $periode_id)
+//         ->with([
+//             'uniteDeValeurs.evaluations' => function ($q) use ($groupe) {
+//                 $q->where('group_id', $groupe->group_id);
+//             },
+//             'uniteDeValeurs.evaluations.notes' => function ($q) use ($etudiant_id) {
+//                 $q->where('etudiant_id', $etudiant_id);
+//             },
+//         ])->get();
+
+//     $total_notes = $total_credits = $total_credits_valides = $total_credits_non_valides = 0;
+//     $releve_grouped = [];
+
+//     foreach ($ues as $ue) {
+//         if ($ue->uniteDeValeurs->isEmpty()) {
+//             continue; // Ignore cette UE si elle n'a pas de UV
+//         }
+
+//         $ue_moyenne_ponderee = 0;
+//         $sum_coefficients = 0;
+//         $ue_validee = true; // On suppose l'UE validée au départ
+
+//         foreach ($ue->uniteDeValeurs as $uv) {
+//             $notes_by_type = ['Devoir' => 0, 'Examen' => 0, 'Interrogation' => 0, 'TP' => 0, 'Exposé' => 0];
+
+//             foreach ($uv->evaluations as $eval) {
+//                 $note = $eval->notes->first();
+//                 $notes_by_type[$eval->type->value] = $note ? $note->note : 0;
+//             }
+
+//             // Récupération des pondérations
+//             $w = UVWeighting::where('unite_valeur_id', $uv->id)
+//                 ->where('filiere_id', $ue->filiere_id)
+//                 ->first();
+
+//             $wd = $w->devoir ?? 30;
+//             $wi = $w->interrogation ?? 10;
+//             $we = $w->examen ?? 60;
+//             $wtp = $w->tp ?? 0;
+//             $wexp = $w->expose ?? 0;
+
+//             $sumW = $wd + $wi + $we + $wtp + $wexp;
+//             if ($sumW === 0) {
+//                 $wd = 30; $wi = 10; $we = 60; $wtp = 0; $wexp = 0;
+//                 $sumW = 100;
+//             }
+
+//             $moyenne_uv = (
+//                 $notes_by_type['Devoir'] * ($wd / 100) +
+//                 $notes_by_type['Interrogation'] * ($wi / 100) +
+//                 $notes_by_type['Examen'] * ($we / 100) +
+//                 $notes_by_type['TP'] * ($wtp / 100) +
+//                 $notes_by_type['Exposé'] * ($wexp / 100)
+//             );
+
+//             // Si une UV < 5, UE non validée
+//             if ($moyenne_uv < 5) {
+//                 $ue_validee = false;
+//             }
+
+//             $releve_grouped[$ue->nom][] = [
+//                 'uv' => $uv->nom,
+//                 'devoir' => number_format($notes_by_type['Devoir'], 2),
+//                 'interrogation' => number_format($notes_by_type['Interrogation'], 2),
+//                 'examen' => number_format($notes_by_type['Examen'], 2),
+//                 'tp' => number_format($notes_by_type['TP'], 2),
+//                 'expose' => number_format($notes_by_type['Exposé'], 2),
+//                 'weights_label' => sprintf('%d/%d/%d/%d/%d', (int)$wd, (int)$wi, (int)$we, (int)$wtp, (int)$wexp),
+//                 'moyenne_uv' => number_format($moyenne_uv, 2),
+//                 'validation' => $moyenne_uv >= 5 ? 'Validé' : 'Non validé',
+//                 'coefficient' => $uv->coefficient,
+//             ];
+
+//             $ue_moyenne_ponderee += $moyenne_uv * $uv->coefficient;
+//             $sum_coefficients += $uv->coefficient;
+//         }
+
+//         $moyenne_ue = $sum_coefficients > 0 ? $ue_moyenne_ponderee / $sum_coefficients : 0;
+//         $releve_grouped[$ue->nom][0]['moyenne_ue'] = number_format($moyenne_ue, 2);
+//         $releve_grouped[$ue->nom][0]['credit'] = $ue->credit;
+
+//         // Vérifier s'il existe une gratification validée pour cette UE
+//         $gratification = Gratification::where('etudiant_id', $etudiant_id)
+//             ->where('unite_enseignement_id', $ue->id)
+//             ->where('validee', true)
+//             ->first();
+
+//         // UE validée si toutes les UV >= 5 ou si gratification validée
+//         $ue_validee_avec_gratification = $ue_validee || $gratification;
+
+//         $releve_grouped[$ue->nom][0]['gratification'] = $gratification ? [
+//             'type' => $gratification->type,
+//             'motif' => $gratification->motif,
+//             'date_approbation' => $gratification->date_approbation,
+//         ] : null;
+
+//         if ($ue_validee_avec_gratification) {
+//             $total_credits_valides += $ue->credit;
+//         } else {
+//             $total_credits_non_valides += $ue->credit;
+//         }
+
+//         $total_notes += $moyenne_ue * $ue->credit;
+//         $total_credits += $ue->credit;
+//     }
+
+//     $moyenne_generale = $total_credits > 0 ? number_format($total_notes / $total_credits, 2) : 0;
+
+//     return response()->json([
+//         'user' => [
+//             'nom' => $user->nom,
+//             'prenom' => $user->prenom,
+//             'genre' => $user->genre,
+//         ],
+//         'anne' => $anne,
+//         'periode_nom' => $periode_nom,
+//         'releve_grouped' => $releve_grouped,
+//         'moyenne_generale' => $moyenne_generale,
+//         'total_credits_valides' => $total_credits_valides,
+//         'total_credits_non_valides' => $total_credits_non_valides,
+//     ]);
+// }
+
+public function genererReleveSimplifie($etudiant_id)
 {
     $anne = '2023-2024';
 
@@ -29,13 +179,13 @@ class ReleveController extends Controller
 
     // Récupération du groupe de l'étudiant
     $groupe = EtudiantGroup::with('group')->where('etudiant_id', $etudiant_id)->first();
-    if (! $groupe) {
+    if (!$groupe) {
         return response()->json(['message' => 'Aucun groupe trouvé pour cet étudiant'], 404);
     }
 
     // Récupération de l'évaluation pour ce groupe
     $evaluation = Evaluation::where('group_id', $groupe->group_id)->first();
-    if (! $evaluation) {
+    if (!$evaluation) {
         return response()->json(['message' => 'Aucune évaluation trouvée pour ce groupe'], 404);
     }
 
@@ -51,7 +201,8 @@ class ReleveController extends Controller
         ->where('periode_id', $periode_id)
         ->with([
             'uniteDeValeurs.evaluations' => function ($q) use ($groupe) {
-                $q->where('group_id', $groupe->group_id);
+                $q->where('group_id', $groupe->group_id)
+                  ->whereIn('type', ['Devoir', 'Examen']); // Filtrer seulement devoir et examen
             },
             'uniteDeValeurs.evaluations.notes' => function ($q) use ($etudiant_id) {
                 $q->where('etudiant_id', $etudiant_id);
@@ -71,36 +222,42 @@ class ReleveController extends Controller
         $ue_validee = true; // On suppose l'UE validée au départ
 
         foreach ($ue->uniteDeValeurs as $uv) {
-            $notes_by_type = ['Devoir' => 0, 'Examen' => 0, 'Interrogation' => 0, 'TP' => 0, 'Exposé' => 0];
-
+            // Initialiser seulement devoir et examen
+            $notes_by_type = ['Devoir' => 0, 'Examen' => 0];
+            
+            // Récupérer uniquement les notes de devoir et examen
             foreach ($uv->evaluations as $eval) {
-                $note = $eval->notes->first();
-                $notes_by_type[$eval->type->value] = $note ? $note->note : 0;
+                if (in_array($eval->type->value, ['Devoir', 'Examen'])) {
+                    $note = $eval->notes->first();
+                    $notes_by_type[$eval->type->value] = $note ? $note->note : 0;
+                }
             }
 
-            // Récupération des pondérations
+            // Récupération des pondérations (seulement devoir et examen)
             $w = UVWeighting::where('unite_valeur_id', $uv->id)
                 ->where('filiere_id', $ue->filiere_id)
                 ->first();
 
-            $wd = $w->devoir ?? 30;
-            $wi = $w->interrogation ?? 10;
+            $wd = $w->devoir ?? 40; // Augmenté pour compenser l'absence des autres notes
             $we = $w->examen ?? 60;
-            $wtp = $w->tp ?? 0;
-            $wexp = $w->expose ?? 0;
-
-            $sumW = $wd + $wi + $we + $wtp + $wexp;
-            if ($sumW === 0) {
-                $wd = 30; $wi = 10; $we = 60; $wtp = 0; $wexp = 0;
-                $sumW = 100;
+            
+            // Vérifier que la somme fait 100%
+            $sumW = $wd + $we;
+            if ($sumW !== 100) {
+                // Ajuster proportionnellement
+                if ($sumW > 0) {
+                    $wd = ($wd / $sumW) * 100;
+                    $we = ($we / $sumW) * 100;
+                } else {
+                    $wd = 40;
+                    $we = 60;
+                }
             }
 
+            // Calcul de la moyenne avec seulement devoir et examen
             $moyenne_uv = (
                 $notes_by_type['Devoir'] * ($wd / 100) +
-                $notes_by_type['Interrogation'] * ($wi / 100) +
-                $notes_by_type['Examen'] * ($we / 100) +
-                $notes_by_type['TP'] * ($wtp / 100) +
-                $notes_by_type['Exposé'] * ($wexp / 100)
+                $notes_by_type['Examen'] * ($we / 100)
             );
 
             // Si une UV < 5, UE non validée
@@ -108,14 +265,15 @@ class ReleveController extends Controller
                 $ue_validee = false;
             }
 
+            // Formatage des notes (mettre 0 si pas de note)
+            $note_devoir = isset($notes_by_type['Devoir']) ? number_format($notes_by_type['Devoir'], 2) : '0.00';
+            $note_examen = isset($notes_by_type['Examen']) ? number_format($notes_by_type['Examen'], 2) : '0.00';
+
             $releve_grouped[$ue->nom][] = [
                 'uv' => $uv->nom,
-                'devoir' => number_format($notes_by_type['Devoir'], 2),
-                'interrogation' => number_format($notes_by_type['Interrogation'], 2),
-                'examen' => number_format($notes_by_type['Examen'], 2),
-                'tp' => number_format($notes_by_type['TP'], 2),
-                'expose' => number_format($notes_by_type['Exposé'], 2),
-                'weights_label' => sprintf('%d/%d/%d/%d/%d', (int)$wd, (int)$wi, (int)$we, (int)$wtp, (int)$wexp),
+                'devoir' => $note_devoir,
+                'examen' => $note_examen,
+                'weights_label' => sprintf('Devoir: %d%% / Examen: %d%%', (int)$wd, (int)$we),
                 'moyenne_uv' => number_format($moyenne_uv, 2),
                 'validation' => $moyenne_uv >= 5 ? 'Validé' : 'Non validé',
                 'coefficient' => $uv->coefficient,
@@ -168,6 +326,7 @@ class ReleveController extends Controller
         'moyenne_generale' => $moyenne_generale,
         'total_credits_valides' => $total_credits_valides,
         'total_credits_non_valides' => $total_credits_non_valides,
+        'note' => 'Relevé simplifié avec seulement les notes de devoir et examen',
     ]);
 }
 

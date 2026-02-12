@@ -16,6 +16,7 @@ class MiniUserResource extends JsonResource
     {
         return [
             "id" => $this->resource->id,
+            "slug" => $this->resource->slug,
             "nom" => $this->nom,
             "prenom" => $this->prenom,
         ];

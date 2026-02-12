@@ -27,10 +27,15 @@ class Evaluation extends Model
     use GenerateUniqueSlugTrait, ModelsSlugKeyTrait;
 
     // Niveau relation added for filtering by level
-    public function niveau(): BelongsTo
-    {
-        return $this->belongsTo(Niveau::class);
-    }
+    // public function niveau(): BelongsTo
+    // {
+    //     return $this->belongsTo(Niveau::class);
+    // }
+
+    //   public function periode(): BelongsTo
+    // {
+    //     return $this->belongsTo(Periode::class);
+    // }
 
     public $timestamps = false;
 

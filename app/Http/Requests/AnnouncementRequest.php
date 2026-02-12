@@ -35,8 +35,9 @@ class AnnouncementRequest extends FormRequest
 	public function attributes(): array
 	{
 		return [
-			'advertiser' => 'L\'auteur de l\'annonceur',
-			'type' => 'Le type de l\'opportunité',
+			'advertiser_id' => 'L\'auteur de l\'annonceur',
+			'type_annonce' => 'Le type annonce l\'opportunité',
+			'type_contrat' => 'Le type de contrat de l\'opportunité',
 			'title' => 'Le titre de l\'opportunité',
 			'ville' => 'La ville',
 			'file_path' => 'Le document officiel de l\'opportunité',

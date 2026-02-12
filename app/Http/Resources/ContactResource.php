@@ -5,7 +5,7 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class RoleResource extends JsonResource
+class ContactResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
@@ -17,8 +17,12 @@ class RoleResource extends JsonResource
         return [
             "id" => $this->resource->id,
             "nom" => $this->resource->nom,
+            "email" => $this->resource->email,
+            "tel" => $this->resource->tel,
+            "message" => $this->resource->message,
             "slug" => $this->resource->slug,
-            "permissions" => PermissionResource::collection($this->resource->permissions),
+            "status" => $this->resource->status === 1 ? "Lu" : "Non lu",
+            "date_reception" => date_format(date_create($this->resource->created_at), 'd F Y'),
         ];
     }
 }

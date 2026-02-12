@@ -30,52 +30,58 @@ class UserController extends Controller
 	//  	$this->authorizeResource(User::class, 'user');
 	//  }
 
-	public function index(string $profil = 'tous-les-profils')
-	{
-
-		$data = [];
-		$users = User::query()->with('roles')->get();
-		if ($profil === 'tous-les-profils') {
-			$data = [
-				'title' => 'Page des membres de l\'administration',
-				'breadcrumbs' => ['Administration', 'Membres de l\'administration', 'Liste'],
-				'page_name' => 'Liste des membres de l\'administration'
-			];
-		}
-		if ($profil === 'enseignants') {
-			$users = User::enseignants()->get();
-			$data = [
-				'title' => 'Liste des enseignants',
-				'breadcrumbs' => ['Administration', ['text' => 'Personnel', 'url' => route('admin.users.index')], 'Enseignants', 'Liste'],
-				'page_name' => 'Liste des enseignants'
-			];
-		}
-		return view('admin.users.index')->with([
-			'users' => $users,
-			'meta' => $data,
-			'enseignants' => true
-		]);
-
-
-
-		// $query = User::query()->with('roles');
-
-		// if ($profil === 'enseignants') {
-		// 	$query->enseignants();
-		// }
-
-		// return UserResource::collection($query->get());
-	}
-
-	// public function index()
+	// public function index(string $profil = 'tous-les-profils')
 	// {
-	// 	$users = User::with('roles')->latest()->get()->reverse();
-	// 	return UserResource::collection($users);
+
+	// 	$data = [];
+	// 	$users = User::query()->with('roles')->get();
+	// 	if ($profil === 'tous-les-profils') {
+	// 		$data = [
+	// 			'title' => 'Page des membres de l\'administration',
+	// 			'breadcrumbs' => ['Administration', 'Membres de l\'administration', 'Liste'],
+	// 			'page_name' => 'Liste des membres de l\'administration'
+	// 		];
+	// 	}
+	// 	if ($profil === 'enseignants') {
+	// 		$users = User::enseignants()->get();
+	// 		$data = [
+	// 			'title' => 'Liste des enseignants',
+	// 			'breadcrumbs' => ['Administration', ['text' => 'Personnel', 'url' => route('admin.users.index')], 'Enseignants', 'Liste'],
+	// 			'page_name' => 'Liste des enseignants'
+	// 		];
+	// 	}
+	// 	return view('admin.users.index')->with([
+	// 		'users' => $users,
+	// 		'meta' => $data,
+	// 		'enseignants' => true
+	// 	]);
+
+
+
+	// 	// $query = User::query()->with('roles');
+
+	// 	// if ($profil === 'enseignants') {
+	// 	// 	$query->enseignants();
+	// 	// }
+
+	// 	// return UserResource::collection($query->get());
 	// }
+
+	public function index()
+	{
+		$users = User::with('roles')->latest()->get()->reverse();
+		return UserResource::collection($users);
+	}
 
 	public function getEnseignant()
 	{
 		$users = User::enseignants()->get();
+		return UserResource::collection($users);
+	}
+
+	public function getSurveillant()
+	{
+		$users = User::surveillants()->get();
 		return UserResource::collection($users);
 	}
 	public function create(): View
@@ -110,16 +116,18 @@ class UserController extends Controller
 
 		Mail::to($user)->send(new AdminWelcomeMail($user, $clearPassword));
 
-		// return new UserResource($user);
+		return new UserResource($user);
 
-		return redirect()->route('admin.users.index')->with(successMsg('Utilisateur créé avec succès'));
+		// return redirect()->route('admin.users.index')->with(successMsg('Utilisateur créé avec succès'));
 	}
 
-	public function edit(User $user): View
+	public function edit(User $user)
 	{
-		return view('admin.users.edit', compact('user'))->with([
-			'roles' => Role::all()
-		]);
+
+	return new UserResource($user->load('roles'));
+		// return view('admin.users.edit', compact('user'))->with([
+		// 	'roles' => Role::all()
+		// ]);
 	}
 
 	public function update(Request $request, User $user)
@@ -160,8 +168,8 @@ class UserController extends Controller
 			//			return back()->with(successMsg('Profil modifié avec succès'));
 		}
 
-		// return new UserResource($user);
-		return to_route('admin.users.index')->with(successMsg('Profil modifié avec succès'));
+		return new UserResource($user);
+		// return to_route('admin.users.index')->with(successMsg('Profil modifié avec succès'));
 	}
 
 	public function loadEmploiDuTemps(User $user): AnonymousResourceCollection
@@ -206,28 +214,28 @@ class UserController extends Controller
 		// ]);
 	}
 
-	public function destroy(Request $request)
-	{
-		$userId = (int) $request->userId;
-		$user = User::query()->find($userId);
-		if (!$user)
-			return back()->with(cannotDeleteItemMessage('La suppression n\'a pas pu se faire du faire de l\'inexistence en base de donnée de l\'élément choisi'));
-
-
-		$user->delete();
-		// return new UserResource($user);
-		return to_route('admin.users.index')->with(successMsg('Élément supprimé avec succès'));
-	}
-
-
-	// public function destroy(User $user)
+	// public function destroy(Request $request)
 	// {
-	// 	$user->roles()->delete();
-	// 	$user->delete();
+	// 	$userId = (int) $request->userId;
+	// 	$user = User::query()->find($userId);
+	// 	if (!$user)
+	// 		return back()->with(cannotDeleteItemMessage('La suppression n\'a pas pu se faire du faire de l\'inexistence en base de donnée de l\'élément choisi'));
 
-	// 	return new UserResource($user);
-	// 	// return to_route('admin.users.index')->with(successMsg('Élément supprimé avec succès'));
+
+	// 	$user->delete();
+	// 	// return new UserResource($user);
+	// 	return to_route('admin.users.index')->with(successMsg('Élément supprimé avec succès'));
 	// }
+
+
+	public function destroy(User $user)
+	{
+		$user->roles()->detach();
+		$user->delete();
+
+		return new UserResource($user);
+		// return to_route('admin.users.index')->with(successMsg('Élément supprimé avec succès'));
+	}
 
 
 	/**

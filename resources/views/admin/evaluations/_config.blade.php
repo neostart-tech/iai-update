@@ -31,7 +31,6 @@
               @endforeach
             </select>
           </div>
-
           <button class="btn btn-primary" type="submit">Enrégistrer</button>
         </form>
       </div>

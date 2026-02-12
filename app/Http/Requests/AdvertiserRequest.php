@@ -7,16 +7,17 @@ use Illuminate\Validation\Rule;
 
 class AdvertiserRequest extends FormRequest
 {
-	public function authorize(): bool
-	{
-		return true;
-	}
+	// public function authorize(): bool
+	// {
+	// 	return true;
+	// }
 
 	public function rules(): array
 	{
 		return [
 			'nom' => ['required'],
-			'email' => ['required', 'email', Rule::unique('advertisers')->ignore($this->route()->parameter('advertiser'))],
+			// 'email' => ['required', 'email', Rule::unique('advertisers')->ignore($this->route()->parameter('advertiser'))],
+			'email' => ['required', 'email'],
 			'ville' => ['required', 'string'],
 			'site' => ['nullable', 'url'],
 			'details' => ['required', 'string']

@@ -13,10 +13,10 @@ class RoleController extends Controller
 {
 	public function index()
 	{
-		// return RoleResource::collection(Role::with(['permissions'])->get());
-		return view('admin.roles.index')->with([
-			'roles' => Role::with(['permissions'])->get()
-		]);
+		return RoleResource::collection(Role::with(['permissions'])->get());
+		// return view('admin.roles.index')->with([
+		// 	'roles' => Role::with(['permissions'])->get()
+		// ]);
 	 }
 
 	public function create(): View

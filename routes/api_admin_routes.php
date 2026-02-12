@@ -12,6 +12,7 @@ use App\Http\Controllers\{
 	GroupController,
 	ConfigurationController,
 	NiveauController,
+	NotificationController,
 	ReleveController,
 };
 use App\Http\Controllers\Admin\{
@@ -98,6 +99,7 @@ Route::middleware('auth:sanctum')->group(function () {
 	// Gestion des Salles par l'administration
 	Route::controller(SalleController::class)->prefix('salles')->name('salles.')->group(function () {
 		Route::get('liste', 'index')->name('index');
+		Route::get("{salle}/show", 'show');
 		Route::post('ajouter-une-salle', 'store')->name('store');
 		Route::get('{salle}/emploi-du-temps', 'displayCalendar')->name('display-calendar');
 		Route::get('{salle}/load-edt', 'loadCalendar')->name('load-calendar');
@@ -108,8 +110,8 @@ Route::middleware('auth:sanctum')->group(function () {
 		Route::post('store', 'store')->name('store');
 		Route::put('update-dates', 'updateDates')->name('update-dates');
 		Route::put('update', 'update')->name('update');
-		Route::get('check-availability', 'checkAvailability')->name('check-availability');
-		Route::delete('', 'destroy')->name('delete');
+		Route::post('check-availability', 'checkAvailability')->name('check-availability');
+		Route::delete('{slug}/delete', 'destroy')->name('delete');
 	});
 
 	// Gestion des Rôles par l'administration
@@ -130,15 +132,15 @@ Route::middleware('auth:sanctum')->group(function () {
 		Route::post('create', 'store')->name('store');
 		Route::get('{user}/edit', 'edit')->name('edit');
 		Route::put('{user}/update', 'update')->name('update');
-		Route::delete('delete', 'destroy')->name('delete');
+		Route::delete('{user}/delete', 'destroy')->name('delete');
 		Route::get('{user}/load-edt', 'loadEmploiDuTemps')->name('load-edt'); // charge les edt de l'utilisateur
 		Route::get('{user}/emploi-du-temps', 'ShowEmploiDuTemps')->name('show-edt'); // charge les edt de l'utilisateur
 		Route::post('{user}/add-edt', 'storeEmploiDuTemps')->name('store-edt'); // charge les edt de l'utilisateur
 		Route::get('teachers/hours-summary', 'hoursSummary')->name('teachers.hours-summary'); // récapitulatif heures enseignants
 		Route::get('/liste-des-enseignants', 'getEnseignant');
+		Route::get('/liste-des-suveillants', 'getSurveillant');
 		Route::put('/update-edt', 'updateEmploiDuTemps')->name('update-edt'); // charge les edt de l'utilisateur
-		Route::post('/import','importUsers');
-
+		Route::post('/import', 'importUsers');
 	});
 
 	// Routes pour la gestion des surveillants
@@ -316,8 +318,8 @@ Route::middleware('auth:sanctum')->group(function () {
 		Route::post('ajouter', 'store')->name('store');
 		Route::get('{advertiser}/modifier', 'edit')->name('edit');
 		Route::get('{advertiser}/modifier', 'edit')->name('edit');
-		Route::put('{advertiser}/supprimer', 'update')->name('update');
-		Route::delete('delete', 'destroy')->name('delete');
+		Route::put('{advertiser}/update', 'update')->name('update');
+		Route::delete('{advertiser}/delete', 'destroy')->name('delete');
 	});
 
 
@@ -325,12 +327,12 @@ Route::middleware('auth:sanctum')->group(function () {
 		Route::get('liste', 'index')->name('index');
 		Route::get('ajouter', 'create')->name('create');
 		Route::get('{announcement}/details', 'show')->name('show');
-		Route::delete('supprimer', 'destroy')->name('delete');
+		Route::delete('{announcement}/supprimer', 'destroy')->name('delete');
 		Route::post('ajouter', 'store')->name('store');
 		Route::get('{announcement}/modifier', 'edit')->name('edit');
 		Route::get('{announcement}/modifier', 'edit')->name('edit');
 		Route::get('{announcement}/publier', 'publish')->name('publish');
-		Route::put('{announcement}/mettre-a-jour', 'update')->name('update');
+		Route::post('{announcement}/mettre-a-jour', 'update')->name('update');
 		Route::get('{announcement}/postulants', 'etudiants')->name('etudiants');
 		//	Route::delete('retirer', 'delete')->name('delete');
 	});
@@ -370,6 +372,7 @@ Route::middleware('auth:sanctum')->group(function () {
 		Route::get('', 'index')->name('index');
 		Route::get('{contact}', 'show')->name('show');
 		Route::get('{contact}/lire', 'read')->name('read');
+			Route::get('count-unread-message', 'countEnreadMessage')->name('count-unread-message');
 		Route::delete('{contact}', 'destroy')->name('delete');
 	});
 
@@ -438,5 +441,15 @@ Route::middleware('auth:sanctum')->group(function () {
 				'liste_des_etudiants_' . $anneActive . '.xlsx'
 			);
 		})->name('export');
+	});
+
+	Route::controller(NotificationController::class)->group(function () {
+		Route::get('/notifications', 'index');
+		Route::get('/notifications/unread', 'unread');
+
+		Route::patch('/notifications/{id}/read', 'markAsRead');
+		Route::patch('/notifications/read-all', 'markAllAsRead');
+
+		Route::delete('/notifications/{id}', 'destroy');
 	});
 });

@@ -21,7 +21,7 @@ class FicheDePresenceController extends Controller
 		]);
 	}
 
-	public function store(FicheDePresenceRequest $request): RedirectResponse
+	public function store(FicheDePresenceRequest $request)
 	{
 		$fiche = FicheDePresence::create([
 			...$request->only(['controllable_type', 'controllable_id']),
@@ -33,28 +33,59 @@ class FicheDePresenceController extends Controller
 		/**
 		 * @var User $surveillant1
 		 */
-		$surveillant1 = User::query()->find($request->get('surveillant_1_id'));
+		$surveillant1 = User::find($request->surveillant_1_id);
+		if (!$surveillant1) {
+			return response()->json([
+				'message' => 'Surveillant introuvable'
+			], 422);
+		}
+
 		$this->notifySurveillants($fiche, $surveillant1, User::query()->find($request->get('surveillant_2_id')));
 
-		successMsg('Fiche de présence configurée avec succès');
-		return back();
+		// successMsg('Fiche de présence configurée avec succès');
+		// return back();
+		return response()->json(["message" => "Fiche configurée avec succes"], 201);
 	}
 
-	public function update(FicheDePresenceRequest $request, FicheDePresence $fiche): RedirectResponse
+	public function update(FicheDePresenceRequest $request, FicheDePresence $fiche)
 	{
 		$this->notifyNewSurveillants($request, $fiche);
 
-		$fiche->surveillants()->syncWithPivotValues($request->only(['surveillant_1_id', 'surveillant_2_id']), injectAnneeScolaireId());
+		$currentIds = $fiche->surveillants()
+			->pluck('users.id')
+			->values();
 
-		$fiche->update([
-			...$request->only(['controllable_type', 'controllable_id']),
-		]);
+		$finalIds = collect($currentIds);
 
-		successMsg('Fiche de présence mise à jour avec succès');
-		return back();
+		if ($request->surveillant_1_id) {
+			$finalIds[0] = $request->surveillant_1_id;
+		}
+
+		if ($request->has('surveillant_2_id')) {
+			if ($request->surveillant_2_id) {
+				$finalIds[1] = $request->surveillant_2_id;
+			} else {
+				$finalIds->forget(1);
+			}
+		}
+
+		$fiche->surveillants()->syncWithPivotValues(
+			$finalIds->filter()->unique()->toArray(),
+			injectAnneeScolaireId()
+		);
+
+		$fiche->update(
+			$request->only(['controllable_type', 'controllable_id'])
+		);
+
+		return response()->json([
+			"message" => "Fiche mise à jour avec succès"
+		], 200);
 	}
 
-	public function make(FicheDePresence $fiche): View
+
+
+	public function make(FicheDePresence $fiche)
 	{
 		// S'assurer que seule la personne autorisée à effectuer cette action accède à la page
 		if (!$fiche->surveillants->pluck('id')->contains(request()->user()->id)) {
@@ -65,23 +96,27 @@ class FicheDePresenceController extends Controller
 		$etudiants = $controllable->group->etudiants;
 		$type = $controllable::class === Evaluation::class ? 'une évaluation' : 'un cours';
 
-		return view('admin.fiches.make', compact('fiche', 'etudiants'))->with([
-			'breadCrumbs' => ['Administration', 'Contrôle', 'Présence à ' . $type]
-		]);
+
+		// return view('admin.fiches.make', compact('fiche', 'etudiants'))->with([
+		// 	'breadCrumbs' => ['Administration', 'Contrôle', 'Présence à ' . $type]
+		// ]);
+		return response()->json(["message" => "Fiche configurée avec succes", 'fiche' => $fiche, 'etudiants' => $etudiants], 201);
 	}
 
-	public function submit(Request $request, FicheDePresence $fiche): RedirectResponse
+	public function submit(Request $request, FicheDePresence $fiche)
 	{
 		if ($fiche->getAttribute('submitted')) {
-			warningMsg("Cette fiche de présence a déjà été soumise");
-			return back();
+			// warningMsg("Cette fiche de présence a déjà été soumise");
+			// return back();
+			return response()->json(["message" => "Cette fiche de présence a déjà été soumise"], 404);
 		}
 
 		FicheDePresenceSubmittingJob::dispatchAfterResponse($fiche, $request->collect('etudiants'));
 
 		$fiche->update(['submitted' => true]);
-		successMsg('Fiche de présence soumise avec succès');
-		return back();
+		// successMsg('Fiche de présence soumise avec succès');
+		// return back();
+		return response()->json(["message" => "Fiche configurée avec succes"], 201);
 	}
 
 	public function show(FicheDePresence $fiche): View
@@ -95,8 +130,8 @@ class FicheDePresenceController extends Controller
 		$surveillant1->notify(
 			new EnseignantEvaluationProgrammationNotification(
 				$surveillant1->greeting() .
-				" Vous êtes programmé pour la surveillance durant l'évaluation suivante: "
-				. $fiche->controllable->getDataAsString()
+					" Vous êtes programmé pour la surveillance durant l'évaluation suivante: "
+					. $fiche->controllable->getDataAsString()
 			)
 		);
 
@@ -105,8 +140,8 @@ class FicheDePresenceController extends Controller
 			$surveillant2->notify(
 				new EnseignantEvaluationProgrammationNotification(
 					$surveillant2->greeting() .
-					" Vous êtes programmé pour la surveillance durant l'évaluation suivante: "
-					. $fiche->controllable->getDataAsString()
+						" Vous êtes programmé pour la surveillance durant l'évaluation suivante: "
+						. $fiche->controllable->getDataAsString()
 				)
 			);
 		}
@@ -114,81 +149,44 @@ class FicheDePresenceController extends Controller
 
 	private function notifyNewSurveillants(FicheDePresenceRequest $request, FicheDePresence $fiche)
 	{
-		// 1- Notification de déprogrammation
-		// Cette méthode permettra de notifier un surveillant s'il est déprogrammé et de notifier le nouveau qui est mis à sa place
-		// Test sur le premier surveillant
+		$old = $fiche->surveillants->values();
+		$old1 = $old->get(0);
+		$old2 = $old->get(1);
 
-		//Todo: Changer l'accès aux surveillants
+		$new1Id = $request->surveillant_1_id;
+		$new2Id = $request->surveillant_2_id;
 
-		$old_surveillant_1 = $fiche->surveillants->first();
-		$old_surveillant_1_id = $old_surveillant_1;
-		$old_surveillant_2_id = null;
-		$new_surveillant_1_id = $request->get('surveillant_1_id');
-		$new_surveillant_2_id = $request->get('surveillant_2_id');
-
-		if (
-			$fiche->getAttribute('surveillant_1_id') !== $request->get('surveillant_1_id') &&
-			$fiche->getAttribute('surveillant_1_id') !== $request->get('surveillant_2_id')
-		) {
-			$old_surveillant_1->notify(new EnseignantEvaluationDeProgrammationNotification(
-				$old_surveillant_1->greeting() .
-				". Vous êtes déprogrammé pour la surveillance durant l'évaluation suivante: " .
-				$fiche->controllable->getDataAsString()
-			));
+		foreach ([$old1, $old2] as $oldUser) {
+			if ($oldUser && !in_array($oldUser->id, array_filter([$new1Id, $new2Id]))) {
+				$oldUser->notify(
+					new EnseignantEvaluationDeProgrammationNotification(
+						$oldUser->greeting() .
+							" Vous êtes déprogrammé pour : " .
+							$fiche->controllable->getDataAsString()
+					)
+				);
+			}
 		}
 
-		// Cette première condition est importante parce que les seconds surveillants sont optionnels
-		if (
-			($fiche->getAttribute('surveillant_2_id') && $request->get('surveillant_2_id')) &&
-			(
-				$fiche->getAttribute('surveillant_2_id') !== $request->get('surveillant_1_id') &&
-				$fiche->getAttribute('surveillant_2_id') !== $request->get('surveillant_2_id')
-			)
-		) {
-			$old_surveillant_2 = $fiche->surveillants->last();
-			$old_surveillant_2_id = $old_surveillant_2->getAttribute('id');
-			$old_surveillant_2->notify(new EnseignantEvaluationDeProgrammationNotification(
-				$old_surveillant_2->greeting() .
-				". Vous êtes déprogrammé pour la surveillance durant l'évaluation suivante: " .
-				$fiche->controllable->getDataAsString()
-			));
+		foreach (array_filter([$new1Id, $new2Id]) as $newId) {
+			if (!$old->pluck('id')->contains($newId)) {
+				$user = User::find($newId);
+				if ($user) {
+					$user->notify(
+						new EnseignantEvaluationProgrammationNotification(
+							$user->greeting() .
+								" Vous êtes programmé pour : " .
+								$fiche->controllable->getDataAsString()
+						)
+					);
+				}
+			}
 		}
 
-		// 2- Notification de programmation
-		if (
-			$fiche->getAttribute('surveillant_1_id') !== $request->get('surveillant_1_id') &&
-			$fiche->getAttribute('surveillant_2_id') !== $request->get('surveillant_1_id')
-		) {
-			/**
-			 * @var User $new_surveillant1
-			 */
-			$new_surveillant1 = User::query()->find($request->get('surveillant_1_id'));
-			$new_surveillant_1_id = (int)$new_surveillant1->getAttribute('id');
-			$new_surveillant1->notify(new EnseignantEvaluationProgrammationNotification(
-				$new_surveillant1->greeting() .
-				" Vous êtes programmé pour la surveillance durant l'évaluation suivante: "
-				. $fiche->controllable->getDataAsString()
-			));
-		}
-
-		if (
-			$request->get('surveillant_2_id') &&
-			(
-				$fiche->getAttribute('surveillant_1_id') !== $request->get('surveillant_2_id') &&
-				$fiche->getAttribute('surveillant_2_id') !== $request->get('surveillant_2_id')
-			)) {
-			/**
-			 * @var User $new_surveillant2
-			 */
-			$new_surveillant2 = User::query()->find($request->get('surveillant_2_id'));
-			$new_surveillant2->notify(new EnseignantEvaluationProgrammationNotification(
-				$new_surveillant2->greeting() .
-				" Vous êtes programmé pour la surveillance durant l'évaluation suivante: "
-				. $fiche->controllable->getDataAsString()
-			));
-		}
-		$this->updateSurveillant($fiche, $old_surveillant_1_id, $new_surveillant_1_id, $old_surveillant_2_id, $new_surveillant_2_id);
+		$this->updateSurveillant($fiche, $old1, $new1Id, $old2, $new2Id);
 	}
+
+
 
 	private function addToEmploiDuTemps(FicheDePresence $fiche, int $surveillant_id)
 	{
@@ -209,60 +207,45 @@ class FicheDePresenceController extends Controller
 		];
 
 		EmploiDuTemp::create([
-			... $data,
+			...$data,
 			'owner_id' => $surveillant_id,
 			'owner_type' => User::class
 		]);
 	}
 
-	private function updateSurveillant(FicheDePresence $fiche, User $old_surveillant_1, int $new_surveillant_1_id, User $old_surveillant_2 = null, int $new_surveillant_2_id = null)
+	private function updateSurveillant(FicheDePresence $fiche, ?User $old1, int $new1Id, ?User $old2 = null, ?int $new2Id = null)
 	{
-		/**
-		 * @var Evaluation $ev
-		 */
 		$ev = $fiche->controllable;
-		// dump('ici');
-		// Remplacement du premier surveillant par un autre
-		$old_surveillant_1->emploiDuTemps()
-			->where('type_programme', TypeProgrammeEnum::EVALUATION)
-			->where('debut', $ev->getAttribute('debut'))
-			->where('fin', $ev->getAttribute('fin'))
-			->where('salle_id', $ev->getAttribute('salle_id'))
-			->update(['owner_id' => $new_surveillant_1_id]);
 
-		// Si on tient vraiment à remplacer le second surveillant
-		if ($old_surveillant_2 && $new_surveillant_2_id) {
-			$old_surveillant_2->emploiDuTemps()
-				->firstWhere('type_programme', TypeProgrammeEnum::EVALUATION)
-				->where('debut', $ev->getAttribute('debut'))
-				->where('fin', $ev->getAttribute('fin'))
-				->where('salle_id', $ev->getAttribute('salle_id'))
-				->update(['owner_id' => $new_surveillant_2_id]);
+		if ($old1) {
+			$old1->emploiDuTemps()
+				->where('type_programme', TypeProgrammeEnum::EVALUATION)
+				->where('debut', $ev->debut)
+				->where('fin', $ev->fin)
+				->where('salle_id', $ev->salle_id)
+				->update(['owner_id' => $new1Id]);
 		}
 
-		// S'il n'y avait pas de second surveillant choisi, alors on programme qui aura été choisi
-		if (!$old_surveillant_2 && $new_surveillant_2_id) {
-			/**
-			 * @var User $new_surveillant_2
-			 */
-			$new_surveillant_2 = User::query()->find($new_surveillant_2_id);
-			if ($new_surveillant_2) {
-				$this->addToEmploiDuTemps($fiche, $new_surveillant_2_id);
-			}
+		if ($old2 && $new2Id) {
+			$old2->emploiDuTemps()
+				->where('type_programme', TypeProgrammeEnum::EVALUATION)
+				->where('debut', $ev->debut)
+				->where('fin', $ev->fin)
+				->where('salle_id', $ev->salle_id)
+				->update(['owner_id' => $new2Id]);
 		}
-		// Si on ne choisit pas de second surveillant, on déprogramme quand-même l'ancien
-		if ($old_surveillant_2 && !$new_surveillant_2_id) {
-			$old_surveillant_2->emploiDuTemps()
-				->firstWhere('type_programme', TypeProgrammeEnum::EVALUATION)
-				->where('debut', $ev->getAttribute('debut'))
-				->where('fin', $ev->getAttribute('fin'))
-				->where('salle_id', $ev->getAttribute('salle_id'))
+
+		if (!$old2 && $new2Id) {
+			$this->addToEmploiDuTemps($fiche, $new2Id);
+		}
+
+		if ($old2 && !$new2Id && request()->has('surveillant_2_id')) {
+			$old2->emploiDuTemps()
+				->where('type_programme', TypeProgrammeEnum::EVALUATION)
+				->where('debut', $ev->debut)
+				->where('fin', $ev->fin)
+				->where('salle_id', $ev->salle_id)
 				->delete();
 		}
-
-		/*
-			La condition ($old_surveillant_2 && !$new_surveillant_2_id) implique qu'on ne veut
-			pas changer le second surveillant donc, aucune action n'est nécessaire
-		*/
 	}
 }

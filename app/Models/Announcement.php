@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @property Collection<array-key, Etudiant> $etudiants
@@ -29,17 +30,11 @@ class Announcement extends Model
 		return true;
 	}
 
-	protected $fillable = [
-		'advertiser_id',
-		'content',
-		'type',
-		'ville',
-		'title',
-		'file_path',
-		'status',
-		'annee_scolaire_id',
-		'duration'
-	];
+	protected $guarded = false;
+
+	public function cheminFichier(){
+		return asset($this->file_path) ? Storage::url($this->file_path) : null;
+	}
 
 	protected $casts = [
 		'type_annonce' => TypeAnnonceEnum::class,

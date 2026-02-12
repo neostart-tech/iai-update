@@ -21,6 +21,7 @@ class GroupeResource extends JsonResource
             "niveau" => new NiveauResource($this->resource->niveau) ?? null,
             "filieres" => FiliereResource::collection($this->resource->filieres) ?? null,
             "inscrits"=>$this->resource->etudiants_count,
+            
         ];
     }
 }

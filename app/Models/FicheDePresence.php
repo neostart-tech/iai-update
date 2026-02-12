@@ -52,4 +52,9 @@ class FicheDePresence extends Model
 	{
 		return $this->belongsToMany(Etudiant::class)->using(FicheDePresenceUser::class);
 	}
+
+	public function anneeScolaire()
+	{
+		return $this->belongsToMany(AnneeScolaire::class);
+	}
 }

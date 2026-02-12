@@ -35,7 +35,8 @@ class EmploiDuTempsResource extends JsonResource
                 'uv' => $this->resource->uv?->nom,
                 'uv_id' => $this->resource->uv?->slug,
                 'salle' => $this->resource->salle?->nom,
-                'salle_id' => $this->resource->salle?->slug,
+                'salle_slug' => $this->resource->salle?->slug,
+                 'salle_id' => $this->resource->salle?->id,
 
                 // owner null => safe navigation
                 'teacher' => null,
@@ -71,14 +72,16 @@ class EmploiDuTempsResource extends JsonResource
             'uv' => $this->resource->uv?->nom,
             'uv_id' => $this->resource->uv?->slug,
             'salle' => $this->resource->salle?->nom,
-            'salle_id' => $this->resource->salle?->slug,
+            'salle_slug' => $this->resource->salle?->slug,
+                 'salle_id' => $this->resource->salle?->id,
 
             'teacher' => $this->resource->owner?->nom,
             'teacher_id' => $this->resource->owner?->slug,
 
 
             'group' => $this->getGroupFullName($group),
-            'group_id' => $group?->slug,
+            'group_id' => $group?->id,
+             'group_slug' => $group?->slug,
             'color' => $this->getColor(),
             'title' => $this->getTitle(),
             'plageHoraire' => $this->getPlageHoraire(),

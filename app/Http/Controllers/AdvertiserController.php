@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\TypeAnnonceEnum;
 use App\Http\Requests\AdvertiserRequest;
+use App\Http\Resources\AdvertiserResource;
 use App\Models\Advertiser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -11,11 +12,12 @@ use Illuminate\View\View;
 
 class AdvertiserController extends Controller
 {
-	public function index(): View
+	public function index()
 	{
-		return view('advertisers.index')->with([
-			'advertisers' => Advertiser::all()
-		]);
+		return AdvertiserResource::collection(Advertiser::all());
+		// return view('advertisers.index')->with([
+		// 	'advertisers' => Advertiser::all()
+		// ]);
 	}
 
 	public function create(): View
@@ -26,16 +28,18 @@ class AdvertiserController extends Controller
 		]);
 	}
 
-	public function store(AdvertiserRequest $request): RedirectResponse
+	public function store(AdvertiserRequest $request)
 	{
-		Advertiser::query()->create($request->validated());
-		successMsg('Partenaire ajouté avec succès');
-		return to_route('admin.advertisers.index');
+		$ad = Advertiser::query()->create($request->validated());
+		return new AdvertiserResource($ad);
+		// successMsg('Partenaire ajouté avec succès');
+		// return to_route('admin.advertisers.index');
 	}
 
-	public function show(Advertiser $advertiser): View
+	public function show(Advertiser $advertiser)
 	{
-		return view('advertisers.show', compact('advertiser'));
+		return new AdvertiserResource($advertiser);
+		// return view('advertisers.show', compact('advertiser'));
 	}
 
 	public function edit(Advertiser $advertiser): View
@@ -45,18 +49,30 @@ class AdvertiserController extends Controller
 		]);
 	}
 
-	public function update(AdvertiserRequest $request, Advertiser $advertiser): RedirectResponse
+	public function update(AdvertiserRequest $request, Advertiser $advertiser)
 	{
 		$advertiser->update($request->validated());
-		successMsg('Partenaire ajouté avec succès');
-		return to_route('admin.advertisers.index');
+		return new AdvertiserResource($advertiser);
+		// successMsg('Partenaire ajouté avec succès');
+		// return to_route('admin.advertisers.index');
 	}
 
-	public function destroy(Request $request): RedirectResponse
+	// public function destroy(Request $request): RedirectResponse
+	// {
+	// 	$partenaireId = (int) $request->partenaireId;
+	// 	Advertiser::query()->find($partenaireId)->delete();
+	// 	successMsg('Partenaire supprimé avec succès');
+	// 	return to_route('admin.advertisers.index');
+	// }
+
+	public function destroy(Advertiser $advertiser)
 	{
-		$partenaireId= (int) $request->partenaireId;
-		Advertiser::query()->find($partenaireId)->delete();
-		successMsg('Partenaire supprimé avec succès');
-		return to_route('admin.advertisers.index');
+		if (!$advertiser) {
+			return __404('Partenaire non trouvé');
+		}
+		$advertiser->delete();
+		// successMsg('Partenaire supprimé avec succès');
+		// return to_route('admin.advertisers.index');
+		return new AdvertiserResource($advertiser);
 	}
 }

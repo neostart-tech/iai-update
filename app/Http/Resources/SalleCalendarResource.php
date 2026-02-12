@@ -23,7 +23,7 @@ class SalleCalendarResource extends JsonResource
             'nom' => $this->nom,
             'uvs' => UniteValeur::all(),
             'types' => TypeProgrammeEnum::cases(),
-            'groups' => Group::with('filiere:id,code,slug')->orderBy('nom')->get(),
+            'groups' => Group::with('niveau')->orderBy('id')->get(),
             'teachers' => User::enseignants()->get(),
         ];
     }

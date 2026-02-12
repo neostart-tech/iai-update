@@ -5,7 +5,7 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class RoleResource extends JsonResource
+class NotificationResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
@@ -14,11 +14,6 @@ class RoleResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        return [
-            "id" => $this->resource->id,
-            "nom" => $this->resource->nom,
-            "slug" => $this->resource->slug,
-            "permissions" => PermissionResource::collection($this->resource->permissions),
-        ];
+        return parent::toArray($request);
     }
 }

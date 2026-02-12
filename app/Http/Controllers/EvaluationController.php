@@ -57,48 +57,44 @@ class EvaluationController extends Controller
 
         //             return $evaluation;
         //         }));
-        return view('admin.evaluations.index')->with([
-            'evaluations' => Evaluation::query()
-                ->with([
-                    'salle:id,nom',
-                    'group:id,nom',
-                    'group.niveau',
-                    'matiere:id,nom,code',
-                    'fiche.surveillants',
-                ])
-                ->orderByDesc('debut')
-                ->get()
-                ->map(function (Evaluation $evaluation) {
-                    $evaluation->setAttribute('dateFormatted', $evaluation->getAttribute('debut')->translatedFormat('d F Y'));
-                    $evaluation->setAttribute('debutFormatted', $evaluation->getAttribute('debut')->translatedFormat('H:i'));
-                    $evaluation->setAttribute('finFormatted', $evaluation->getAttribute('fin')->translatedFormat('H:i'));
+        // return view('admin.evaluations.index')->with([
+        //     'evaluations' => Evaluation::query()
+        //         ->with([
+        //             'salle:id,nom',
+        //             'group:id,nom',
+        //             'group.niveau',
+        //             'matiere:id,nom,code',
+        //             'fiche.surveillants',
+        //         ])
+        //         ->orderByDesc('debut')
+        //         ->get()
+        //         ->map(function (Evaluation $evaluation) {
+        //             $evaluation->setAttribute('dateFormatted', $evaluation->getAttribute('debut')->translatedFormat('d F Y'));
+        //             $evaluation->setAttribute('debutFormatted', $evaluation->getAttribute('debut')->translatedFormat('H:i'));
+        //             $evaluation->setAttribute('finFormatted', $evaluation->getAttribute('fin')->translatedFormat('H:i'));
 
-                    return $evaluation;
-                }),
-            'enseignants' => User::all(),
-        ]);
-        // $evaluations = Evaluation::query()
-        //     ->with([
-        //         'salle:id,nom',
-        //         'group:id,nom',
-        //         'group.niveau',
-        //         'matiere:id,nom,code',
-        //         'fiche.surveillants',
-        //     ])
-        //     ->orderByDesc('debut')
-        //     ->get()
-        //     ->map(function (Evaluation $evaluation) {
-        //         $evaluation->setAttribute('dateFormatted', $evaluation->getAttribute('debut')->translatedFormat('d F Y'));
-        //         $evaluation->setAttribute('debutFormatted', $evaluation->getAttribute('debut')->translatedFormat('H:i'));
-        //         $evaluation->setAttribute('finFormatted', $evaluation->getAttribute('fin')->translatedFormat('H:i'));
-
-        //         return $evaluation;
-        //     });
-
-        // return response()->json([
-        //     'evaluations' => EvaluationResource::collection($evaluations),
-        //     'enseignants' => UserResource::collection(User::all()),
+        //             return $evaluation;
+        //         }),
+        //     'enseignants' => User::all(),
         // ]);
+        $evaluations = Evaluation::query()
+            ->with([
+                'salle:id,nom',
+                'group:id,nom',
+                'group.niveau',
+                'matiere:id,nom,code',
+                'fiche.surveillants',
+            ])
+            ->orderByDesc('debut')
+            ->get()
+            ->map(function (Evaluation $evaluation) {
+                $evaluation->setAttribute('dateFormatted', $evaluation->getAttribute('debut')->translatedFormat('d F Y'));
+                $evaluation->setAttribute('debutFormatted', $evaluation->getAttribute('debut')->translatedFormat('H:i'));
+                $evaluation->setAttribute('finFormatted', $evaluation->getAttribute('fin')->translatedFormat('H:i'));
+
+                return $evaluation;
+            });
+        return EvaluationResource::collection($evaluations);
     }
 
     public function create()
@@ -119,7 +115,7 @@ class EvaluationController extends Controller
                 'debut' => '12:00',
                 'fin' => '14:00',
                 'correction_end_date' => now()->addWeeks(2),
-                
+
             ]),
             'groups' => Group::with('niveau')->get(),
             'salles' => Salle::all(),
@@ -139,6 +135,7 @@ class EvaluationController extends Controller
                 'salle_id',
                 'niveau_id',
                 'semestre',
+                'is_online',
                 'date',
                 'debut',
                 'fin',
@@ -153,8 +150,8 @@ class EvaluationController extends Controller
             NotifyStudentsAboutEvaluation::dispatch($evaluation);
         }
 
-        // return new EvaluationResource($evaluation);
-        return to_route('admin.evaluations.index')->with(successMsg('Évaluation enregistrée avec succès'));
+        return new EvaluationResource($evaluation);
+        // return to_route('admin.evaluations.index')->with(successMsg('Évaluation enregistrée avec succès'));
     }
 
     public function show(Evaluation $evaluation): View
@@ -166,21 +163,24 @@ class EvaluationController extends Controller
         ]);
     }
 
-    public function edit(Evaluation $evaluation): View|RedirectResponse
+    public function edit(Evaluation $evaluation)
     {
         if ($evaluation->getAttribute('published') or $evaluation->getAttribute('debut')->isBefore(now())) {
-            warningMsg("L'évènement ne peut plus être modifier");
+            // warningMsg("L'évènement ne peut plus être modifier");
 
-            return back();
+            // return back();
+            return __404("L'évaluation ne peut plus être modifiée.");
         }
 
-        return view('admin.evaluations.edit', compact('evaluation'))->with([
-            'groups' => Group::all(),
-            'salles' => Salle::all(),
-            'types' => TypeEvaluationEnum::cases(),
-            'niveaux' => \App\Models\Niveau::all(),
-            'enseignants' => User::all(),
-        ]);
+        return new EvaluationResource($evaluation);
+
+        // return view('admin.evaluations.edit', compact('evaluation'))->with([
+        //     'groups' => Group::all(),
+        //     'salles' => Salle::all(),
+        //     'types' => TypeEvaluationEnum::cases(),
+        //     'niveaux' => \App\Models\Niveau::all(),
+        //     'enseignants' => User::all(),
+        // ]);
     }
 
     public function update(EvaluationRequest $request, Evaluation $evaluation)
@@ -194,6 +194,7 @@ class EvaluationController extends Controller
                 'salle_id',
                 'niveau_id',
                 'semestre',
+                'is_online',
                 'date',
                 'debut',
                 'fin',
@@ -207,15 +208,26 @@ class EvaluationController extends Controller
             NotifyStudentsAboutEvaluation::dispatch($evaluation);
         }
 
-        successMsg('Évaluation mise à jour avec succès');
+        // successMsg('Évaluation mise à jour avec succès');
 
-        return to_route('admin.evaluations.index');
+        // return to_route('admin.evaluations.index');
 
-        // return new EvaluationResource($evaluation);
-
+        return new EvaluationResource($evaluation);
     }
 
-    public function publish(string $slug): Application|Response|ResponseFactory
+    public function destroy(Evaluation $evaluation)
+    {
+        if ($evaluation->getAttribute('published') or $evaluation->getAttribute('debut')->isBefore(now())) {
+            return __404("Impossible de supprimer cette évaluation.");
+        }
+
+        $evaluation->delete();
+
+        return new EvaluationResource($evaluation);
+        // return to_route('admin.evaluations.index')->with(successMsg('Évaluation supprimée avec succès.'));
+    }
+
+    public function publish(string $slug)
     {
         $evaluation = Evaluation::query()->firstWhere('slug', $slug);
 
@@ -245,7 +257,7 @@ class EvaluationController extends Controller
         ]);
     }
 
-    public function getNoteFiche(Evaluation $evaluation): View
+    public function getNoteFiche(Evaluation $evaluation)
     {
         return (new NoteController)->evaluationNotesIndex($evaluation);
     }

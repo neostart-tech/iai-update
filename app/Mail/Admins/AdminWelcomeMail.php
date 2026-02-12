@@ -45,7 +45,7 @@ class AdminWelcomeMail extends Mailable implements ShouldQueue
 	{
 		return
 			sprintf("<p style='Margin-top: 20px;Margin-bottom: 0;'>&nbsp;<br/>
-					Bonjour %s Bienvenue à vous au sein de l'administration.
+					Bonjour %s".' ' . "Bienvenue à vous au sein de l'administration.
 				</p>
 				<p style='Margin-top: 20px;Margin-bottom: 0;'>
 				Ce mail vous a été envoyé pour la finalisation de la création de votre espace. Voici votre mot passe par défaut <b>%s</b>.

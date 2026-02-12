@@ -20,7 +20,7 @@ class UserResource extends JsonResource
             'prenom' => $this->resource->prenom,
             'email' => $this->resource->email,
             'genre' => $this->resource->genre,
-            'image' => $this->resource->ImagePath(),
+            'image' => $this->resource->image ? $this->resource->ImagePath() : null,
             'matricule' => $this->resource->matricule,
             'grade_id' => $this->resource->grade_id,
             'biographie' => $this->resource->biographie,
@@ -32,9 +32,25 @@ class UserResource extends JsonResource
             'lieu_naissance' => $this->resource->lieu_naissance,
             'nationalite' => $this->resource->nationalite,
             'group' => new GroupeResource($this->resource->group),
+            'supervisor_type_value' => $this->formatSuperviseur($this->resource->supervisor_type),
             'supervisor_type' => $this->resource->supervisor_type,
+
             'supervisor_notes' => $this->resource->supervisor_notes,
-            'roles'=>RoleResource::collection($this->resource->roles),
+            'roles' => RoleResource::collection($this->resource->roles),
         ];
+    }
+
+    public function formatSuperviseur($role)
+    {
+        if ($role === 'interne') {
+            return 'Interne';
+        }
+        if ($role === 'externe') {
+            return 'Externe';
+        }
+        if ($role === 'non_surveillant') {
+            return 'Non surveillant';
+        }
+        return $role;
     }
 }

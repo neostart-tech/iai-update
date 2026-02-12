@@ -32,16 +32,16 @@ class GroupController extends Controller
 
 	public function index()
 	{
-		$anneeActive = AnneeScolaire::where('active', true)->first()->getAttribute('id');
-		return view('admin.groups.index')->with([
-			'groups' => Group::with(['filieres', 'niveau'])
-				->withCount(['etudiants'=>function($query) use ($anneeActive){
-					$query->where('etudiant_group.annee_scolaire_id',$anneeActive);
-				}])
-				->get(),
-			'niveaux' => Niveau::all(),
-			'filieres' => Filiere::all(),
-		]);
+		// $anneeActive = AnneeScolaire::where('active', true)->first()->getAttribute('id');
+		// return view('admin.groups.index')->with([
+		// 	'groups' => Group::with(['filieres', 'niveau'])
+		// 		->withCount(['etudiants'=>function($query) use ($anneeActive){
+		// 			$query->where('etudiant_group.annee_scolaire_id',$anneeActive);
+		// 		}])
+		// 		->get(),
+		// 	'niveaux' => Niveau::all(),
+		// 	'filieres' => Filiere::all(),
+		// ]);
 		$anneeActive = injectAnneeScolaireId();
 
 		$groups = Group::with(['filieres', 'niveau'])
@@ -111,8 +111,8 @@ class GroupController extends Controller
 				$message = "Groupe créé avec succès";
 			}
 		});
-		// return new GroupeResource($group);
-		return to_route('admin.groups.index')->with(successMsg($message));
+		return new GroupeResource($group);
+		// return to_route('admin.groups.index')->with(successMsg($message));
 	}
 
 	public function destroy(Group $groupe)
@@ -127,7 +127,7 @@ class GroupController extends Controller
 
 		$groupe->delete();
 		// return new GroupeResource($groupe);
-		return back()->with(successMsg('Groupe supprimé avec succès'));
+		// return back()->with(successMsg('Groupe supprimé avec succès'));
 	}
 
 	// #[NoReturn]
@@ -215,18 +215,20 @@ class GroupController extends Controller
 		// ]);
 	}
 
-	public function displayCalendar(Group $group): View
-{
-    return view('admin.groups.calendar', compact('group'))->with([
-        'uvs' => $group->matieres(),
-        'types' => TypeProgrammeEnum::cases(),
-        'salles' => Salle::query()
-            ->select(['nom', 'slug'])
-            ->orderBy('nom')
-            ->get(),
-        'resourceUrl' => route('admin.groups.load-calendar', $group),
-    ]);
-}
+	public function displayCalendar(Group $group)
+	{
+		return EmploiDuTempsResource::collection($group->emploiDuTemps);
+
+		return view('admin.groups.calendar', compact('group'))->with([
+			'uvs' => $group->matieres(),
+			'types' => TypeProgrammeEnum::cases(),
+			'salles' => Salle::query()
+				->select(['nom', 'slug'])
+				->orderBy('nom')
+				->get(),
+			'resourceUrl' => route('admin.groups.load-calendar', $group),
+		]);
+	}
 
 	// public function displayCalendar(Group $group)
 	// {
