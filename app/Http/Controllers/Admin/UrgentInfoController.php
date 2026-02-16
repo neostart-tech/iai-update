@@ -3,17 +3,27 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UrgentInfoResource;
 use App\Models\UrgentInfo;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+
+use function Laravel\Prompts\error;
 
 class UrgentInfoController extends Controller
 {
     public function index()
     {
-        $items = UrgentInfo::query()->latest()->paginate(15);
-        return view('admin.urgent_infos.index', compact('items'));
+        $items = UrgentInfo::query()->latest()->get();
+        return UrgentInfoResource::collection($items);
+        // return view('admin.urgent_infos.index', compact('items'));
+    }
+
+    public function show(UrgentInfo $urgent)
+    {
+        return new UrgentInfoResource($urgent);
     }
 
     public function store(Request $request)
@@ -37,9 +47,10 @@ class UrgentInfoController extends Controller
             $data['published_at'] = now();
         }
 
-        UrgentInfo::create($data);
+        $info = UrgentInfo::create($data);
 
-        return back()->with('success', 'Information urgente créée.');
+        return new UrgentInfoResource($info);
+        // return back()->with('success', 'Information urgente créée.');
     }
 
     public function update(Request $request, UrgentInfo $urgent)
@@ -57,30 +68,38 @@ class UrgentInfoController extends Controller
         }
 
         $urgent->update($data);
+        return new UrgentInfoResource($urgent);
 
-        return back()->with('success', 'Information urgente mise à jour.');
+        // return back()->with('success', 'Information urgente mise à jour.');
     }
 
     public function publish(UrgentInfo $urgent)
     {
-        $urgent->is_published = true;
-        $urgent->published_at = now();
-        $urgent->save();
+        try {
+            $urgent->is_published = true;
+            $urgent->published_at = now();
+            $urgent->save();
+            return new UrgentInfoResource($urgent);
+        } catch (Exception $e) {
+            throw error($e->getMessage());
+        }
 
-        return back()->with('success', 'Publication effectuée.');
+        // return back()->with('success', 'Publication effectuée.');
     }
 
     public function unpublish(UrgentInfo $urgent)
     {
         $urgent->is_published = false;
+        $urgent->published_at=null;
         $urgent->save();
-
-        return back()->with('success', 'Dépublication effectuée.');
+        return new UrgentInfoResource($urgent);
+        // return back()->with('success', 'Dépublication effectuée.');
     }
 
     public function destroy(UrgentInfo $urgent)
     {
         $urgent->delete();
-        return back()->with('success', 'Supprimé.');
+        return new UrgentInfoResource($urgent);
+        // return back()->with('success', 'Supprimé.');
     }
 }

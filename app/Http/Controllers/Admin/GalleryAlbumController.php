@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\GalleryAlbumResource;
 use App\Models\GalleryAlbum;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -18,8 +19,10 @@ class GalleryAlbumController extends Controller
         $albums = GalleryAlbum::query()
             ->withCount('photos')
             ->latest('id')
-            ->paginate(20);
+            ->get();
 
+
+        return GalleryAlbumResource::collection($albums);
         return view('admin.gallery.albums.index', compact('albums'));
     }
 
@@ -37,11 +40,11 @@ class GalleryAlbumController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => ['required','string','max:255'],
-            'slug' => ['nullable','string','max:255','unique:gallery_albums,slug'],
-            'description' => ['nullable','string'],
-            'is_published' => ['nullable','boolean'],
-            'cover' => ['nullable','image','max:5120'], // 5MB
+            'name' => ['required', 'string', 'max:255'],
+            'slug' => ['nullable', 'string', 'max:255', 'unique:gallery_albums,slug'],
+            'description' => ['nullable', 'string'],
+            'is_published' => ['nullable', 'boolean'],
+            'cover' => ['nullable', 'image', 'max:5120'], // 5MB
         ]);
 
         $data = [
@@ -58,9 +61,10 @@ class GalleryAlbumController extends Controller
         }
 
         $album = GalleryAlbum::create($data);
+        return new GalleryAlbumResource($album);
 
-        return redirect()->route('admin.gallery.albums.index')
-            ->with('success', 'Album créé avec succès.');
+        // return redirect()->route('admin.gallery.albums.index')
+        //     ->with('success', 'Album créé avec succès.');
     }
 
     /**
@@ -71,7 +75,9 @@ class GalleryAlbumController extends Controller
         $galleryAlbum->load(['photos' => function ($q) {
             $q->orderBy('position')->orderByDesc('id');
         }]);
-        return view('admin.gallery.albums.show', ['album' => $galleryAlbum]);
+        return new GalleryAlbumResource($galleryAlbum);
+
+        // return view('admin.gallery.albums.show', ['album' => $galleryAlbum]);
     }
 
     /**
@@ -88,11 +94,11 @@ class GalleryAlbumController extends Controller
     public function update(Request $request, GalleryAlbum $galleryAlbum)
     {
         $validated = $request->validate([
-            'name' => ['required','string','max:255'],
-            'slug' => ['nullable','string','max:255','unique:gallery_albums,slug,'.$galleryAlbum->id],
-            'description' => ['nullable','string'],
-            'is_published' => ['nullable','boolean'],
-            'cover' => ['nullable','image','max:5120'],
+            'name' => ['required', 'string', 'max:255'],
+            'slug' => ['nullable', 'string', 'max:255', 'unique:gallery_albums,slug,' . $galleryAlbum->id],
+            'description' => ['nullable', 'string'],
+            'is_published' => ['nullable', 'boolean'],
+            'cover' => ['nullable', 'image', 'max:5120'],
         ]);
 
         $data = [
@@ -120,8 +126,11 @@ class GalleryAlbumController extends Controller
 
         $galleryAlbum->update($data);
 
-        return redirect()->route('admin.gallery.albums.index')
-            ->with('success', 'Album mis à jour.');
+
+        return new GalleryAlbumResource($galleryAlbum);
+
+        // return redirect()->route('admin.gallery.albums.index')
+        //     ->with('success', 'Album mis à jour.');
     }
 
     /**
@@ -133,7 +142,10 @@ class GalleryAlbumController extends Controller
             Storage::disk('public')->delete($galleryAlbum->cover_path);
         }
         $galleryAlbum->delete();
-        return redirect()->route('admin.gallery.albums.index')
-            ->with('success', 'Album supprimé.');
+
+        return new GalleryAlbumResource($galleryAlbum);
+
+        // return redirect()->route('admin.gallery.albums.index')
+        //     ->with('success', 'Album supprimé.');
     }
 }

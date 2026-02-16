@@ -13,6 +13,7 @@ use App\Http\Controllers\{
 	ConfigurationController,
 	NiveauController,
 	NotificationController,
+	ReclamationController,
 	ReleveController,
 };
 use App\Http\Controllers\Admin\{
@@ -185,7 +186,8 @@ Route::middleware('auth:sanctum')->group(function () {
 		Route::get('/liste', 'index')->name('liste');
 		Route::post('/create', 'store')->name('store');
 		Route::put('/{id}/activate', 'activer')->name('activer');
-		Route::put('/desactivate', 'desactiver')->name('desactiver');
+		Route::put('{id}/desactivate', 'desactiver')->name('desactiver');
+		Route::put('{annee}/update', 'update')->name('update');
 	});
 
 	Route::controller(NiveauController::class)->prefix('niveau')->name('niveau.')->group(function () {
@@ -347,6 +349,7 @@ Route::middleware('auth:sanctum')->group(function () {
 		Route::put('{blog}/modifier', 'update')->name('update');
 		Route::delete('{blog}', 'delete')->name('destroy');
 		Route::post('', 'search')->name('search');
+		Route::put("{blog}/togglestatus", 'publishedBlog');
 	});
 
 	// Route pour les publications
@@ -361,21 +364,44 @@ Route::middleware('auth:sanctum')->group(function () {
 	});
 
 	// Réclamations des étudiants
-	Route::controller(AdminReclamationController::class)->prefix('reclamations')->name('reclamations.')->group(function () {
-		Route::get('', 'index')->name('index');
-		Route::put('{reclamation}', 'updateStatus')->name('update');
+	// Route::controller(AdminReclamationController::class)->prefix('reclamations')->name('reclamations.')->group(function () {
+	// 	Route::get('', 'index')->name('index');
+	// 	Route::put('{reclamation}', 'updateStatus')->name('update');
+	// });
+
+	Route::controller(ReclamationController::class)->group(function () {
+		Route::get('/reclamations',  'index');
+		Route::post('/reclamations/{reclamation}/traiter',  'traiter');
 	});
+
+
 
 
 	// Route pour les publications
-	Route::controller(ContactController::class)->prefix('messages')->name('messages.')->group(function () {
-		Route::get('', 'index')->name('index');
-		Route::get('{contact}', 'show')->name('show');
-		Route::get('{contact}/lire', 'read')->name('read');
-			Route::get('count-unread-message', 'countEnreadMessage')->name('count-unread-message');
-		Route::delete('{contact}', 'destroy')->name('delete');
-	});
+	// Route::controller(ContactController::class)->prefix('messages')->name('messages.')->group(function () {
+	// 	Route::get('', 'index')->name('index');
+	// 	Route::get('{contact}', 'show')->name('show');
+	// 	Route::get('{contact}/lire', 'read')->name('read');
+	// 	Route::get('count-unread-message', 'countEnreadMessage')->name('count-unread-message');
+	// 	Route::delete('{contact}', 'destroy')->name('delete');
+	// });
 
+	Route::controller(ContactController::class)
+		->prefix('messages')
+		->name('messages.')
+		->group(function () {
+
+			Route::get('count-unread-message', 'countEnreadMessage')
+				->name('count-unread-message');
+
+			Route::get('', 'index')->name('index');
+
+			Route::get('{contact}/lire', 'read')->name('read');
+
+			Route::get('{contact}', 'show')->name('show');
+
+			Route::delete('{contact}', 'destroy')->name('delete');
+		});
 
 
 
@@ -384,6 +410,8 @@ Route::middleware('auth:sanctum')->group(function () {
 		Route::get('liste', 'index')->name('index');
 		Route::post('ajouter', 'store')->name('store');
 		Route::put('{urgent}/modifier', 'update')->name('update');
+		Route::get('{urgent}/show', 'show')->name('show');
+
 		Route::post('{urgent}/publier', 'publish')->name('publish');
 		Route::post('{urgent}/depublier', 'unpublish')->name('unpublish');
 		Route::delete('{urgent}/supprimer', 'destroy')->name('destroy');
@@ -434,12 +462,9 @@ Route::middleware('auth:sanctum')->group(function () {
 	Route::controller(AdminEtudiantController::class)->prefix('etudiants')->name('etudiants.')->group(function () {
 		Route::get('liste', 'index')->name('index');
 		Route::post('import', 'importEtudiant')->name('import');
-		$anneActive = AnneeScolaire::where('active', true)->first()->nom;
+		$anneActive = AnneeScolaire::where('active', true)->first()->nom ?? null;
 		Route::get('export', function () use ($anneActive) {
-			return Excel::download(
-				new EtudiantsExport,
-				'liste_des_etudiants_' . $anneActive . '.xlsx'
-			);
+			return Excel::download(new EtudiantsExport, 'liste_des_etudiants_' . $anneActive . '.xlsx');
 		})->name('export');
 	});
 

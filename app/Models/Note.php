@@ -36,4 +36,24 @@ class Note extends Model
 	{
 		return $this->belongsTo(UniteValeur::class);
 	}
+
+	public function reclamations()
+{
+    return $this->hasMany(Reclamation::class);
+}
+
+public function historiqueModifications()
+{
+    return $this->hasMany(NoteHistorique::class);
+}
+
+public function aDesReclamationsEnCours()
+{
+    return $this->reclamations()
+        ->where('statut', 'en_attente')
+        ->exists();
+}
+
+
+
 }

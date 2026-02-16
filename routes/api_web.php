@@ -2,15 +2,15 @@
 
 use App\Http\Controllers\{
 	CandidatureController,
-    CommitteeCahierTexteController,
-    DAFController,
-    EvenementController,
-    MyAccountController,
+	CommitteeCahierTexteController,
+	DAFController,
+	EvenementController,
+	MyAccountController,
 	MyCalendarController,
 	MyDashboardController,
 	NotificationReadingController
 };
-use App\Http\Controllers\Admin\{ProfileController};
+use App\Http\Controllers\Admin\{ProfileController, ReclamationController};
 use App\Http\Controllers\enseignantAuth\AuthentificationSessionController;
 use App\Http\Controllers\EspaceProfesseurControleur;
 use App\Http\Controllers\FraisScolariteController;
@@ -75,6 +75,12 @@ Route::controller(CandidatureController::class)->prefix('candidatures')->name('c
 	Route::post('faire-mon-depot', 'store')->name('store');
 });
 
+Route::controller(ReclamationController::class)->prefix('reclamations')->group(function () {
+	Route::post('{note}/enregistrer-une-reclamation', 'store');
+	Route::get('/mes-reclamations',  'mesReclamations');
+	Route::delete('/reclamations/{reclamation}/annuler', 'annuler');
+});
+
 // Route::middleware('auth:web,etudiants')->group(function () {
 Route::get('mon-emploi-du-temps', fn() => view('my-calendar'))->name('my-calendar');
 Route::get('load-calendar', MyCalendarController::class)->name('load-calendar');
@@ -112,7 +118,7 @@ Route::prefix('daf')->name('daf.')->group(function () {
 //Routes de la comptabilité
 
 Route::controller(AuthentificationSessionController::class)->prefix('comptables')->name('auth.')->group(function () {
-// Route::controller(AuthentificationSessionController::class)->prefix('comptables')->name('auth.')->middleware('guest:comptables')->group(function () {
+	// Route::controller(AuthentificationSessionController::class)->prefix('comptables')->name('auth.')->middleware('guest:comptables')->group(function () {
 
 
 	Route::get('', "logincompta")->name('logincompta');
@@ -158,9 +164,9 @@ Route::post('/events/{evenement}/comment', [EvenementController::class, 'comment
 
 // Cahier de texte workflow
 // Route::middleware(['web'])->group(function () {
-	Route::post('/professeur/cahier-texte/approuver', [EspaceProfesseurControleur::class, 'approuverCahierTexte'])->name('prof.cahier.approuver');
-	Route::post('/comite/cahier-texte', [CommitteeCahierTexteController::class, 'store'])->name('comite.cahier.store');
-	Route::post('/professeur/cahier-texte/incoherence', [EspaceProfesseurControleur::class, 'marquerIncoherenceCahier'])->name('prof.cahier.incoherence');
+Route::post('/professeur/cahier-texte/approuver', [EspaceProfesseurControleur::class, 'approuverCahierTexte'])->name('prof.cahier.approuver');
+Route::post('/comite/cahier-texte', [CommitteeCahierTexteController::class, 'store'])->name('comite.cahier.store');
+Route::post('/professeur/cahier-texte/incoherence', [EspaceProfesseurControleur::class, 'marquerIncoherenceCahier'])->name('prof.cahier.incoherence');
 // });
 
 

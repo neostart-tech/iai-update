@@ -23,9 +23,14 @@ class ContactController extends Controller
 		// ]);
 	}
 
+	public function show(Contact $contact)
+	{
+		return new ContactResource($contact);
+	}
+
 	public function countEnreadMessage()
 	{
-		return ContactResource::collection(Contact::query()->where("status", false)->count());
+		return response()->json(['count' => Contact::query()->where("status", false)->count()]);
 	}
 
 	public function store(ContactRequest $request): RedirectResponse

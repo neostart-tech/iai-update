@@ -29,4 +29,29 @@ class MyCalendarController extends Controller
 
 		return __500();
 	}
+	// public function __invoke(): ResponseFactory|Response|AnonymousResourceCollection
+	// {
+	// 	if ($user = Auth::user()) {
+	// 		/**
+	// 		 * @var User $user
+	// 		 */
+	// 		return EmploiDuTempsResource::collection($user->emploiDuTemps);
+	// 	}
+
+	// 	if ($user = Auth::guard('etudiants')->user()) {
+	// 		/**
+	// 		 * @var Etudiant $user
+	// 		 */
+	// 		// Récupérer le groupe actuel via la relation etudiantGroups
+	// 		$etudiantGroup = $user->etudiantGroups()->first();
+
+	// 		if ($etudiantGroup && $etudiantGroup->group) {
+	// 			return EmploiDuTempsResource::collection($etudiantGroup->group->emploiDuTemps);
+	// 		}
+
+	// 		return __500('Aucun groupe trouvé pour cet étudiant');
+	// 	}
+
+	// 	return __500();
+	// }
 }

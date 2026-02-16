@@ -20,7 +20,7 @@ class EmploiDuTempsResource extends JsonResource
     {
         $group = $this->resource->group;
         // Si aucun owner → renvoyer quand même une structure valide
-        if (! $this->resource->owner) {
+        if (!$this->resource->owner) {
             return [
                 'slug' => $this->resource->slug,
                 'debut' => $this->resource->debut->format('Y-m-d H:i'),

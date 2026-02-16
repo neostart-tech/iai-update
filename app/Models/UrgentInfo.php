@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 class UrgentInfo extends Model
 {
@@ -19,6 +20,10 @@ class UrgentInfo extends Model
         'published_at',
         'created_by',
     ];
+
+    public function getFullPath(){
+        return asset(Storage::url($this->file_path));
+    }
 
     protected $casts = [
         'is_published' => 'boolean',

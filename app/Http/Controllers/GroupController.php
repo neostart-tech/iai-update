@@ -126,7 +126,7 @@ class GroupController extends Controller
 		$groupe->filieres()->detach();
 
 		$groupe->delete();
-		// return new GroupeResource($groupe);
+		return new GroupeResource($groupe);
 		// return back()->with(successMsg('Groupe supprimé avec succès'));
 	}
 
@@ -200,19 +200,19 @@ class GroupController extends Controller
 
 		$groups = Group::withCount('etudiants')->get();
 
-		return view('admin.etudiants.index', compact('group'))->with([
-			'etudiants' => $etudiants,
-			'niveaux' => Niveau::all(),
-			"periodes" => $periodes,
-			'groups' => Group::withCount('etudiants')
-				->get(),
-			'meta' => [
-				''
-			]
-		]);
-		// return response()->json([
-		// 	'data' => EtudiantRessource::collection($etudiants),
+		// return view('admin.etudiants.index', compact('group'))->with([
+		// 	'etudiants' => $etudiants,
+		// 	'niveaux' => Niveau::all(),
+		// 	"periodes" => $periodes,
+		// 	'groups' => Group::withCount('etudiants')
+		// 		->get(),
+		// 	'meta' => [
+		// 		''
+		// 	]
 		// ]);
+		return response()->json([
+			'data' => EtudiantRessource::collection($etudiants),
+		]);
 	}
 
 	public function displayCalendar(Group $group)

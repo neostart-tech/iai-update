@@ -4,14 +4,19 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\EvenementRequest;
+use App\Http\Resources\EvenementResource;
 use App\Models\Evenement;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
 class EventController extends Controller
 {
-	public function index(): View
+	public function index()
 	{
+
+		return EvenementResource::collection(Evenement::query()
+			->orderByDesc('created_at')
+			->get());
 		return view('admin.events.index')->with([
 			'events' => Evenement::query()
 				->orderByDesc('created_at')
@@ -33,18 +38,20 @@ class EventController extends Controller
 		]);
 	}
 
-	public function store(EvenementRequest $request): RedirectResponse
+	public function store(EvenementRequest $request)
 	{
-		Evenement::create([
+		$event =	Evenement::create([
 			...$request->validated(),
 			...injectAnneeScolaireId()
 		]);
-		return to_route('admin.events.index')->with(successMsg('Événement créé avec succès.'));
+		return new EvenementResource($event);
+		// return to_route('admin.events.index')->with(successMsg('Événement créé avec succès.'));
 	}
 
-	public function show(Evenement $event): View
+	public function show(Evenement $event)
 	{
-		return view('admin.events.show', compact('event'));
+		return new EvenementResource($event);
+		// return view('admin.events.show', compact('event'));
 	}
 
 	public function edit(Evenement $event): View
@@ -52,15 +59,18 @@ class EventController extends Controller
 		return view('admin.events.edit', compact('event'));
 	}
 
-	public function update(EvenementRequest $request, Evenement $event): RedirectResponse
+	public function update(EvenementRequest $request, Evenement $event)
 	{
 		$event->update($request->validated());
-		return to_route('admin.events.index')->with(successMsg('Événement mis à jour avec succès.'));
+
+		return new EvenementResource($event);
+		// return to_route('admin.events.index')->with(successMsg('Événement mis à jour avec succès.'));
 	}
 
-	public function delete(Evenement $event): RedirectResponse
+	public function delete(Evenement $event)
 	{
 		$event->delete();
-		return to_route('admin.events.index')->with(successMsg('Événement supprimé avec succès.'));
+		return new EvenementResource($event);
+		// return to_route('admin.events.index')->with(successMsg('Événement supprimé avec succès.'));
 	}
 }

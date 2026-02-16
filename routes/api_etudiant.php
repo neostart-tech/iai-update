@@ -27,7 +27,7 @@ Route::prefix('espace-etudiant')->name('etudiants.')->group(function () {
     });
 
     // Route::middleware('auth:etudiants')->group(function () {
-   Route::middleware('auth:sanctum')->group([],function () {
+    Route::middleware('auth:sanctum')->group([], function () {
         // Route::view('', 'etudiants.dashboard')->name('dashboard');
         Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('auth.logout');
 
@@ -46,6 +46,8 @@ Route::prefix('espace-etudiant')->name('etudiants.')->group(function () {
             Route::post('{announcement}/postuler-a-une-offre', 'applyToAnnouncement')->name('apply-to-announcement');
             Route::get('mes-depots', 'myApplications')->name('my-applications');
         });
+
+
 
         Route::controller(CvController::class)->prefix('mon-cv')->name('cv.')->group(function () {
             Route::get('apercu', 'show')->name('show');
@@ -67,18 +69,20 @@ Route::prefix('espace-etudiant')->name('etudiants.')->group(function () {
             Route::get('/', 'index')->name('index');
         });
 
+       
+
         Route::controller(ReleveController::class)->prefix('mes-releves')->name('releves.')->group(function () {
             Route::get('/view', 'showViewReleveForAuthStudent')->name('auth.view');
             Route::get('', 'showReleveForAuthStudent')->name('auth.index');
         });
-        Route::middleware('paiement.ajour')->group(function () {
+        // Route::middleware('paiement.ajour')->group(function () {
 
-            Route::controller(ReclamationController::class)->prefix('reclamations')->name('reclamations.')->group(function () {
-                // Anti-spam: throttle to 3 reclamations per minute per student
-                Route::post('{note}', 'store')->middleware('throttle:3,1')->name('store');
-                // Route::get('', 'showReleveForAuthStudent')->name('auth.index');
-            });
-        });
+        //     Route::controller(ReclamationController::class)->prefix('reclamations')->name('reclamations.')->group(function () {
+        //         // Anti-spam: throttle to 3 reclamations per minute per student
+        //         Route::post('{note}', 'store')->middleware('throttle:3,1')->name('store');
+        //         // Route::get('', 'showReleveForAuthStudent')->name('auth.index');
+        //     });
+        // });
 
         Route::prefix('semoa')->name('semoa.')->group(function () {
 
@@ -95,7 +99,7 @@ Route::prefix('espace-etudiant')->name('etudiants.')->group(function () {
     });
 
     // Route::middleware('guest:etudiants')->group(function () {
-   Route::group([],function () {
+    Route::group([], function () {
 
         Route::get('mot-de-passe-oublie', [PasswordResetLinkController::class, 'create'])
             ->name('password.request');
@@ -111,7 +115,7 @@ Route::prefix('espace-etudiant')->name('etudiants.')->group(function () {
     });
 
     // Route::middleware('auth:etudiants')->group(function () {
-   Route::group([],function () {
+    Route::group([], function () {
 
         Route::get('verify-email', EmailVerificationPromptController::class)
             ->name('verification.notice');

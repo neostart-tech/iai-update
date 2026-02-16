@@ -57,7 +57,7 @@ class Evenement extends Model
 
 	public function hasSlugBaseKeyProvider(): bool
 	{
-		return false;
+		return true;
 	}
 
     /**

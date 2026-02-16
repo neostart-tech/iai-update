@@ -17,6 +17,11 @@ class AnneeScolaire extends Model
 		'active' => 'boolean',
 	];
 
+	public function hasComplexSlug(): bool
+	{
+		return true;
+	}
+
 	public function scopeActive($q)
 	{
 		return $q->where('active', true);

@@ -6,6 +6,7 @@ use App\Traits\Routing\GenerateUniqueSlugTrait;
 use App\Traits\Routing\ModelsSlugKeyTrait;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class Blog extends Model
 {
@@ -26,6 +27,7 @@ class Blog extends Model
 		'author_name',
 		'image',
 		'content',
+		'status',
 		'publication_date'
 	];
 
@@ -35,6 +37,9 @@ class Blog extends Model
 		'publication_date' => 'datetime'
 	];
 
+	public function getFullPath(){
+		return asset(Storage::url($this->image));
+	}
 	public function comments(): HasMany
 	{
 		return $this->hasMany(BlogComment::class)->latest();

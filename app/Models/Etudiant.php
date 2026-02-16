@@ -122,6 +122,35 @@ class Etudiant extends Authenticatable
 			->latest('id');
 	}
 
+	public function group()
+	{
+		return $this->hasOneThrough(
+			Group::class,
+			EtudiantGroup::class,
+			'etudiant_id', // Clé étrangère sur etudiant_group
+			'id',          // Clé locale sur groups
+			'id',          // Clé locale sur etudiants
+			'group_id'     // Clé étrangère sur etudiant_group
+		)->where('etudiant_group.annee_scolaire_id', injectAnneeScolaireId())
+			->latest('etudiant_group.id');
+	}
+
+
+
+	public function reclamations()
+	{
+		return $this->hasMany(Reclamation::class);
+	}
+
+	public function reclamationsEnCours()
+	{
+		return $this->reclamations()->where('statut', 'en_attente');
+	}
+
+	public function peutReclamer()
+	{
+		return $this->reclamationsEnCours()->count() < 3;
+	}
 
 
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\AnneeScolaireResource;
 use App\Models\AnneeScolaire;
 use Illuminate\Http\Request;
 
@@ -15,7 +16,9 @@ class AnneeScolaireController extends Controller
     {
         // Liste toutes les années scolaires
         $annees = AnneeScolaire::all();
-        return view('admin.anneescolaire.index', compact('annees'));
+        return AnneeScolaireResource::collection($annees);
+
+        // return view('admin.anneescolaire.index', compact('annees'));
     }
 
     /**
@@ -46,11 +49,12 @@ class AnneeScolaireController extends Controller
         $annee->save();
 
         // Désactive toutes les autres années scolaires actives sauf la nouvelle
-        AnneeScolaire::where('id', '!=', $annee->id)
+        $annee =  AnneeScolaire::where('id', '!=', $annee->id)
             ->where('active', true)
             ->update(['active' => false]);
+        return new AnneeScolaireResource($annee);
 
-        return redirect()->route('anneescolaires.index')->with('success', 'Année scolaire créée et activée.');
+        // return redirect()->route('anneescolaires.index')->with('success', 'Année scolaire créée et activée.');
     }
 
     /**
@@ -59,7 +63,9 @@ class AnneeScolaireController extends Controller
     public function show(AnneeScolaire $anneeScolaire)
     {
         // Affiche les détails d'une année scolaire
-        return view('admin.anneescolaire.show', compact('anneeScolaire'));
+        return new AnneeScolaireResource($anneeScolaire);
+
+        // return view('admin.anneescolaire.show', compact('anneeScolaire'));
     }
 
     /**
@@ -80,8 +86,8 @@ class AnneeScolaireController extends Controller
         $request->validate([
             'libelle' => 'required|string|unique:annee_scolaires,libelle,' . $anneeScolaire->id,
             'active' => 'sometimes|boolean',
-            'date_debut'=>"required",
-            'date_fin'=>'required|after_or_equal:date_debut'
+            'date_debut' => "required",
+            'date_fin' => 'required|after_or_equal:date_debut'
         ]);
 
         $anneeScolaire->libelle = $request->libelle;
@@ -98,8 +104,9 @@ class AnneeScolaireController extends Controller
         }
 
         $anneeScolaire->save();
+        return new AnneeScolaireResource($anneeScolaire);
 
-        return redirect()->route('anneescolaires.index')->with('success', 'Année scolaire mise à jour.');
+        // return redirect()->route('anneescolaires.index')->with('success', 'Année scolaire mise à jour.');
     }
 
     /**
@@ -108,6 +115,8 @@ class AnneeScolaireController extends Controller
     public function destroy(AnneeScolaire $anneeScolaire)
     {
         $anneeScolaire->delete();
-        return redirect()->route('anneescolaires.index')->with('success', 'Année scolaire supprimée.');
+        return new AnneeScolaireResource($anneeScolaire);
+
+        // return redirect()->route('anneescolaires.index')->with('success', 'Année scolaire supprimée.');
     }
 }
