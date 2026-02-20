@@ -8,8 +8,8 @@ use App\Models\Evaluation;
 use App\Models\Periode;
 use App\Models\UniteEnseignement;
 use App\Models\UniteValeur;
-use App\Models\UVValidation;
-use App\Models\UEValidation;
+use App\Models\UvValidation;
+use App\Models\UeValidation;
 use App\Models\ReleveNote;
 use App\Models\Note;
 use App\Models\UVWeighting;
@@ -18,13 +18,14 @@ use Illuminate\Support\Facades\DB;
 
 class NoteCalculationService
 {
+    public function calculateAndSaveForStudent(Etudiant $etudiant, AnneeScolaire $anneeScolaire, Periode $periode): ReleveNote
+    {
 
-    public function calculateAndSaveForStudent(Etudiant $etudiant,AnneeScolaire $anneeScolaire,Periode $periode):ReleveNote
-     {
         DB::beginTransaction();
 
         try {
-            // 1. Récupérer le groupe de l'étudiant pour l'année en cours
+
+            //Récupérer le groupe de l'étudiant
             $etudiantGroup = $etudiant->etudiantGroups()
                 ->where('annee_scolaire_id', $anneeScolaire->id)
                 ->first();
@@ -36,11 +37,29 @@ class NoteCalculationService
             $filiereId = $etudiantGroup->filiere_id;
             $niveauId = $etudiantGroup->niveau_id;
 
-            // 2. Récupérer toutes les UE de la filière/niveau pour cette période
+            //Créer ou récupérer le relevé AVANT les calculs
+            $releve = ReleveNote::updateOrCreate(
+                [
+                    'etudiant_id' => $etudiant->id,
+                    'annee_scolaire_id' => $anneeScolaire->id,
+                    'periode_id' => $periode->id,
+                ],
+                [
+                    'moyenne_generale' => 0,
+                    'total_credits_valides' => 0,
+                    'total_credits_non_valides' => 0,
+                    'metadata' => [
+                        'niveau_id' => $niveauId,
+                        'filiere_id' => $filiereId,
+                    ]
+                ]
+            );
+
+            // Récupérer les UE
             $ues = UniteEnseignement::where('filiere_id', $filiereId)
                 ->where('periode_id', $periode->id)
-                ->whereHas('uniteDeValeurs', function ($q) use ($niveauId) {
-                    $q->where('niveau_id', $niveauId);
+                ->whereHas('uniteDeValeurs', function ($q) use ($filiereId) {
+                    $q->where('filiere_id', $filiereId);
                 })
                 ->get();
 
@@ -49,21 +68,16 @@ class NoteCalculationService
             $sommeMoyennesPonderees = 0;
             $totalCoefficients = 0;
 
-            $ueValidations = [];
-
-            // 3. Pour chaque UE, calculer les moyennes des UV et la moyenne de l'UE
             foreach ($ues as $ue) {
-                $uvs = $ue->uniteDeValeurs()
-                    ->where('niveau_id', $niveauId)
-                    ->get();
+
+                $uvs = $ue->uniteDeValeurs()->get();
 
                 $sommeNotesUVPonderees = 0;
                 $sommeCoefficientsUV = 0;
                 $creditsUE = 0;
-                $uvValidations = [];
 
                 foreach ($uvs as $uv) {
-                    // Récupérer les pondérations
+
                     $weighting = UVWeighting::where('unite_valeur_id', $uv->id)
                         ->where('filiere_id', $filiereId)
                         ->first();
@@ -72,18 +86,22 @@ class NoteCalculationService
                     $poidsExamen = $weighting->poids_examen ?? 60;
                     $seuilValidation = $weighting->seuil_validation ?? 10;
 
-                    // Calculer les moyennes de l'UV
-                    $notesUV = $this->calculateUVAverage($etudiant, $uv, $anneeScolaire, $periode);
+                    $notesUV = $this->calculateUVAverage(
+                        $etudiant,
+                        $uv,
+                        $anneeScolaire,
+                        $periode
+                    );
 
-                    $moyenneUV = $notesUV['moyenne'];
-                    $noteDevoir = $notesUV['devoir'];
-                    $noteExamen = $notesUV['examen'];
+                    $moyenneUV = $notesUV['moyenne'] ?? 0;
+                    $noteDevoir = $notesUV['devoir'] ?? 0;
+                    $noteExamen = $notesUV['examen'] ?? 0;
 
                     $validee = $moyenneUV >= $seuilValidation;
                     $creditObtenu = $validee ? ($uv->credit ?? 0) : 0;
 
-                    // Sauvegarder la validation UV
-                    $uvValidation = UVValidation::updateOrCreate(
+                    //Sauvegarde UV avec releve_note_id
+                    UvValidation::updateOrCreate(
                         [
                             'etudiant_id' => $etudiant->id,
                             'unite_valeur_id' => $uv->id,
@@ -91,6 +109,7 @@ class NoteCalculationService
                             'periode_id' => $periode->id,
                         ],
                         [
+                            'releve_note_id' => $releve->id,
                             'moyenne' => $moyenneUV,
                             'note_devoir' => $noteDevoir,
                             'note_examen' => $noteExamen,
@@ -100,10 +119,8 @@ class NoteCalculationService
                         ]
                     );
 
-                    $uvValidations[] = $uvValidation;
-
-                    // Accumuler pour la moyenne de l'UE
                     $coefficientUV = $uv->coefficient ?? 1;
+
                     $sommeNotesUVPonderees += $moyenneUV * $coefficientUV;
                     $sommeCoefficientsUV += $coefficientUV;
 
@@ -112,7 +129,7 @@ class NoteCalculationService
                     }
                 }
 
-                // Calculer la moyenne de l'UE
+                // Calcul moyenne UE
                 $moyenneUE = $sommeCoefficientsUV > 0
                     ? round($sommeNotesUVPonderees / $sommeCoefficientsUV, 2)
                     : 0;
@@ -120,23 +137,20 @@ class NoteCalculationService
                 $ueValidee = $moyenneUE >= 10;
                 $creditUEObtenu = $ueValidee ? ($ue->credit ?? 0) : 0;
 
-                // Déterminer le type de validation
                 $typeValidation = null;
+
                 if ($ueValidee) {
-                    // Vérifier s'il y a une gratification de rattrapage
                     $gratification = $etudiant->gratifications()
                         ->where('unite_enseignement_id', $ue->id)
                         ->where('annee_scolaire_id', $anneeScolaire->id)
                         ->where('validee', true)
                         ->first();
 
-                    $typeValidation = $gratification
-                        ? 'rattrapage'
-                        : ($moyenneUE >= 10 ? 'normale' : 'compensation');
+                    $typeValidation = $gratification ? 'rattrapage' : 'normale';
                 }
 
-                // Sauvegarder la validation UE
-                $ueValidation = UEValidation::updateOrCreate(
+                //Sauvegarde UE avec releve_note_id
+                UeValidation::updateOrCreate(
                     [
                         'etudiant_id' => $etudiant->id,
                         'unite_enseignement_id' => $ue->id,
@@ -144,6 +158,7 @@ class NoteCalculationService
                         'periode_id' => $periode->id,
                     ],
                     [
+                        'releve_note_id' => $releve->id,
                         'moyenne' => $moyenneUE,
                         'credit_obtenu' => $creditUEObtenu,
                         'validee' => $ueValidee,
@@ -151,10 +166,8 @@ class NoteCalculationService
                     ]
                 );
 
-                $ueValidations[] = $ueValidation;
-
-                // Accumuler pour la moyenne générale
                 $coefficientUE = $ue->coefficient ?? 1;
+
                 $sommeMoyennesPonderees += $moyenneUE * $coefficientUE;
                 $totalCoefficients += $coefficientUE;
 
@@ -165,29 +178,17 @@ class NoteCalculationService
                 }
             }
 
-            // 4. Calculer la moyenne générale
+            //  Calcul moyenne générale
             $moyenneGenerale = $totalCoefficients > 0
                 ? round($sommeMoyennesPonderees / $totalCoefficients, 2)
                 : 0;
 
-            // 5. Sauvegarder le relevé de notes
-            $releve = ReleveNote::updateOrCreate(
-                [
-                    'etudiant_id' => $etudiant->id,
-                    'annee_scolaire_id' => $anneeScolaire->id,
-                    'periode_id' => $periode->id,
-                ],
-                [
-                    'moyenne_generale' => $moyenneGenerale,
-                    'total_credits_valides' => $totalCreditsValides,
-                    'total_credits_non_valides' => $totalCreditsNonValides,
-                    'metadata' => [
-                        'niveau_id' => $niveauId,
-                        'filiere_id' => $filiereId,
-                        'calcule_auto' => true
-                    ]
-                ]
-            );
+            //Mise à jour finale du relevé
+            $releve->update([
+                'moyenne_generale' => $moyenneGenerale,
+                'total_credits_valides' => $totalCreditsValides,
+                'total_credits_non_valides' => $totalCreditsNonValides,
+            ]);
 
             DB::commit();
 
@@ -210,8 +211,8 @@ class NoteCalculationService
         // Récupérer les évaluations de l'UV pour cette période
         $evaluations = Evaluation::where('unite_valeur_id', $uv->id)
             ->whereHas('emploiDutemp', function ($q) use ($anneeScolaire, $periode) {
-                $q->where('annee_scolaire_id', $anneeScolaire->id)
-                    ->where('periode_id', $periode->id);
+                $q->where('annee_scolaire_id', $anneeScolaire->id);
+                // ->where('periode_id', $periode->id);
             })
             ->get();
 
@@ -268,112 +269,227 @@ class NoteCalculationService
     /**
      * Récupère le relevé de notes formaté comme dans le JSON
      */
-    public function getReleveFormatted(
-        Etudiant $etudiant,
-        AnneeScolaire $anneeScolaire,
-        Periode $periode
-    ): array {
-        $releve = ReleveNote::where('etudiant_id', $etudiant->id)
+    public function getReleveFormatted(Etudiant $etudiant, AnneeScolaire $anneeScolaire, Periode $periode): array
+    {
+
+        $releve = ReleveNote::with([
+            'ueValidations.uniteEnseignement',
+            'uvValidations.uniteValeur'
+        ])
+            ->where('etudiant_id', $etudiant->id)
             ->where('annee_scolaire_id', $anneeScolaire->id)
             ->where('periode_id', $periode->id)
             ->first();
 
         if (!$releve) {
             $releve = $this->calculateAndSaveForStudent($etudiant, $anneeScolaire, $periode);
+            $releve->load([
+                'ueValidations.uniteEnseignement',
+                'uvValidations.uniteValeur'
+            ]);
         }
-
-        $ueValidations = UEValidation::where('etudiant_id', $etudiant->id)
-            ->where('annee_scolaire_id', $anneeScolaire->id)
-            ->where('periode_id', $periode->id)
-            ->with('uniteEnseignement')
-            ->get();
 
         $releveGrouped = [];
 
-        foreach ($ueValidations as $ueValidation) {
+        foreach ($releve->ueValidations as $ueValidation) {
+
             $ue = $ueValidation->uniteEnseignement;
 
-            $uvValidations = UVValidation::where('etudiant_id', $etudiant->id)
-                ->where('annee_scolaire_id', $anneeScolaire->id)
-                ->where('periode_id', $periode->id)
-                ->whereHas('uniteValeur', function ($q) use ($ue) {
-                    $q->where('unite_enseignement_id', $ue->id);
-                })
-                ->with('uniteValeur')
-                ->get();
+            // récupérer les UV de cette UE à partir du même relevé
+            $uvValidations = $releve->uvValidations
+                ->where('uniteValeur.unite_enseignement_id', $ue->id);
 
             $uvs = [];
+
             foreach ($uvValidations as $uvValidation) {
+
                 $uv = $uvValidation->uniteValeur;
 
                 $uvs[] = [
                     'uv' => $uv->nom,
                     'devoir' => number_format($uvValidation->note_devoir ?? 0, 2),
                     'examen' => number_format($uvValidation->note_examen ?? 0, 2),
-                    'weights_label' => "Devoir: 40% / Examen: 60%",
                     'moyenne_uv' => number_format($uvValidation->moyenne, 2),
                     'validation' => $uvValidation->validee ? 'Validé' : 'Non validé',
-                    'uv_validee' => $uvValidation->validee,
                     'coefficient' => $uvValidation->coefficient
                 ];
             }
 
-            // Récupérer la gratification si existante
-            $gratification = $etudiant->gratifications()
-                ->where('unite_enseignement_id', $ue->id)
-                ->where('annee_scolaire_id', $anneeScolaire->id)
-                ->where('validee', true)
-                ->first();
-
-            $gratificationData = null;
-            if ($gratification) {
-                $gratificationData = [
-                    'type' => 'rattrapage',
-                    'motif' => $gratification->motif ?? 'Session de rattrapage réussie',
-                    'date_approbation' => $gratification->date_approbation?->format('Y-m-d')
-                ];
-            }
-
-            $releveGrouped[$ue->nom] = [
+            $releveGrouped[] = [
+                'ue' => $ue->nom,
                 'moyenne_ue' => number_format($ueValidation->moyenne, 2),
                 'credit' => $ue->credit ?? 0,
                 'ue_validee' => $ueValidation->validee,
-                'gratification' => $gratificationData,
+                'type_validation' => $ueValidation->type_validation,
                 'uvs' => $uvs
             ];
         }
 
         return [
-            'user' => [
+            'etudiant' => [
                 'nom' => $etudiant->nom,
                 'prenom' => $etudiant->prenom,
                 'genre' => $etudiant->genre->value ?? 'M'
             ],
-            'anne' => $anneeScolaire->libelle,
-            'periode_nom' => $periode->nom,
-            'releve_grouped' => $releveGrouped,
+            'annee_scolaire' => $anneeScolaire->nom,
+            'periode' => $periode->nom,
             'moyenne_generale' => number_format($releve->moyenne_generale, 2),
             'total_credits_valides' => $releve->total_credits_valides,
             'total_credits_non_valides' => $releve->total_credits_non_valides,
-            'note' => 'Relevé généré automatiquement'
+            'ues' => $releveGrouped
         ];
     }
 
-    /**
-     * Recalcule tous les relevés pour une année/période
-     */
-    public function recalculateAllForPeriode(AnneeScolaire $anneeScolaire, Periode $periode): void
-    {
-        $etudiants = Etudiant::whereHas('etudiantGroups', function ($q) use ($anneeScolaire) {
-            $q->where('annee_scolaire_id', $anneeScolaire->id);
-        })->get();
 
-        foreach ($etudiants as $etudiant) {
-            try {
-                $this->calculateAndSaveForStudent($etudiant, $anneeScolaire, $periode);
-            } catch (\Exception $e) {
-                \Log::error("Erreur calcul relevé pour étudiant {$etudiant->id}: " . $e->getMessage());
+
+    // Dans votre NoteService
+
+    /**
+     * Récupère tous les relevés d'un étudiant, groupés par année scolaire et période
+     */
+    public function getAllRelevesForStudent(Etudiant $etudiant): array
+    {
+        // Récupérer tous les relevés de l'étudiant
+        $releves = ReleveNote::with([
+            'ueValidations.uniteEnseignement',
+            'uvValidations.uniteValeur',
+            'anneeScolaire',
+            'periode'
+        ])
+            ->where('etudiant_id', $etudiant->id)
+            ->orderBy('annee_scolaire_id', 'desc')
+            ->orderBy('periode_id', 'desc')
+            ->get();
+
+        $relevesFormatted = [];
+
+        foreach ($releves as $releve) {
+            $releveGrouped = [];
+
+            foreach ($releve->ueValidations as $ueValidation) {
+                $ue = $ueValidation->uniteEnseignement;
+
+                // Récupérer les UV de cette UE
+                $uvValidations = $releve->uvValidations
+                    ->where('uniteValeur.unite_enseignement_id', $ue->id);
+
+                $uvs = [];
+
+                foreach ($uvValidations as $uvValidation) {
+                    $uv = $uvValidation->uniteValeur;
+
+                    $uvs[] = [
+                        'uv' => $uv->nom,
+                        'devoir' => number_format($uvValidation->note_devoir ?? 0, 2),
+                        'examen' => number_format($uvValidation->note_examen ?? 0, 2),
+                        'moyenne_uv' => number_format($uvValidation->moyenne, 2),
+                        'validation' => $uvValidation->validee ? 'Validé' : 'Non validé',
+                        'coefficient' => $uvValidation->coefficient
+                    ];
+                }
+
+                $releveGrouped[] = [
+                    'ue' => $ue->nom,
+                    'moyenne_ue' => number_format($ueValidation->moyenne, 2),
+                    'credit' => $ue->credit ?? 0,
+                    'ue_validee' => $ueValidation->validee,
+                    'type_validation' => $ueValidation->type_validation,
+                    'uvs' => $uvs
+                ];
             }
+
+            $relevesFormatted[] = [
+                'id' => $releve->id,
+                'etudiant' => [
+                    'nom' => $etudiant->nom,
+                    'prenom' => $etudiant->prenom,
+                    'genre' => $etudiant->genre->value ?? 'M'
+                ],
+                'annee_scolaire' => $releve->anneeScolaire->nom,
+                'periode' => $releve->periode->nom,
+                'date_generation' => $releve->created_at->format('Y-m-d'),
+                'moyenne_generale' => number_format($releve->moyenne_generale, 2),
+                'total_credits_valides' => $releve->total_credits_valides,
+                'total_credits_non_valides' => $releve->total_credits_non_valides,
+                'ues' => $releveGrouped
+            ];
         }
+
+        return $relevesFormatted;
+    }
+
+    /**
+     * Récupère les relevés d'un étudiant avec possibilité de filtrer par année
+     */
+    public function getRelevesByYear(Etudiant $etudiant, ?int $anneeScolaireId = null): array
+    {
+        $query = ReleveNote::with([
+            'ueValidations.uniteEnseignement',
+            'uvValidations.uniteValeur',
+            'anneeScolaire',
+            'periode'
+        ])
+            ->where('etudiant_id', $etudiant->id);
+
+        if ($anneeScolaireId) {
+            $query->where('annee_scolaire_id', $anneeScolaireId);
+        }
+
+        $releves = $query->orderBy('annee_scolaire_id', 'desc')
+            ->orderBy('periode_id', 'desc')
+            ->get();
+
+        $relevesFormatted = [];
+
+        foreach ($releves as $releve) {
+            $releveGrouped = [];
+
+            foreach ($releve->ueValidations as $ueValidation) {
+                $ue = $ueValidation->uniteEnseignement;
+
+                $uvValidations = $releve->uvValidations
+                    ->where('uniteValeur.unite_enseignement_id', $ue->id);
+
+                $uvs = [];
+
+                foreach ($uvValidations as $uvValidation) {
+                    $uv = $uvValidation->uniteValeur;
+
+                    $uvs[] = [
+                        'uv' => $uv->nom,
+                        'devoir' => number_format($uvValidation->note_devoir ?? 0, 2),
+                        'examen' => number_format($uvValidation->note_examen ?? 0, 2),
+                        'moyenne_uv' => number_format($uvValidation->moyenne, 2),
+                        'validation' => $uvValidation->validee ? 'Validé' : 'Non validé',
+                        'coefficient' => $uvValidation->coefficient
+                    ];
+                }
+
+                $releveGrouped[] = [
+                    'ue' => $ue->nom,
+                    'moyenne_ue' => number_format($ueValidation->moyenne, 2),
+                    'credit' => $ue->credit ?? 0,
+                    'ue_validee' => $ueValidation->validee,
+                    'type_validation' => $ueValidation->type_validation,
+                    'uvs' => $uvs
+                ];
+            }
+
+            $relevesFormatted[] = [
+                'id' => $releve->id,
+                'annee_scolaire' => $releve->anneeScolaire->nom,
+                'annee_scolaire_id' => $releve->annee_scolaire_id,
+                'periode' => $releve->periode->nom,
+                'periode_id' => $releve->periode_id,
+                'date_generation' => $releve->created_at->format('Y-m-d H:i:s'),
+                'moyenne_generale' => number_format($releve->moyenne_generale, 2),
+                'total_credits_valides' => $releve->total_credits_valides,
+                'total_credits_non_valides' => $releve->total_credits_non_valides,
+                'ues_count' => count($releveGrouped),
+                'ues' => $releveGrouped
+            ];
+        }
+
+        return $relevesFormatted;
     }
 }

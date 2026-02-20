@@ -14,42 +14,32 @@ trait IndexTrait
 {
 	public function index()
 	{
-		// $simpleCandidatures = Candidature::query()
-		// 	->where('dossier_valide', false)
-		// 	->whereNull('motif')
-		// 	->where('frais_paye', false)
-		// 	->where('participation', false)
-		// 	->where('admission', false)
-		// 	->whereDoesntHave('reorientations')
-		// 	->get();
-		// return CandidatureResource::collection($simpleCandidatures)
-		// 	->additional([
-		// 		'niveaux' => Niveau::all(),
-		// 		'filieres' => Filiere::all(),
-		// 		'metaData' => [
-		// 			'title' => 'Liste des candidatures',
-		// 			'breadcrumbs' => ['Administration', 'Candidatures', 'Liste'],
-		// 			'page_name' => 'Liste des candidatures',
-		// 		],
-		// 		'viewContent' => '_simple-candidatures',
-		// 	]);
-		return view('admin.candidatures.index')->with([
-			'simpleCandidatures' => Candidature::query()->where('dossier_valide', false)
-				->whereNull('motif')
-				->where('frais_paye', false)
-				->where('participation', false)
-				->where('admission', false)
-				->whereDoesntHave('reorientations')
-				->get(),
-			'niveaux' => Niveau::all(),
-			'filieres' => Filiere::all(),
-			'metaData' => [
-				'title' => 'Liste des candidatures',
-				'breadcrumbs' => ['Administration', 'Candidatures', 'Liste'],
-				'page_name' => 'Liste des candidatures'
-			],
-			"viewContent" => '_simple-candidatures'
-		]);
+		$simpleCandidatures = Candidature::query()
+			->where('dossier_valide', false)
+			->whereNull('motif')
+			->where('frais_paye', false)
+			->where('participation', false)
+			->where('admission', false)
+			->whereDoesntHave('reorientations')
+			->get();
+		return CandidatureResource::collection($simpleCandidatures);
+		// return view('admin.candidatures.index')->with([
+		// 	'simpleCandidatures' => Candidature::query()->where('dossier_valide', false)
+		// 		->whereNull('motif')
+		// 		->where('frais_paye', false)
+		// 		->where('participation', false)
+		// 		->where('admission', false)
+		// 		->whereDoesntHave('reorientations')
+		// 		->get(),
+		// 	'niveaux' => Niveau::all(),
+		// 	'filieres' => Filiere::all(),
+		// 	'metaData' => [
+		// 		'title' => 'Liste des candidatures',
+		// 		'breadcrumbs' => ['Administration', 'Candidatures', 'Liste'],
+		// 		'page_name' => 'Liste des candidatures'
+		// 	],
+		// 	"viewContent" => '_simple-candidatures'
+		// ]);
 	}
 
 

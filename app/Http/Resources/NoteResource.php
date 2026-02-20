@@ -21,6 +21,7 @@ class NoteResource extends JsonResource
             "evaluation" => new EvaluationResource($this->resource->evaluation),
             "anonymat" => $this->resource->anonymat,
             "notation" => $this->resource->note,
+            'reclamation'=> ReclamationResource::collection($this->resource->reclamations)
         ];
     }
 }

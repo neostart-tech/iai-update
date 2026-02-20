@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\TypeProgrammeEnum;
+use App\Exports\EmploiDuTempsMatriceExport;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Admin\EmploiDuTempsResource;
 use App\Models\{EmploiDuTemp, Group, Salle, UniteValeur, User};
@@ -11,6 +12,7 @@ use Illuminate\Http\{Request, Response};
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
 use Throwable;
 
 class EmploiDuTempController extends Controller
@@ -125,100 +127,100 @@ class EmploiDuTempController extends Controller
 
 	// 	return new EmploiDuTempsResource($emploiDuTemps);
 	// }
-public function store(Request $request): Response|ResponseFactory|EmploiDuTempsResource
-{
-    $rules = [
-        // CORRECTION: Acceptez les dates complètes directement
-        'debut' => ['required', 'date_format:Y-m-d H:i:s'],
-        'fin' => ['required', 'date_format:Y-m-d H:i:s'],
-        
-        // Vous n'avez plus besoin du champ 'date' séparé
-        'uv_id' => ['required'],
-        'type' => ['required', Rule::enum(TypeProgrammeEnum::class)],
-        'grade' => ['required'],
-        'salle' => ['required'],
-        'teacher' => ['required'],
-        'details' => ['nullable'],
-        
-        // RÉCURRENCE
-        'recurrence_type' => ['nullable', Rule::in(['aucune', 'hebdomadaire', 'quotidienne'])],
-        'recurrence_days' => ['nullable', 'array'],
-        'recurrence_end_date' => ['nullable', 'date', 'after:debut'],
-        
-        'evenement_id' => [
-            'nullable',
-            Rule::requiredIf(
-                fn() => $request->enum('type', TypeProgrammeEnum::class) === TypeProgrammeEnum::EVENEMENT
-            ),
-            'exists:evenements,id'
-        ],
-    ];
+	public function store(Request $request): Response|ResponseFactory|EmploiDuTempsResource
+	{
+		$rules = [
+			// CORRECTION: Acceptez les dates complètes directement
+			'debut' => ['required', 'date_format:Y-m-d H:i:s'],
+			'fin' => ['required', 'date_format:Y-m-d H:i:s'],
 
-    $validator = validator($request->all(), $rules);
-    if ($validator->fails()) {
-        return __422($validator->errors()->first());
-    }
+			// Vous n'avez plus besoin du champ 'date' séparé
+			'uv_id' => ['required'],
+			'type' => ['required', Rule::enum(TypeProgrammeEnum::class)],
+			'grade' => ['required'],
+			'salle' => ['required'],
+			'teacher' => ['required'],
+			'details' => ['nullable'],
 
-    try {
-        $debut = Carbon::parse($request->debut);
-        $fin = Carbon::parse($request->fin);
+			// RÉCURRENCE
+			'recurrence_type' => ['nullable', Rule::in(['aucune', 'hebdomadaire', 'quotidienne'])],
+			'recurrence_days' => ['nullable', 'array'],
+			'recurrence_end_date' => ['nullable', 'date', 'after:debut'],
 
-        if ($fin->lessThanOrEqualTo($debut)) {
-            return __422("L'heure de fin doit être postérieure à l'heure de début.");
-        }
+			'evenement_id' => [
+				'nullable',
+				Rule::requiredIf(
+					fn() => $request->enum('type', TypeProgrammeEnum::class) === TypeProgrammeEnum::EVENEMENT
+				),
+				'exists:evenements,id'
+			],
+		];
 
-        $salleId = Salle::where('slug', $request->salle)
-            ->orWhere('id', intval($request->salle))
-            ->value('id');
-        if (!$salleId) return __422('Salle invalide.');
+		$validator = validator($request->all(), $rules);
+		if ($validator->fails()) {
+			return __422($validator->errors()->first());
+		}
 
-        $groupId = Group::where('slug', $request->grade)
-            ->orWhere('id', intval($request->grade))
-            ->value('id');
-        if (!$groupId) return __422('Groupe invalide.');
+		try {
+			$debut = Carbon::parse($request->debut);
+			$fin = Carbon::parse($request->fin);
 
-        $uvId = UniteValeur::where('slug', $request->uv_id)
-            ->orWhere('id', intval($request->uv_id))
-            ->value('id');
-        if (!$uvId) return __422('Unité de valeur invalide.');
+			if ($fin->lessThanOrEqualTo($debut)) {
+				return __422("L'heure de fin doit être postérieure à l'heure de début.");
+			}
 
-        $ownerId = User::where('slug', $request->teacher)
-            ->orWhere('id', intval($request->teacher))
-            ->value('id');
-        if (!$ownerId) return __422('Enseignant invalide.');
+			$salleId = Salle::where('slug', $request->salle)
+				->orWhere('id', intval($request->salle))
+				->value('id');
+			if (!$salleId) return __422('Salle invalide.');
 
-        if ($this->hasSalleOverlap($salleId, $debut, $fin)) {
-            return __422('Salle déjà occupée sur cette plage horaire.');
-        }
+			$groupId = Group::where('slug', $request->grade)
+				->orWhere('id', intval($request->grade))
+				->value('id');
+			if (!$groupId) return __422('Groupe invalide.');
 
-        $recurrenceType = $request->input('recurrence_type', 'aucune');
-        $recurrenceDays = null;
-        if (in_array($recurrenceType, ['hebdomadaire', 'quotidienne'])) {
-            $recurrenceDays = implode(',', $request->input('recurrence_days', []));
-        }
+			$uvId = UniteValeur::where('slug', $request->uv_id)
+				->orWhere('id', intval($request->uv_id))
+				->value('id');
+			if (!$uvId) return __422('Unité de valeur invalide.');
 
-        $emploiDuTemps = EmploiDuTemp::create([
-            'debut' => $debut,
-            'fin' => $fin,
-            'uv_id' => $uvId,
-            'type_programme' => $request->enum('type', TypeProgrammeEnum::class),
-            'group_id' => $groupId,
-            'salle_id' => $salleId,
-            'owner_id' => $ownerId,
-            'owner_type' => User::class,
-            'details' => $request->details,
-            'recurrence_type' => $recurrenceType,
-            'recurrence_days' => $recurrenceDays,
-            'recurrence_end_date' => $request->recurrence_end_date,
-            'evenement_id' => $request->evenement_id,
-            ...injectAnneeScolaireId(),
-        ]);
-    } catch (Throwable $e) {
-        return __500($e->getMessage());
-    }
+			$ownerId = User::where('slug', $request->teacher)
+				->orWhere('id', intval($request->teacher))
+				->value('id');
+			if (!$ownerId) return __422('Enseignant invalide.');
 
-    return new EmploiDuTempsResource($emploiDuTemps);
-}
+			if ($this->hasSalleOverlap($salleId, $debut, $fin)) {
+				return __422('Salle déjà occupée sur cette plage horaire.');
+			}
+
+			$recurrenceType = $request->input('recurrence_type', 'aucune');
+			$recurrenceDays = null;
+			if (in_array($recurrenceType, ['hebdomadaire', 'quotidienne'])) {
+				$recurrenceDays = implode(',', $request->input('recurrence_days', []));
+			}
+
+			$emploiDuTemps = EmploiDuTemp::create([
+				'debut' => $debut,
+				'fin' => $fin,
+				'uv_id' => $uvId,
+				'type_programme' => $request->enum('type', TypeProgrammeEnum::class),
+				'group_id' => $groupId,
+				'salle_id' => $salleId,
+				'owner_id' => $ownerId,
+				'owner_type' => User::class,
+				'details' => $request->details,
+				'recurrence_type' => $recurrenceType,
+				'recurrence_days' => $recurrenceDays,
+				'recurrence_end_date' => $request->recurrence_end_date,
+				'evenement_id' => $request->evenement_id,
+				...injectAnneeScolaireId(),
+			]);
+		} catch (Throwable $e) {
+			return __500($e->getMessage());
+		}
+
+		return new EmploiDuTempsResource($emploiDuTemps);
+	}
 
 
 	// public function destroy(Request $request): Response|ResponseFactory
@@ -425,139 +427,139 @@ public function store(Request $request): Response|ResponseFactory|EmploiDuTempsR
 	// 	return new EmploiDuTempsResource($edt->fresh());
 	// }
 	public function update(Request $request): Response|ResponseFactory|EmploiDuTempsResource
-{
-    $rules = [
-        'slug' => ['required', 'exists:emploi_du_temps,slug'],
-        
-        // AJOUTER LES RÈGLES POUR DEBUT ET FIN
-        'debut' => ['nullable', 'date'],
-        'fin' => ['nullable', 'date'],
-        
-        // On valide la présence uniquement (ID ou slug)
-        'salle' => ['nullable'],
-        'uv_id' => ['nullable'],
-        'grade' => ['nullable'],
-        'teacher' => ['nullable'],
+	{
+		$rules = [
+			'slug' => ['required', 'exists:emploi_du_temps,slug'],
 
-        'type' => ['nullable', Rule::enum(TypeProgrammeEnum::class)],
-        'details' => ['nullable'],
+			// AJOUTER LES RÈGLES POUR DEBUT ET FIN
+			'debut' => ['nullable', 'date'],
+			'fin' => ['nullable', 'date'],
 
-        // RÉCURRENCE
-        'recurrence_type' => ['nullable', Rule::in(['aucune', 'hebdomadaire', 'quotidienne'])],
-        'recurrence_days' => ['nullable', 'array'],
-        'recurrence_end_date' => ['nullable', 'date'],
-    ];
+			// On valide la présence uniquement (ID ou slug)
+			'salle' => ['nullable'],
+			'uv_id' => ['nullable'],
+			'grade' => ['nullable'],
+			'teacher' => ['nullable'],
 
-    $validator = validator($request->all(), $rules);
-    if ($validator->fails()) {
-        return __422($validator->errors()->first());
-    }
+			'type' => ['nullable', Rule::enum(TypeProgrammeEnum::class)],
+			'details' => ['nullable'],
 
-    $edt = EmploiDuTemp::where('slug', $request->slug)->first();
-    if (!$edt) {
-        return __404('Programme introuvable.');
-    }
+			// RÉCURRENCE
+			'recurrence_type' => ['nullable', Rule::in(['aucune', 'hebdomadaire', 'quotidienne'])],
+			'recurrence_days' => ['nullable', 'array'],
+			'recurrence_end_date' => ['nullable', 'date'],
+		];
 
-    $payload = [];
+		$validator = validator($request->all(), $rules);
+		if ($validator->fails()) {
+			return __422($validator->errors()->first());
+		}
 
-    // AJOUTER LE TRAITEMENT POUR DEBUT ET FIN
-    if ($request->filled('debut')) {
-        $payload['debut'] = $request->debut;
-    }
-    
-    if ($request->filled('fin')) {
-        $payload['fin'] = $request->fin;
-    }
+		$edt = EmploiDuTemp::where('slug', $request->slug)->first();
+		if (!$edt) {
+			return __404('Programme introuvable.');
+		}
 
-    if ($request->filled('salle')) {
-        $salleId = Salle::where('slug', $request->salle)
-            ->orWhere('id', intval($request->salle))
-            ->value('id');
+		$payload = [];
 
-        if (!$salleId) return __422('Salle invalide.');
+		// AJOUTER LE TRAITEMENT POUR DEBUT ET FIN
+		if ($request->filled('debut')) {
+			$payload['debut'] = $request->debut;
+		}
 
-        $payload['salle_id'] = $salleId;
-    }
+		if ($request->filled('fin')) {
+			$payload['fin'] = $request->fin;
+		}
 
-    if ($request->filled('uv_id')) {
-        $uvId = UniteValeur::where('slug', $request->uv_id)
-            ->orWhere('id', intval($request->uv_id))
-            ->value('id');
+		if ($request->filled('salle')) {
+			$salleId = Salle::where('slug', $request->salle)
+				->orWhere('id', intval($request->salle))
+				->value('id');
 
-        if (!$uvId) return __422('Unité de valeur invalide.');
+			if (!$salleId) return __422('Salle invalide.');
 
-        $payload['uv_id'] = $uvId;
-    }
+			$payload['salle_id'] = $salleId;
+		}
 
-    if ($request->filled('grade')) {
-        $groupId = Group::where('slug', $request->grade)
-            ->orWhere('id', intval($request->grade))
-            ->value('id');
+		if ($request->filled('uv_id')) {
+			$uvId = UniteValeur::where('slug', $request->uv_id)
+				->orWhere('id', intval($request->uv_id))
+				->value('id');
 
-        if (!$groupId) return __422('Groupe invalide.');
+			if (!$uvId) return __422('Unité de valeur invalide.');
 
-        $payload['group_id'] = $groupId;
-    }
+			$payload['uv_id'] = $uvId;
+		}
 
-    if ($request->filled('teacher')) {
-        $ownerId = User::where('slug', $request->teacher)
-            ->orWhere('id', intval($request->teacher))
-            ->value('id');
+		if ($request->filled('grade')) {
+			$groupId = Group::where('slug', $request->grade)
+				->orWhere('id', intval($request->grade))
+				->value('id');
 
-        if (!$ownerId) return __422('Enseignant invalide.');
+			if (!$groupId) return __422('Groupe invalide.');
 
-        $payload['owner_id'] = $ownerId;
-        $payload['owner_type'] = User::class;
-    }
+			$payload['group_id'] = $groupId;
+		}
 
-    // TYPE
-    if ($request->filled('type')) {
-        $payload['type_programme'] = $request->enum('type', TypeProgrammeEnum::class);
-    }
+		if ($request->filled('teacher')) {
+			$ownerId = User::where('slug', $request->teacher)
+				->orWhere('id', intval($request->teacher))
+				->value('id');
 
-    // DÉTAILS
-    if ($request->has('details')) {
-        $payload['details'] = $request->details;
-    }
+			if (!$ownerId) return __422('Enseignant invalide.');
 
-    // RÉCURRENCE
-    if ($request->filled('recurrence_type')) {
-        $payload['recurrence_type'] = $request->recurrence_type;
+			$payload['owner_id'] = $ownerId;
+			$payload['owner_type'] = User::class;
+		}
 
-        if (in_array($request->recurrence_type, ['hebdomadaire', 'quotidienne'])) {
-            $payload['recurrence_days'] = implode(',', $request->recurrence_days ?? []);
-            $payload['recurrence_end_date'] = $request->recurrence_end_date;
-        } else {
-            // aucune
-            $payload['recurrence_days'] = null;
-            $payload['recurrence_end_date'] = null;
-        }
-    }
+		// TYPE
+		if ($request->filled('type')) {
+			$payload['type_programme'] = $request->enum('type', TypeProgrammeEnum::class);
+		}
 
-    // CORRECTION : Convertir les dates en Carbon pour la vérification
-    $debutToCheck = isset($payload['debut']) 
-        ? Carbon::parse($payload['debut']) 
-        : $edt->debut;
-    
-    $finToCheck = isset($payload['fin']) 
-        ? Carbon::parse($payload['fin']) 
-        : $edt->fin;
-    
-    $salleIdToCheck = $payload['salle_id'] ?? $edt->salle_id;
+		// DÉTAILS
+		if ($request->has('details')) {
+			$payload['details'] = $request->details;
+		}
 
-    if ($this->hasSalleOverlap(
-        $salleIdToCheck,
-        $debutToCheck,  // Maintenant un objet Carbon
-        $finToCheck,    // Maintenant un objet Carbon
-        $edt->id
-    )) {
-        return __422('Salle déjà occupée sur cette plage horaire.');
-    }
+		// RÉCURRENCE
+		if ($request->filled('recurrence_type')) {
+			$payload['recurrence_type'] = $request->recurrence_type;
 
-    $edt->update($payload);
+			if (in_array($request->recurrence_type, ['hebdomadaire', 'quotidienne'])) {
+				$payload['recurrence_days'] = implode(',', $request->recurrence_days ?? []);
+				$payload['recurrence_end_date'] = $request->recurrence_end_date;
+			} else {
+				// aucune
+				$payload['recurrence_days'] = null;
+				$payload['recurrence_end_date'] = null;
+			}
+		}
 
-    return new EmploiDuTempsResource($edt->fresh());
-}
+		// CORRECTION : Convertir les dates en Carbon pour la vérification
+		$debutToCheck = isset($payload['debut'])
+			? Carbon::parse($payload['debut'])
+			: $edt->debut;
+
+		$finToCheck = isset($payload['fin'])
+			? Carbon::parse($payload['fin'])
+			: $edt->fin;
+
+		$salleIdToCheck = $payload['salle_id'] ?? $edt->salle_id;
+
+		if ($this->hasSalleOverlap(
+			$salleIdToCheck,
+			$debutToCheck,  // Maintenant un objet Carbon
+			$finToCheck,    // Maintenant un objet Carbon
+			$edt->id
+		)) {
+			return __422('Salle déjà occupée sur cette plage horaire.');
+		}
+
+		$edt->update($payload);
+
+		return new EmploiDuTempsResource($edt->fresh());
+	}
 
 
 	/**
@@ -595,7 +597,7 @@ public function store(Request $request): Response|ResponseFactory|EmploiDuTempsR
 	public function checkAvailability(Request $request): Response|ResponseFactory
 	{
 		$rules = [
-			'salle' => ['required', 'exists:salles,slug'],
+			'salle' => ['required'],
 			'date' => ['required', 'date'],
 			'debut' => ['required'],
 			'fin' => ['required'],
@@ -621,7 +623,7 @@ public function store(Request $request): Response|ResponseFactory|EmploiDuTempsR
 			return __422("L'heure de fin doit être postérieure à l'heure de début.");
 		}
 
-		$salleId = Salle::whereSlug($request->salle)->value('id');
+		$salleId = Salle::where('slug', $request->salle)->orWhere('id', $request->salle)->first()->getAttribute('id');
 
 		$occupied = $this->hasSalleOverlap($salleId, $debut, $fin);
 
@@ -635,4 +637,29 @@ public function store(Request $request): Response|ResponseFactory|EmploiDuTempsR
 
 
 	public function setEmploiDuTempsForUser(): void {}
+
+
+	public function exportMatrice(Request $request)
+	{
+		$request->validate([
+			'group_id' => 'required|exists:groups,id',
+			'semaine' => 'nullable|date',
+		]);
+
+		$group_id = $request->group_id;
+		$date_ref = $request->semaine ? Carbon::parse($request->semaine) : Carbon::now();
+
+		// Une semaine va du lundi au dimanche
+		$date_debut = $date_ref->copy()->startOfWeek(Carbon::MONDAY);
+		$date_fin = $date_ref->copy()->endOfWeek(Carbon::SUNDAY);
+
+		$groupe = Group::find($group_id);
+		$filename = 'emploi_du_temps_' . $groupe->nom . '_' .
+			$date_debut->format('d-m-Y') . '.xlsx';
+
+		return Excel::download(
+			new EmploiDuTempsMatriceExport($group_id, $date_debut, $date_fin),
+			$filename
+		);
+	}
 }

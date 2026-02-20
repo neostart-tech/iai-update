@@ -1,9 +1,13 @@
 <?php
 
-use App\Http\Controllers\Admin\ReclamationController;
+use App\Http\Controllers\AnnouncementController;
+use App\Http\Controllers\ReclamationController;
 use App\Http\Controllers\Api\Admin\CandidaturePresenceController;
 use App\Http\Controllers\Api\SemoaCallBackController;
 use App\Http\Controllers\MyCalendarController;
+use App\Http\Controllers\NoteController;
+use App\Http\Controllers\PresenceController;
+use App\Http\Controllers\PresenceExportController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -15,22 +19,50 @@ Route::get('load-calendar', MyCalendarController::class)->middleware('auth:sanct
 
 
 Route::post('administration/candidature/presence', CandidaturePresenceController::class)->name('admin.candidatures.presence');
-Route::controller(ReclamationController::class)->prefix('reclamations')->group(function () {
-	Route::post('{note}/enregistrer-une-reclamation', 'store');
-	Route::get('/mes-reclamations',  'mesReclamations');
-	Route::delete('/reclamations/{reclamation}/annuler', 'annuler');
-})->middleware('auth:sanctum');;
-Route::any('semoa-callback-url',SemoaCallBackController::class);
 
-require __DIR__ .'/api_admin_routes.php';
+Route::middleware('auth:sanctum')->group(function () {
+    Route::controller(ReclamationController::class)->prefix('reclamations')->group(function () {
+        Route::post('{note}/enregistrer-une-reclamation', 'store');
+        Route::get('{note}/detail-une-reclamation', 'getNoteReclation');
+        Route::get('/mes-reclamations',  'mesReclamations');
+        Route::delete('{reclamation}/annuler', 'annuler');
+        Route::get('{reclamation}', 'show');
+        Route::get('/get-count-reclamations', 'getCountReclamations');
+    });
 
-require __DIR__ .'/api_auth.php';
+    Route::controller(NoteController::class)->prefix('mes-notes')->name('notes.')->group(function () {
+        Route::get('/', 'index')->name('index');
+    });
 
-require __DIR__ .'/api_candidature.php';
+    Route::controller(AnnouncementController::class)->prefix('etudiant/annonces')->name('announcements.')->group(function () {
+        Route::get('liste', 'index')->name('index');
+        Route::get('{announcement}/details', 'show')->name('show');
+        Route::post('{announcement}/postuler-a-une-offre', 'applyToAnnouncement')->name('apply-to-announcement');
+        Route::get('mes-depots', 'myApplications')->name('my-applications');
+    });
 
-require __DIR__ .'/api_comptable.php';
+    Route::controller(PresenceController::class)->prefix('presence')->group(function () {
+        Route::get('/get-my-course', 'mesCours');
+        Route::post('/save-student-presence', 'enregistrerAbsences');
+    });
 
-require __DIR__ .'/api_etudiant.php';
+    Route::get('/presences/export/{emploiDuTempsId}', [PresenceExportController::class, 'exportByCours']);
+    Route::post('/presences/export/filtered', [PresenceExportController::class, 'exportWithFilters']);
 
-require __DIR__ .'/api_professeur.php';
+});
 
+
+
+Route::any('semoa-callback-url', SemoaCallBackController::class);
+
+require __DIR__ . '/api_admin_routes.php';
+
+require __DIR__ . '/api_auth.php';
+
+require __DIR__ . '/api_candidature.php';
+
+require __DIR__ . '/api_comptable.php';
+
+require __DIR__ . '/api_etudiant.php';
+
+require __DIR__ . '/api_professeur.php';

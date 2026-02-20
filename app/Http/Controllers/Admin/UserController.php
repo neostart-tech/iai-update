@@ -172,13 +172,15 @@ class UserController extends Controller
 		// return to_route('admin.users.index')->with(successMsg('Profil modifié avec succès'));
 	}
 
-	public function loadEmploiDuTemps(User $user): AnonymousResourceCollection
+	public function loadEmploiDuTemps(User $user)
 	{
 		return EmploiDuTempsResource::collection($user->emploiDuTemps);
 	}
 
 	public function ShowEmploiDuTemps(User $user)
 	{
+			
+		return EmploiDuTempsResource::collection($user->emploiDuTemps);
 		//		dd(['resourceUrl' => route('admin.users.load-edt', $user)]);
 		return view('admin.users.teacher-calendar.calendar', compact('user'))->with([
 			'uvs' => Uv::all(),

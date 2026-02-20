@@ -6,10 +6,11 @@ use App\Traits\Routing\GenerateUniqueSlugTrait;
 use App\Traits\Routing\ModelsSlugKeyTrait;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Notifications\Notifiable;
 
 class Advertiser extends Model
 {
-	use ModelsSlugKeyTrait, GenerateUniqueSlugTrait;
+	use ModelsSlugKeyTrait, GenerateUniqueSlugTrait, Notifiable; 
 
 	public function getSlugBaseKeyName(): string
 	{

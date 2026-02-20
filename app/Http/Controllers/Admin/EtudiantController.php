@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\EtudiantRessource;
 use App\Models\Etudiant;
 use App\Models\Filiere;
 use App\Models\Group;
@@ -21,18 +22,6 @@ class EtudiantController extends Controller
         $etudiants = Etudiant::whereHas('etudiantGroups', function ($q) use ($anneeActiveId, $request) {
 
             $q->where('annee_scolaire_id', $anneeActiveId);
-
-            if ($request->filled('group_id')) {
-                $q->where('group_id', $request->group_id);
-            }
-
-            if ($request->filled('filiere_id')) {
-                $q->where('filiere_id', $request->filiere_id);
-            }
-
-            if ($request->filled('niveau_id')) {
-                $q->where('niveau_id', $request->niveau_id);
-            }
         })->with([
             'etudiantGroups' => function ($q) use ($anneeActiveId) {
                 $q->where('annee_scolaire_id', $anneeActiveId)
@@ -43,14 +32,38 @@ class EtudiantController extends Controller
             'etudiantGroups.niveau',
         ])->orderBy('nom')->orderBy('prenom')->get();
 
-        return view('admin.etudiants._index', [
-            'etudiants' => $etudiants,
-            'groupes'   => Group::with('niveau')->get(),
-            'groups'   => Group::with('niveau')->get(),
-            'filieres'  => Filiere::all(),
-            'niveaux'   => Niveau::all(),
-        ]);
+        return EtudiantRessource::collection($etudiants);
+
+        // return view('admin.etudiants._index', [
+        //     'etudiants' => $etudiants,
+        //     'groupes'   => Group::with('niveau')->get(),
+        //     'groups'   => Group::with('niveau')->get(),
+        //     'filieres'  => Filiere::all(),
+        //     'niveaux'   => Niveau::all(),
+        // ]);
     }
+
+
+    public function show(Etudiant $etudiant)
+    {
+        $anneeActiveId = injectAnneeScolaireId();
+
+        // Récupérer l'étudiant avec ses groupes, filière et niveau
+        $etudiant = Etudiant::where('id', $etudiant->id)
+            ->with([
+                'etudiantGroups' => function ($q) use ($anneeActiveId) {
+                    $q->where('annee_scolaire_id', $anneeActiveId)
+                        ->latest('id');
+                },
+                'etudiantGroups.group',
+                'etudiantGroups.filiere',
+                'etudiantGroups.niveau',
+            ])
+            ->firstOrFail(); // renvoie 404 si non trouvé
+
+        return new EtudiantRessource($etudiant);
+    }
+
 
     // public function importEtudiant(Request $request)
     // {
@@ -68,6 +81,8 @@ class EtudiantController extends Controller
     //         'Importation réussie avec succès'
     //     );
     // }
+
+
 
     public function importEtudiant(Request $request)
     {

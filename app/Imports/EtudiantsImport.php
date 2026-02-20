@@ -139,7 +139,16 @@ class EtudiantsImport implements
                 $cni = $this->cleanString($row['numero_de_cni'] ?? $row['numero de cni'] ?? '');
 
                 // Générer email unique
-                $email = $this->generateUniqueEmail($prenom, $nom, $matricule);
+                // $email = $this->generateUniqueEmail($prenom, $nom, $matricule);
+                $emailFromExcel = $this->cleanString($row['email'] ?? '');
+
+                // Si email fourni dans Excel → on l’utilise
+                if (!empty($emailFromExcel)) {
+                    $email = $emailFromExcel;
+                } else {
+                    // Sinon on génère automatiquement
+                    $email = $this->generateCustomEmail($prenom, $nom, $matricule);
+                }
 
                 // Créer le slug
                 $slug = Str::uuid();
@@ -558,4 +567,33 @@ class EtudiantsImport implements
     {
         return $this->importedCount;
     }
+
+    /**
+ * Générer email si colonne absente
+ * Format : première lettre du nom + prénom
+ */
+private function generateCustomEmail($prenom, $nom, $matricule)
+{
+    $prenomClean = strtolower(preg_replace('/[^a-z0-9]/', '', iconv('UTF-8', 'ASCII//TRANSLIT', $prenom)));
+    $nomClean = strtolower(preg_replace('/[^a-z0-9]/', '', iconv('UTF-8', 'ASCII//TRANSLIT', $nom)));
+
+    // Première lettre du nom + prénom
+    $emailBase = substr($nomClean, 0, 1) . $prenomClean . '@etudiant.exemple.com';
+
+    // Vérifier unicité
+    if (!in_array($emailBase, $this->existingEmails)) {
+        return $emailBase;
+    }
+
+    // Si déjà existant → ajouter matricule
+    $emailWithMatricule = substr($nomClean, 0, 1) . $prenomClean . $matricule . '@etudiant.exemple.com';
+
+    if (!in_array($emailWithMatricule, $this->existingEmails)) {
+        return $emailWithMatricule;
+    }
+
+    // Dernier fallback
+    return substr($nomClean, 0, 1) . $prenomClean . $matricule . time() . '@etudiant.exemple.com';
+}
+
 }

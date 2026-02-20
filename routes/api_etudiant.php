@@ -25,11 +25,11 @@ Route::prefix('espace-etudiant')->name('etudiants.')->group(function () {
         Route::get('', 'create')->name('login');
         Route::post('', 'store')->name('store');
     });
+        Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('auth.logout');
 
     // Route::middleware('auth:etudiants')->group(function () {
     Route::middleware('auth:sanctum')->group([], function () {
         // Route::view('', 'etudiants.dashboard')->name('dashboard');
-        Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('auth.logout');
 
         Route::controller(EtudiantController::class)->group(function () {
             Route::name('my-space.')->group(function () {

@@ -15,6 +15,7 @@ use App\Http\Controllers\{
 	NotificationController,
 	ReclamationController,
 	ReleveController,
+	ReleveNoteController,
 };
 use App\Http\Controllers\Admin\{
 	AgendaController,
@@ -46,6 +47,13 @@ use App\Models\AnneeScolaire;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
+
+
+
+
+Route::controller(ConfigurationController::class)->prefix('parametre')->name('configuration.')->group(function () {
+	Route::get('configuration', 'index')->name('index');
+});
 
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -113,6 +121,8 @@ Route::middleware('auth:sanctum')->group(function () {
 		Route::put('update', 'update')->name('update');
 		Route::post('check-availability', 'checkAvailability')->name('check-availability');
 		Route::delete('{slug}/delete', 'destroy')->name('delete');
+		Route::get('/matrice/export',  'exportMatrice');
+
 	});
 
 	// Gestion des Rôles par l'administration
@@ -199,7 +209,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
 	Route::controller(ConfigurationController::class)->prefix('parametre')->name('configuration.')->group(function () {
-		Route::get('configuration', 'index')->name('index');
 		Route::put('parametre/modification', 'update')->name('update');
 	});
 
@@ -454,6 +463,11 @@ Route::middleware('auth:sanctum')->group(function () {
 		Route::post('groupe/{group}', 'generateGroupReleves')->name('groupe');
 	});
 
+	Route::controller(ReleveNoteController::class)->prefix('releves-de-note')->group(function () {
+		Route::post('{etudiant}/generer-releve-de-note', 'recalculate');
+		Route::get('{etudiant}/get-releve-de-note', 'show');
+	});
+
 	// Routes pour les cartes étudiants
 	Route::controller(CarteEtudiantController::class)->prefix('carte')->name('carte.')->group(function () {
 		Route::get('{etudiant}', 'genererCarteEtudiant')->name('index');
@@ -461,6 +475,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 	Route::controller(AdminEtudiantController::class)->prefix('etudiants')->name('etudiants.')->group(function () {
 		Route::get('liste', 'index')->name('index');
+		Route::get('{etudiant}', 'show')->name('show');
 		Route::post('import', 'importEtudiant')->name('import');
 		$anneActive = AnneeScolaire::where('active', true)->first()->nom ?? null;
 		Route::get('export', function () use ($anneActive) {

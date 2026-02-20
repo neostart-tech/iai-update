@@ -7,17 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CoursPresence extends Model
 {
-    protected $fillable = [
-        'cours_id',
-        'emploi_du_temps_id',
-        'etudiant_id',
-        'statut',
-        'commentaire',
-        'needs_validation',
-        'validated_by',
-        'validated_at',
-        'sanction',
-    ];
+    protected $guarded = ['id'];
+    protected $table="presences";
 
     protected $casts = [
         'needs_validation' => 'boolean',

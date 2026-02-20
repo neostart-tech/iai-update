@@ -96,4 +96,8 @@ class EmploiDuTemp extends Model
     {
         return $this->belongsTo(Evaluation::class);
     }
+
+	public function presences(){
+		return $this->hasMany(CoursPresence::class,'emploi_du_temps_id');
+	}
 }

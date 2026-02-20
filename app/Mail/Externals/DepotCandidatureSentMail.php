@@ -1,4 +1,5 @@
 <?php
+// app/Mail/Externals/DepotCandidatureSentMail.php
 
 namespace App\Mail\Externals;
 
@@ -9,46 +10,62 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use App\Helpers\ConfigHelper as AppGetters;
+use Illuminate\Support\Facades\Storage;
 
 class DepotCandidatureSentMail extends Mailable
 {
-	use Queueable, SerializesModels;
+    use Queueable, SerializesModels;
 
-	private string $route;
+    public function __construct(
+        private readonly string $title,
+        private readonly ?string $filePath = null  // Le CV uploadé
+    ) {}
 
-	public function __construct(private readonly string $title, private readonly string $filePath)
-	{
-	}
+    public function envelope(): Envelope
+    {
+        return new Envelope(
+            subject: 'Confirmation de dépôt de candidature',
+        );
+    }
 
-	public function envelope(): Envelope
-	{
-		return new Envelope(
-			subject: 'Réinitialisation de mot de passe',
-		);
-	}
+    public function content(): Content
+    {
+        return new Content(
+            view: 'mails.base',
+            with: [
+                'mailTitle' => "Dépôt de candidature",
+                'mailContent' => $this->mainContent(),
+            ]
+        );
+    }
 
-	public function content(): Content
-	{
-		return new Content(
-			view: 'mails.base',
-			with: [
-				'mailTitle' => "Dépôt de candidature",
-				'mailContent' => $this->mainContent(),
-			]
-		);
-	}
+    private function mainContent(): string
+    {
+        $hasAttachment = !empty($this->filePath) && Storage::disk('public')->exists($this->filePath);
+        
+        $content = "Bonjour, <br> Vous recevez cet e-mail, suite au dépôt de candidature d'un de nos étudiants à votre offre intitulée: <b> {$this->title}</b>. <br>";
+        
+        if ($hasAttachment) {
+            $content .= "Vous trouverez ci-joint le Curriculum Vitae du dit étudiant. <br>";
+        }
+        
+        $content .= "Merci pour votre confiance, <br>
+        Cordialement, " . AppGetters::getAppName() . ".";
+        
+        return $content;
+    }
 
-	private function mainContent(): string
-	{
-		return "Bonjour, <br> Vous recevez cet e-mail, suite au dépôt de candidature d'un de nos étudiants à votre offre intitulée: <b> {$this->title}</b>. <br>
-		Vous trouverez ci-joint le Curriculum Vitae du dit étudiant. <br> Merci pour votre confiance, <br>
-    Cordialement, " .' '.AppGetters::getAppName() . ".";
-	}
-
-	public function attachments(): array
-	{
-		return [
-			Attachment::fromStorageDisk('public', $this->filePath)->withMime('application/pdf'),
-		];
-	}
+    public function attachments(): array
+    {
+        // Joindre le CV uploadé s'il existe
+        if (!empty($this->filePath) && Storage::disk('public')->exists($this->filePath)) {
+            return [
+                Attachment::fromStorageDisk('public', $this->filePath)
+                    ->as('CV_Candidat.pdf')  // Nom plus générique
+                    ->withMime('application/pdf'),
+            ];
+        }
+        
+        return [];
+    }
 }

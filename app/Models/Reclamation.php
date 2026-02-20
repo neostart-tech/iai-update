@@ -11,18 +11,7 @@ class Reclamation extends Model
 {
     use SoftDeletes, GenerateSlugTrait;
 
-    protected $fillable = [
-        'etudiant_id',
-        'evaluation_id',
-        'note_id',
-        'motif',
-        'fichier_justificatif',
-        'statut',
-        'nouvelle_note',
-        'commentaire_admin',
-        'traitee_par',
-        'traitee_le'
-    ];
+    protected $guarded = ['id'];
 
     protected $casts = [
         'traitee_le' => 'datetime',

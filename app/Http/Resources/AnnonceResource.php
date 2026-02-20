@@ -29,6 +29,7 @@ class AnnonceResource extends JsonResource
             "title" => $this->resource->title,
             'duration' => $this->resource->duration,
             'advertiser' => new AdvertiserResource($this->resource->advertiser),
+            'applied' => $this->resource->announcementEtudiants()->where('etudiant_id', $request->user()->id)->exists(),
 
         ];
     }
