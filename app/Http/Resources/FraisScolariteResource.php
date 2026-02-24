@@ -16,14 +16,15 @@ class FraisScolariteResource extends JsonResource
     {
         return [
             "id" => $this->resource->id,
-            "annee_scolaire" => new AnneeScolaireResource($this->resource->annee_scolaire),
+            "annee_scolaire" => new AnneeScolaireResource($this->resource->anneeScolaire),
             "niveau" => new NiveauResource($this->resource->niveau),
             "montant" => $this->resource->montant,
             "genre" => $this->resource->genre,
             "description" => $this->resource->description,
-            'tranches' => TranchePaiementResource::collection(
-                $this->whenLoaded('tranchepaiement')
-            ),
+            "filiere"=>new FiliereResource($this->resource->filiere),
+            // 'tranches' => TranchePaiementResource::collection(
+            //     $this->whenLoaded('tranchepaiement')
+            // ),
         ];
     }
 }

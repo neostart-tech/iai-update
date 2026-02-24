@@ -48,8 +48,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 
-
-
+use function PHPUnit\Framework\assertEquals;
 
 Route::controller(ConfigurationController::class)->prefix('parametre')->name('configuration.')->group(function () {
 	Route::get('configuration', 'index')->name('index');
@@ -475,6 +474,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 	Route::controller(AdminEtudiantController::class)->prefix('etudiants')->name('etudiants.')->group(function () {
 		Route::get('liste', 'index')->name('index');
+	Route::get('get-etudiant-non-boursier',"getNonBoursiers");
 		Route::get('{etudiant}', 'show')->name('show');
 		Route::post('import', 'importEtudiant')->name('import');
 		$anneActive = AnneeScolaire::where('active', true)->first()->nom ?? null;

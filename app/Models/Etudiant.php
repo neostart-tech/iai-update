@@ -238,28 +238,50 @@ class Etudiant extends Authenticatable
 	{
 		return $this->hasMany(Candidature::class);
 	}
-	public function estAjour()
+	// public function estAjour()
+	// {
+	// 	$candidature = $this->candidatures()->latest()->first();
+	// 	if (!$candidature) return false;
+
+	// 	$niveau = $candidature->niveau_id;
+	// 	$frais = FraisScolarite::where('niveau_id', $niveau)->first();
+	// 	if (!$frais) return false;
+
+	// 	$tranches = TranchePaiement::where('frais_scolarite_id', $frais->id)->get();
+
+	// 	foreach ($tranches as $tranche) {
+	// 		$totalPaye = Paiement::where('etudiant_id', $this->id)
+	// 			->where('tranche_paiement_id', $tranche->id)
+	// 			->sum('montant');
+
+	// 		if ($totalPaye < $tranche->montant) {
+	// 			return false;
+	// 		}
+	// 	}
+
+	// 	return true;
+	// }
+
+	public function estAjour(): bool
 	{
-		$candidature = $this->candidatures()->latest()->first();
-		if (!$candidature) return false;
+		$echeancier = $this->echeancier;
 
-		$niveau = $candidature->niveau_id;
-		$frais = FraisScolarite::where('niveau_id', $niveau)->first();
-		if (!$frais) return false;
+		if (!$echeancier) return false;
 
-		$tranches = TranchePaiement::where('frais_scolarite_id', $frais->id)->get();
+		foreach ($echeancier->echeances as $echeance) {
+			$totalPaye = $echeance->paiements()->sum('montant');
 
-		foreach ($tranches as $tranche) {
-			$totalPaye = Paiement::where('etudiant_id', $this->id)
-				->where('tranche_paiement_id', $tranche->id)
-				->sum('montant');
-
-			if ($totalPaye < $tranche->montant) {
+			if ($totalPaye < $echeance->montant) {
 				return false;
 			}
 		}
 
 		return true;
+	}
+
+	public function bourses()
+	{
+		return $this->belongsToMany(Bourse::class,'bourse_etudiants');
 	}
 
 

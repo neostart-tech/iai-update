@@ -4,8 +4,10 @@ use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ReclamationController;
 use App\Http\Controllers\Api\Admin\CandidaturePresenceController;
 use App\Http\Controllers\Api\SemoaCallBackController;
+use App\Http\Controllers\BourseController;
 use App\Http\Controllers\MyCalendarController;
 use App\Http\Controllers\NoteController;
+use App\Http\Controllers\PlanPaiementController;
 use App\Http\Controllers\PresenceController;
 use App\Http\Controllers\PresenceExportController;
 use Illuminate\Http\Request;
@@ -49,6 +51,28 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/presences/export/{emploiDuTempsId}', [PresenceExportController::class, 'exportByCours']);
     Route::post('/presences/export/filtered', [PresenceExportController::class, 'exportWithFilters']);
 
+
+    Route::controller(BourseController::class)->prefix('bourse')->group(function () {
+        Route::get('/liste', 'index')->name('bourse.index');
+        Route::post('/store', 'store')->name('bourse.store');
+        Route::get('/{bourse}', 'show')->name('bourse.show');
+        Route::get('/{bourse}/etudiants', 'getEtudiantsBourse')->name('bourse.etudiants');
+        Route::put('/{bourse}/update', 'update')->name('bourse.update');
+        Route::delete('/{bourse}/delete', 'destroy')->name('bourse.delete');
+        Route::post('/affecter', 'affecter')->name('bourse.affecter');
+        Route::post('/retirer', 'retirer')->name('bourse.retirer');
+    });
+
+    Route::controller(PlanPaiementController::class)->prefix('plan-de-paiement')->group(function () {
+        Route::get('/liste', 'index');
+        Route::post('/store', 'store');
+        Route::get('/{plan}', 'show');
+        // Route::get('/{plan}/etudiants', 'getEtudiantsBourse')->name('bourse.etudiants');
+        Route::put('/{plan}/update', 'update');
+        Route::delete('/{plan}/delete', 'destroy');
+        // Route::post('/affecter', 'affecter')->name('bourse.affecter');
+        // Route::post('/retirer', 'retirer')->name('bourse.retirer');
+    });
 });
 
 

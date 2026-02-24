@@ -18,6 +18,7 @@ Route::controller(AuthentificationSessionController::class)->prefix('comptables'
 
 
 // Route::middleware(['auth'])->group(function () {
+Route::middleware('auth:sanctum')->group(function(){
 Route::group([],function () {
 
 	Route::controller(ComptabiliteController::class)->group(function () {
@@ -87,3 +88,5 @@ Route::group([],function () {
 
 
 });
+});
+

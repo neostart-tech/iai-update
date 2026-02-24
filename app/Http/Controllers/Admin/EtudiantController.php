@@ -10,6 +10,7 @@ use App\Models\Group;
 use App\Models\Niveau;
 use App\Imports\EtudiantsImport;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 
 
@@ -41,6 +42,37 @@ class EtudiantController extends Controller
         //     'filieres'  => Filiere::all(),
         //     'niveaux'   => Niveau::all(),
         // ]);
+    }
+
+    public function getNonBoursiers()
+    {
+        $anneeActiveId = injectAnneeScolaireId();
+
+        // Récupérer les IDs des étudiants qui ont déjà une bourse pour l'année active
+        $etudiantsAvecBourseIds = DB::table('bourse_etudiants')
+            ->where('annee_scolaire_id', $anneeActiveId)
+            ->pluck('etudiant_id')
+            ->toArray();
+
+        // Récupérer uniquement les étudiants SANS bourse pour l'année active
+        $etudiants = Etudiant::whereHas('etudiantGroups', function ($q) use ($anneeActiveId) {
+            $q->where('annee_scolaire_id', $anneeActiveId);
+        })
+            ->whereNotIn('id', $etudiantsAvecBourseIds)
+            ->with([
+                'etudiantGroups' => function ($q) use ($anneeActiveId) {
+                    $q->where('annee_scolaire_id', $anneeActiveId)
+                        ->latest('id');
+                },
+                'etudiantGroups.group',
+                'etudiantGroups.filiere',
+                'etudiantGroups.niveau',
+            ])
+            ->orderBy('nom')
+            ->orderBy('prenom')
+            ->get();
+
+        return EtudiantRessource::collection($etudiants);
     }
 
 
