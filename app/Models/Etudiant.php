@@ -348,4 +348,6 @@ class Etudiant extends Authenticatable
 
 		return $query->first();
 	}
+
+	
 }
