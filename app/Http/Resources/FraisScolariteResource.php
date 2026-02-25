@@ -21,10 +21,10 @@ class FraisScolariteResource extends JsonResource
             "montant" => $this->resource->montant,
             "genre" => $this->resource->genre,
             "description" => $this->resource->description,
-            "filiere"=>new FiliereResource($this->resource->filiere),
-            // 'tranches' => TranchePaiementResource::collection(
-            //     $this->whenLoaded('tranchepaiement')
-            // ),
+            "filiere" => new FiliereResource($this->resource->filiere),
+            'tranches' => TranchePaiementResource::collection(
+                $this->whenLoaded('tranchepaiement')
+            ),
         ];
     }
 }

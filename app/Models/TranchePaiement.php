@@ -6,7 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class TranchePaiement extends Model
 {
-    protected $fillable = ['frais_scolarite_id', 'annee_scolaire_id', 'libelle', 'montant', 'date_limite'];
+    protected $guarded = ['id'];
+
+        protected $table = 'tranche_paiements';
+
 
     public function anneeScolaire()
     {
@@ -14,9 +17,11 @@ class TranchePaiement extends Model
     }
 
 
+
+
     public function fraiscolarite()
     {
-        return $this->belongsTo(FraisScolarite::class);
+        return $this->belongsTo(FraisScolarite::class,'frais_scolarite_id');
     }
 
     public function paiements()

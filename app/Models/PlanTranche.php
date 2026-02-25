@@ -11,7 +11,6 @@ class PlanTranche extends Model
     use HasFactory;
 
     protected $guarded = ['id'];
-    protected $table="plan_tranches";
 
     public function plan(): BelongsTo
     {

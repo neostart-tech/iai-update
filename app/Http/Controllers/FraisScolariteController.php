@@ -18,7 +18,7 @@ class FraisScolariteController extends Controller
 {
     public function index()
     {
-        $frais = FraisScolarite::with(['anneeScolaire', 'niveau', 'filiere'])->get();
+        $frais = FraisScolarite::with(['anneeScolaire', 'niveau', 'filiere','tranchepaiement'])->get();
         // $annees = AnneeScolaire::all();
         // $niveaux = Niveau::all();
 
@@ -101,7 +101,7 @@ class FraisScolariteController extends Controller
 
     //     return redirect()->route('comptable.frais.index')->with('success', 'Frais modifié avec succès');
     // }
-    public function update(Request $request,  $frais)
+    public function update(Request $request,$frais)
     {
 
     $frais=FraisScolarite::find($frais);

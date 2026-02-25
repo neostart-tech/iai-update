@@ -10,6 +10,7 @@ use App\Http\Controllers\NoteController;
 use App\Http\Controllers\PlanPaiementController;
 use App\Http\Controllers\PresenceController;
 use App\Http\Controllers\PresenceExportController;
+use App\Http\Controllers\TranchePaiementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -70,6 +71,17 @@ Route::middleware('auth:sanctum')->group(function () {
         // Route::get('/{plan}/etudiants', 'getEtudiantsBourse')->name('bourse.etudiants');
         Route::put('/{plan}/update', 'update');
         Route::delete('/{plan}/delete', 'destroy');
+        // Route::post('/affecter', 'affecter')->name('bourse.affecter');
+        // Route::post('/retirer', 'retirer')->name('bourse.retirer');
+    });
+
+     Route::controller(TranchePaiementController::class)->prefix('tranche-de-paiement')->group(function () {
+        Route::get('/liste', 'index');
+        Route::post('/store', 'store');
+        Route::get('/{frais}', 'show');
+        // Route::get('/{plan}/etudiants', 'getEtudiantsBourse')->name('bourse.etudiants');
+        Route::put('/{tranche}/update', 'update');
+        Route::delete('/{tranche}/delete', 'destroy');
         // Route::post('/affecter', 'affecter')->name('bourse.affecter');
         // Route::post('/retirer', 'retirer')->name('bourse.retirer');
     });

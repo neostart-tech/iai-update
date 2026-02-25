@@ -3,10 +3,14 @@
 namespace App\Models;
 
 use App\Enums\GenreEnum;
+use App\Http\Resources\AnnonceResource;
+use App\Models\Scopes\CurrentAnneeScolaireScope;
 use App\Traits\Routing\GenerateUniqueSlugTrait;
 use App\Traits\Routing\ModelsSlugKeyTrait;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Model;
 
+#[ScopedBy([CurrentAnneeScolaireScope::class])]
 class FraisScolarite extends Model
 {
     use GenerateUniqueSlugTrait, ModelsSlugKeyTrait;
