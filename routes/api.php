@@ -63,6 +63,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{bourse}/delete', 'destroy')->name('bourse.delete');
         Route::post('/affecter', 'affecter')->name('bourse.affecter');
         Route::post('/retirer', 'retirer')->name('bourse.retirer');
+        Route::get('{etudiant}/etudiant', 'getBoursesByEtudiant');
     });
 
     Route::controller(PlanPaiementController::class)->prefix('plan-de-paiement')->group(function () {
@@ -94,24 +95,20 @@ Route::middleware('auth:sanctum')->group(function () {
     // Routes pour l'admin
 
     // Dashboard des négociations
-    Route::controller(TranchePaiementController::class)->prefix('admin')->group(function () {
+    Route::controller(NegociationController::class)->prefix('admin')->group(function () {
 
-        Route::get('negociations/dashboard', [NegociationController::class, 'dashboard'])->name('negociations.dashboard');
+        Route::get('negociations/dashboard', 'dashboard');
 
         // Ressource complète pour les négociations
         Route::resource('negociations', NegociationController::class);
-
-        // Routes supplémentaires
-        Route::post('negociations/{id}/ajouter-paiement', [NegociationController::class, 'ajouterPaiement'])
+        Route::post('negociations/{id}/ajouter-paiement',  'ajouterPaiement')
             ->name('negociations.ajouter-paiement');
-
-
-        // Routes API (si besoin)
-
     });
-    Route::get('negociations/dashboard', [NegociationController::class, 'dashboard']);
-    Route::get('negociations/{id}', [NegociationController::class, 'show']);
-    Route::post('negociations/{id}/ajouter-paiement', [NegociationController::class, 'ajouterPaiement']);
+    Route::controller(NegociationController::class)->group(function () {
+        Route::get('negociations/dashboard',  'dashboard');
+        Route::get('negociations/{id}',  'show');
+        Route::post('negociations/{id}/ajouter-paiement',  'ajouterPaiement');
+    });
 });
 
 

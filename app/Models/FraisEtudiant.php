@@ -47,7 +47,6 @@ class FraisEtudiant extends Model
         'en_retard' => 'En retard'
     ];
 
-    // ==================== RELATIONS ====================
 
     public function etudiant()
     {

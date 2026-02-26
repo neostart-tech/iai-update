@@ -18,80 +18,51 @@ class NegociationController extends Controller
     /**
      * Afficher la liste des frais étudiants
      */
-    public function index(Request $request)
+    public function index()
     {
-        $query = FraisEtudiant::with(['etudiant', 'fraisScolarite.niveau', 'anneeScolaire', 'bourseEtudiant.bourse'])
-            ->orderBy('created_at', 'desc');
+        $query = FraisEtudiant::with(['etudiant', 'fraisScolarite.niveau', 'anneeScolaire', 'bourseEtudiant.bourse','echeances.paiements'])
+            ->orderBy('created_at', 'desc')->get();
+      return response()->json($query);
 
-        // Filtres
-        if ($request->filled('etudiant_id')) {
-            $query->where('etudiant_id', $request->etudiant_id);
-        }
-
-        if ($request->filled('annee_scolaire_id')) {
-            $query->where('annee_scolaire_id', $request->annee_scolaire_id);
-        }
-
-        if ($request->filled('statut')) {
-            $query->where('statut', $request->statut);
-        }
-
-        if ($request->filled('type_paiement')) {
-            $query->where('type_paiement', $request->type_paiement);
-        }
-
-        $fraisEtudiants = $query->paginate(15);
-
-        // Données pour les filtres
-        $etudiants = Etudiant::orderBy('nom')->get();
-        $anneesScolaires = \App\Models\AnneeScolaire::orderBy('nom', 'desc')->get();
-
-        return view('admin.negociations.index', compact('fraisEtudiants', 'etudiants', 'anneesScolaires'));
     }
 
     /**
      * Afficher le formulaire de création
      */
-    public function create(Request $request)
-    {
-        $etudiant = null;
-        $fraisDisponibles = collect();
-        $bourses = collect();
+    // public function create(Request $request)
+    // {
+    //     $etudiant = null;
+    //     $fraisDisponibles = collect();
+    //     $bourses = collect();
 
-        if ($request->filled('etudiant_id')) {
-            $etudiant = Etudiant::with('dernierGroupe.niveau', 'dernierGroupe.filiere')->find($request->etudiant_id);
+    //     if ($request->filled('etudiant_id')) {
+    //         $etudiant = Etudiant::with('dernierGroupe.niveau', 'dernierGroupe.filiere')->find($request->etudiant_id);
             
-            if ($etudiant && $etudiant->dernierGroupe) {
-                // Récupérer les frais correspondant au niveau de l'étudiant
-                $fraisDisponibles = FraisScolarite::with('niveau', 'filiere')
-                    ->where('niveau_id', $etudiant->dernierGroupe->niveau_id)
-                    ->where(function($q) use ($etudiant) {
-                        $q->whereNull('filiere_id')
-                          ->orWhere('filiere_id', $etudiant->dernierGroupe->filiere_id);
-                    })
-                    ->get();
+    //         if ($etudiant && $etudiant->dernierGroupe) {
+    //             // Récupérer les frais correspondant au niveau de l'étudiant
+    //             $fraisDisponibles = FraisScolarite::with('niveau', 'filiere')
+    //                 ->where('niveau_id', $etudiant->dernierGroupe->niveau_id)
+    //                 ->where(function($q) use ($etudiant) {
+    //                     $q->whereNull('filiere_id')
+    //                       ->orWhere('filiere_id', $etudiant->dernierGroupe->filiere_id);
+    //                 })
+    //                 ->get();
 
-                // Récupérer les bourses actives de l'étudiant
-                $bourses = BourseEtudiant::with('bourse')
-                    ->where('etudiant_id', $etudiant->id)
-                    ->whereHas('bourse', function($q) {
-                        $q->where('statut', 'active');
-                    })
-                    ->get();
-            }
-        }
+    //             // Récupérer les bourses actives de l'étudiant
+    //             $bourses = BourseEtudiant::with('bourse')
+    //                 ->where('etudiant_id', $etudiant->id)
+    //                 ->whereHas('bourse', function($q) {
+    //                     $q->where('statut', 'active');
+    //                 })
+    //                 ->get();
+    //         }
+    //     }
 
-        $etudiants = Etudiant::orderBy('nom')->get();
-        $anneesScolaires = \App\Models\AnneeScolaire::orderBy('nom', 'desc')->get();
+    //     $etudiants = Etudiant::orderBy('nom')->get();
+    //     $anneesScolaires = \App\Models\AnneeScolaire::orderBy('nom', 'desc')->get();
 
-        return view('admin.negociations.create', compact(
-            'etudiants', 
-            'anneesScolaires', 
-            'fraisDisponibles', 
-            'bourses',
-            'etudiant'
-        ));
-    }
+    //  return __200('Négociation créer avec succes');
+    // }
 
     /**
      * Enregistrer une nouvelle négociation
@@ -186,11 +157,14 @@ class NegociationController extends Controller
 
             DB::commit();
 
-            return redirect()->route('admin.negociations.show', $fraisEtudiant->id)
-                ->with('success', 'Négociation enregistrée avec succès');
+            return __200('Négociation créer avec succes');
+
+            // return redirect()->route('admin.negociations.show', $fraisEtudiant->id)
+            //     ->with('success', 'Négociation enregistrée avec succès');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->withErrors(['error' => 'Erreur: ' . $e->getMessage()])->withInput();
+            // return back()->withErrors(['error' => 'Erreur: ' . $e->getMessage()])->withInput();
+            return response()->json(['error' => 'Erreur: ' . $e->getMessage()]);
         }
     }
 
@@ -213,32 +187,34 @@ class NegociationController extends Controller
             }
         ])->findOrFail($id);
 
-        return view('admin.negociations.show', compact('fraisEtudiant'));
+        return response()->json($fraisEtudiant);
+
+        // return view('admin.negociations.show', compact('fraisEtudiant'));
     }
 
     /**
      * Afficher le formulaire d'édition
      */
-    public function edit($id)
-    {
-        $fraisEtudiant = FraisEtudiant::with([
-            'etudiant',
-            'echeances',
-            'bourseEtudiant.bourse'
-        ])->findOrFail($id);
+    // public function edit($id)
+    // {
+    //     $fraisEtudiant = FraisEtudiant::with([
+    //         'etudiant',
+    //         'echeances',
+    //         'bourseEtudiant.bourse'
+    //     ])->findOrFail($id);
 
-        // Ne permettre l'édition que si c'est une négociation et pas encore soldé
-        if ($fraisEtudiant->type_paiement !== 'negociation' || $fraisEtudiant->statut === 'solde') {
-            return redirect()->route('admin.negociations.show', $id)
-                ->with('error', 'Cette négociation ne peut pas être modifiée');
-        }
+    //     // Ne permettre l'édition que si c'est une négociation et pas encore soldé
+    //     if ($fraisEtudiant->type_paiement !== 'negociation' || $fraisEtudiant->statut === 'solde') {
+    //         return redirect()->route('admin.negociations.show', $id)
+    //             ->with('error', 'Cette négociation ne peut pas être modifiée');
+    //     }
 
-        return view('admin.negociations.edit', compact('fraisEtudiant'));
-    }
+    //     // return view('admin.negociations.edit', compact('fraisEtudiant'));
+    // }
 
-    /**
-     * Mettre à jour une négociation
-     */
+    // /**
+    //  * Mettre à jour une négociation
+    //  */
     public function update(Request $request, $id)
     {
         $fraisEtudiant = FraisEtudiant::findOrFail($id);

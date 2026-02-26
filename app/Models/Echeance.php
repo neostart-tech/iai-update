@@ -116,8 +116,7 @@ class Echeance extends Model
         throw new \Exception("Le montant dépasse le reste à payer (" . $this->reste_a_payer . " FCFA)");
     }
 
-    // Créer le paiement SANS slug
-    $paiement = new \App\Models\Paiement();
+    $paiement = new Paiement();
     $paiement->etudiant_id = $this->fraisEtudiant->etudiant_id;
     $paiement->montant = $montant;
     $paiement->mode_paiement = $data['mode_paiement'] ?? 'especes';
@@ -134,7 +133,6 @@ class Echeance extends Model
 
     return $paiement;
 }
-    // ==================== SCOPES ====================
 
     public function scopeEnAttente($query)
     {

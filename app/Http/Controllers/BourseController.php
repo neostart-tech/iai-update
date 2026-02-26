@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\BourseEtudiantResource;
 use App\Http\Resources\BourseResource;
 use App\Http\Resources\EtudiantResource;
 use App\Http\Resources\EtudiantRessource;
@@ -17,7 +18,57 @@ class BourseController extends Controller
     {
         return BourseResource::collection(Bourse::with('etudiants')->get());
     }
-    
+
+    // public function getBoursesByEtudiant($etudiantId)
+    // {
+    //     $etudiant = Etudiant::with(['bourses' => function($query) {
+    //         $query->withPivot('annee_scolaire_id', 'created_at', 'slug')
+    //               ->orderBy('pivot_created_at', 'desc');
+    //     }])->findOrFail($etudiantId);
+
+    //     $bourses = $etudiant->bourses->map(function($bourse) use ($etudiant) {
+    //         return [
+    //             'id' => $bourse->pivot->id,
+    //             'bourse_id' => $bourse->id,
+    //             'etudiant_id' => $etudiant->id,
+    //             'slug' => $bourse->pivot->slug,
+    //             'annee_scolaire_id' => $bourse->pivot->annee_scolaire_id,
+    //             'created_at' => $bourse->pivot->created_at,
+    //             'bourse' => [
+    //                 'id' => $bourse->id,
+    //                 'nom' => $bourse->nom,
+    //                 'type' => $bourse->type,
+    //                 'valeur' => $bourse->valeur,
+    //                 'description' => $bourse->description,
+    //                 'libelle' => $bourse->libelle ?? $bourse->nom
+    //             ]
+    //         ];
+    //     });
+
+    //     return response()->json([
+    //         'data' => $bourses
+    //     ]);
+    // }
+    public function getBoursesByEtudiant($etudiantId)
+    {
+        $etudiant = Etudiant::with(['bourses' => function ($query) {
+            $query->withPivot('id', 'annee_scolaire_id', 'created_at', 'slug')
+                ->orderBy('pivot_created_at', 'desc');
+        }])->findOrFail($etudiantId);
+
+        $bourses = $etudiant->bourses->map(function ($bourse) {
+            $bourse->pivot_data = [
+                'id' => $bourse->pivot->id,
+                'slug' => $bourse->pivot->slug,
+                'annee_scolaire_id' => $bourse->pivot->annee_scolaire_id,
+                'date_attribution' => $bourse->pivot->created_at
+            ];
+
+            return $bourse;
+        });
+
+        return BourseResource::collection($bourses);
+    }
 
     public function store(Request $request)
     {

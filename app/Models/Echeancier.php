@@ -67,6 +67,7 @@ class Echeancier extends Model
             ->get();
     }
 
+    // ==================== MÉTHODES ====================
 
     public function ajouterEcheances(array $echeancesData)
     {
