@@ -73,7 +73,7 @@ class NegociationController extends Controller
             'etudiant_id' => 'required|exists:etudiants,id',
             'frais_scolarite_id' => 'required|exists:frais_scolarites,id',
             'annee_scolaire_id' => 'required|exists:annee_scolaires,id',
-            'bourse_etudiant_id' => 'nullable|exists:bourse_etudiant,id',
+            'bourse_etudiant_id' => 'nullable|exists:bourse_etudiants,id',
             'type_paiement' => 'required|in:tranches_globales,negociation',
             'frequence_paiement' => 'required_if:type_paiement,tranches_globales|in:annuel,trimestriel,bimestriel,mensuel',
             'echeances' => 'required_if:type_paiement,negociation|array|min:1',
