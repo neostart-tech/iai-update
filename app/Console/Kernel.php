@@ -13,9 +13,10 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         // $schedule->command('inspire')->hourly();
-         $schedule->command('relancer:etudiants')->daily();
+        $schedule->command('relancer:etudiants')->daily();
         $schedule->command('notify:cahier-incoherences')->dailyAt('17:00');
-         $schedule->command('notifier:agenda')->everyFiveMinutes();
+        $schedule->command('notifier:agenda')->everyFiveMinutes();
+        $schedule->command('echeances:notifier')->dailyAt('08:00');
     }
 
     /**
@@ -23,7 +24,7 @@ class Kernel extends ConsoleKernel
      */
     protected function commands(): void
     {
-        $this->load(__DIR__.'/Commands');
+        $this->load(__DIR__ . '/Commands');
 
         require base_path('routes/console.php');
     }

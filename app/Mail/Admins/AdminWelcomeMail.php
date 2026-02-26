@@ -35,7 +35,7 @@ class AdminWelcomeMail extends Mailable implements ShouldQueue
 				'mailTitle' => 'Bienvenue dans l\'administration de ' . ' ' . AppGetters::getAppName(),
 				'mailContent' => $this->getMainContent(),
 				'buttonText' => 'Cliquez-ici pour finaliser la création de votre compte',
-				'buttonHref' => url(route('login')),
+				'buttonHref' => "https://escendemo.neostart.tech/login",
 				//				'moreInfo' => '<span class="text-center">Ce mot de passe est valable pour 60 prochaines minutes après réception du présent mail.</span>'
 			]
 		);
@@ -48,7 +48,7 @@ class AdminWelcomeMail extends Mailable implements ShouldQueue
 					Bonjour %s".' ' . "Bienvenue à vous au sein de l'administration.
 				</p>
 				<p style='Margin-top: 20px;Margin-bottom: 0;'>
-				Ce mail vous a été envoyé pour la finalisation de la création de votre espace. Voici votre mot passe par défaut <b>%s</b>.
+				Ce mail vous a été envoyé pour la finalisation de la création de votre espace. Voici votre mot passe par défaut: <b>%s</b>.
 				Utilisez-le pour accéder à votre espace et redéfinissez-en un nouveau plus sûr.
 				</p>
 				<p style='Margin-top: 20px;Margin-bottom: 20px;'>Merci pour votre compréhension.

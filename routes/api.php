@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\NegociationController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ReclamationController;
 use App\Http\Controllers\Api\Admin\CandidaturePresenceController;
@@ -62,6 +63,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{bourse}/delete', 'destroy')->name('bourse.delete');
         Route::post('/affecter', 'affecter')->name('bourse.affecter');
         Route::post('/retirer', 'retirer')->name('bourse.retirer');
+        Route::get('{etudiant}/etudiant', 'getBoursesByEtudiant');
     });
 
     Route::controller(PlanPaiementController::class)->prefix('plan-de-paiement')->group(function () {
@@ -75,7 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Route::post('/retirer', 'retirer')->name('bourse.retirer');
     });
 
-     Route::controller(TranchePaiementController::class)->prefix('tranche-de-paiement')->group(function () {
+    Route::controller(TranchePaiementController::class)->prefix('tranche-de-paiement')->group(function () {
         Route::get('/liste', 'index');
         Route::post('/store', 'store');
         Route::get('/{frais}', 'show');
@@ -84,6 +86,28 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{tranche}/delete', 'destroy');
         // Route::post('/affecter', 'affecter')->name('bourse.affecter');
         // Route::post('/retirer', 'retirer')->name('bourse.retirer');
+    });
+
+
+
+
+
+    // Routes pour l'admin
+
+    // Dashboard des négociations
+    Route::controller(NegociationController::class)->prefix('admin')->group(function () {
+
+        Route::get('negociations/dashboard', 'dashboard');
+
+        // Ressource complète pour les négociations
+        Route::resource('negociations', NegociationController::class);
+        Route::post('negociations/{id}/ajouter-paiement',  'ajouterPaiement')
+            ->name('negociations.ajouter-paiement');
+    });
+    Route::controller(NegociationController::class)->group(function () {
+        Route::get('negociations/dashboard',  'dashboard');
+        Route::get('negociations/{id}',  'show');
+        Route::post('negociations/{id}/ajouter-paiement',  'ajouterPaiement');
     });
 });
 
