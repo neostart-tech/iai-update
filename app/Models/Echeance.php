@@ -35,8 +35,6 @@ class Echeance extends Model
         'en_retard' => 'En retard'
     ];
 
-    // ==================== RELATIONS ====================
-
     public function echeancier()
     {
         return $this->belongsTo(Echeancier::class);
@@ -52,7 +50,6 @@ class Echeance extends Model
         return $this->morphMany(Paiement::class, 'payable');
     }
 
-    // ==================== ATTRIBUTS CALCULÉS ====================
 
     public function getResteAPayerAttribute()
     {
@@ -80,7 +77,6 @@ class Echeance extends Model
         };
     }
 
-    // ==================== MÉTHODES ====================
 
     public function updateMontantPaye()
     {

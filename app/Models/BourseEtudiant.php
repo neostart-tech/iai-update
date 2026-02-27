@@ -16,4 +16,12 @@ class BourseEtudiant extends Model
     protected $table='bourse_etudiants';
 
     protected $guarded = ["id"];
+
+    public function bourse(){
+        return $this->belongsTo(Bourse::class);
+    }
+
+     public function etudiant(){
+        return $this->belongsTo(Etudiant::class);
+    }
 }
