@@ -29,6 +29,7 @@ class ResetPasswordMail extends Mailable
      */
     public function envelope(): Envelope
     {
+
         return new Envelope(
             subject: 'Réinitialisation de votre mot de passe'
         );
@@ -39,11 +40,13 @@ class ResetPasswordMail extends Mailable
      */
     public function content(): Content
     {
+        $url = env('FRONTEND_URL')
+            . "/reset-password?token={$this->token}&email={$this->email}";
         return new Content(
-            view: 'emails.reset-password', 
+            view: 'mails.reset-password',
             with: [
-                'token' => $this->token,
-                'email' => $this->email,
+                'url' => $url,
+                'email' => $this->email
             ],
         );
     }

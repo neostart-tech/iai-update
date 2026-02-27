@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
+use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -11,27 +12,30 @@ use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
 // Route::middleware('guest')->group(function () {
-Route::group([],function () {
+Route::group([], function () {
 	Route::get('login', [AuthenticatedSessionController::class, 'create'])
 		->name('login');
 
 	Route::post('login', [AuthenticatedSessionController::class, 'store']);
 
-	Route::get('mot-de-passe-oublie', [PasswordResetLinkController::class, 'create'])
-		->name('password.request');
+	// Route::get('mot-de-passe-oublie', [PasswordResetLinkController::class, 'create'])
+	// 	->name('password.request');
 
-	Route::post('mot-de-passe-oublie', [PasswordResetLinkController::class, 'store'])
-		->name('password.email');
+	// Route::post('mot-de-passe-oublie', [PasswordResetLinkController::class, 'store'])
+	// 	->name('password.email');
 
-	Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
-		->name('password.reset');
+	// Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
+	// 	->name('password.reset');
 
-	Route::post('reset-password', [NewPasswordController::class, 'store'])
-		->name('password.store');
+	// Route::post('reset-password', [NewPasswordController::class, 'store'])
+	// 	->name('password.store');
+
+	Route::post('/mot-de-passe-oublie/store', [ForgotPasswordController::class, 'sendResetLink']);
+	Route::post('/reset-password/store', [ForgotPasswordController::class, 'resetPassword']);
 });
 
 // Route::middleware('auth')->group(function () {
-Route::group([],function () {
+Route::group([], function () {
 	Route::get('verify-email', EmailVerificationPromptController::class)
 		->name('verification.notice');
 

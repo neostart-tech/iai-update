@@ -7,40 +7,15 @@ use App\Mail\ResetPasswordMail;
 use App\Models\Etudiant;
 use App\Models\User;
 use Carbon\Carbon;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
-use Illuminate\View\View;
 
-class PasswordResetLinkController extends Controller
+class ForgotPasswordController extends Controller
 {
-	public function create(): View
-	{
-		return view('auth.forgot-password');
-	}
-
-	// public function store(Request $request): RedirectResponse
-	// {
-	// 	$request->validate([
-	// 		'email' => ['required', 'email'],
-	// 	], [
-	// 		'email.required' => 'Votre adresse email est obligatoire',
-	// 		'email.email' => 'Votre adresse email n\'est pas une adresse mail valide'
-	// 	]);
-
-	// 	$status = Password::sendResetLink($request->only('email'));
-
-	// 	return $status == Password::RESET_LINK_SENT
-	// 		? back()->with('status', __($status))
-	// 		: back()->withInput($request->only('email'))
-	// 			->withErrors(['email' => __($status)]);
-	// }
-
-	 public function sendResetLink(Request $request)
+      public function sendResetLink(Request $request)
     {
         $request->validate(['email' => 'required|email']);
 
@@ -55,13 +30,13 @@ class PasswordResetLinkController extends Controller
             ], 404);
         }
 
-        $tableUser = $user ?? $etudiant; 
+        $tableUser = $user ?? $etudiant; // choisir le bon modèle
 
         // Générer token
         $token = Str::random(64);
 
         // Stocker token dans password_resets
-        DB::table('password_resets')->updateOrInsert(
+        DB::table('password_reset_tokens')->updateOrInsert(
             ['email' => $request->email],
             [
                 'token' => Hash::make($token),
@@ -87,7 +62,7 @@ class PasswordResetLinkController extends Controller
             'password' => 'required|min:6|confirmed',
         ]);
 
-        $record = DB::table('password_resets')->where('email', $request->email)->first();
+        $record = DB::table('password_reset_tokens')->where('email', $request->email)->first();
 
         if (!$record || !Hash::check($request->token, $record->token)) {
             return response()->json([
@@ -108,7 +83,7 @@ class PasswordResetLinkController extends Controller
             $etudiant->save();
         }
 
-        DB::table('password_resets')->where('email', $request->email)->delete();
+        DB::table('password_reset_tokens')->where('email', $request->email)->delete();
 
         return response()->json([
             'status' => true,
@@ -116,8 +91,3 @@ class PasswordResetLinkController extends Controller
         ], 200);
     }
 }
-
-
-
-	
-
