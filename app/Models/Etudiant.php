@@ -152,6 +152,42 @@ class Etudiant extends Authenticatable
 		return $this->reclamationsEnCours()->count() < 3;
 	}
 
+	// app/Models/Etudiant.php
+
+// Ajoutez ces méthodes à la fin de la classe, avant la dernière accolade
+
+/**
+ * Relation avec les frais étudiants (un étudiant peut avoir plusieurs frais sur différentes années)
+ */
+public function fraisEtudiant()
+{
+    return $this->hasMany(FraisEtudiant::class, 'etudiant_id');
+}
+
+/**
+ * Relation avec le frais étudiant de l'année en cours
+ */
+public function fraisEtudiantActuel()
+{
+    return $this->hasOne(FraisEtudiant::class, 'etudiant_id')
+        ->where('annee_scolaire_id', getAnneeScolaireId());
+}
+
+
+
+
+public function echeances()
+{
+    return $this->hasManyThrough(
+        Echeance::class,
+        FraisEtudiant::class,
+        'etudiant_id', // Clé étrangère sur frais_etudiants
+        'frais_etudiant_id', // Clé étrangère sur echeances
+        'id', // Clé locale sur etudiants
+        'id' // Clé locale sur frais_etudiants
+    );
+}
+
 
 
 	// 	public function filieres()

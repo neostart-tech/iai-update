@@ -7,6 +7,7 @@ use App\Traits\Routing\ModelsSlugKeyTrait;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 
 class Advertiser extends Model
 {
@@ -27,7 +28,8 @@ class Advertiser extends Model
 		'email',
 		'details',
 		'site',
-		'ville'
+		'ville',
+		'logo'
 	];
 
 	public $timestamps = false;
@@ -35,6 +37,10 @@ class Advertiser extends Model
 	public function announcements(): HasMany
 	{
 		return $this->hasMany(Announcement::class);
+	}
+
+	public function FileFulllPath(){
+		return asset(Storage::url($this->logo));
 	}
 
 }

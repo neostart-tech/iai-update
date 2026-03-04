@@ -45,6 +45,10 @@ class FraisScolarite extends Model
         return $this->hasMany(Paiement::class);
     }
 
+    public function getMontantTotalAttribute()
+{
+    return $this->tranchepaiement()->sum('montant');
+}
     /**
      * Récupérer les frais appropriés selon le genre de l'étudiant
      */

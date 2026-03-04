@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\NegociationRequest;
+use App\Models\AnneeScolaire;
 use App\Models\FraisEtudiant;
 use App\Models\Echeancier;
 use App\Models\Echeance;
@@ -21,166 +22,165 @@ class NegociationController extends Controller
      */
     public function index()
     {
-        $query = FraisEtudiant::with(['etudiant', 'fraisScolarite.niveau', 'anneeScolaire', 'bourseEtudiant.bourse','echeances.paiements'])
+        $query = FraisEtudiant::with(['etudiant', 'fraisScolarite.niveau', 'anneeScolaire', 'bourseEtudiant.bourse', 'echeances.paiements'])
             ->orderBy('created_at', 'desc')->get();
-      return response()->json($query);
-
+        return response()->json($query);
     }
 
-   
+
     public function store(NegociationRequest $request)
-{
-   
+    {
 
-    $frais = FraisScolarite::findOrFail($request->frais_scolarite_id);
-    
-    // Récupérer l'année scolaire en cours si non spécifiée
-    $anneeScolaireId = $request->annee_scolaire_id;
-    
-    // Vérifier que l'étudiant n'a pas déjà un frais pour l'année en cours
-    $fraisExistant = FraisEtudiant::where('etudiant_id', $request->etudiant_id)
-        ->where('annee_scolaire_id', $anneeScolaireId)
-        ->first();
 
-    if ($fraisExistant) {
-        // Vérifier le type de frais existant
-        if ($fraisExistant->type_paiement === 'negociation') {
-            return response()->json([
-                'error' => 'Cet étudiant a déjà une négociation en cours pour l\'année scolaire ' . $fraisExistant->anneeScolaire->libelle
-            ], 422);
-        } else {
-            return response()->json([
-                'error' => 'Cet étudiant a déjà des frais de scolarité enregistrés pour l\'année ' . $fraisExistant->anneeScolaire->libelle
-            ], 422);
-        }
-    }
+        $frais = FraisScolarite::findOrFail($request->frais_scolarite_id);
 
-    // Vérifier aussi dans les échéanciers si jamais il y a des négociations en cours sans frais_etudiant associé
-    $negociationExistante = Echeancier::whereHas('echeances', function($query) use ($request, $anneeScolaireId) {
-        $query->whereHas('fraisEtudiant', function($q) use ($request, $anneeScolaireId) {
-            $q->where('etudiant_id', $request->etudiant_id)
-              ->where('annee_scolaire_id', $anneeScolaireId);
-        });
-    })->exists();
+        // Récupérer l'année scolaire en cours si non spécifiée
+        $anneeScolaireId = $request->annee_scolaire_id ?? AnneeScolaire::courante()->id;
 
-    if ($negociationExistante) {
-        return response()->json([
-            'error' => 'Une négociation existe déjà pour cet étudiant pour l\'année en cours'
-        ], 422);
-    }
+        // Vérifier que l'étudiant n'a pas déjà un frais pour l'année en cours
+        $fraisExistant = FraisEtudiant::where('etudiant_id', $request->etudiant_id)
+            ->where('annee_scolaire_id', $anneeScolaireId)
+            ->first();
 
-    // Calculer le montant après bourse
-    $montantApresBourse = $frais->montant;
-    $bourseEtudiant = null;
-
-    if ($request->filled('bourse_etudiant_id')) {
-        $bourseEtudiant = BourseEtudiant::with('bourse')->where('bourse_id',$request->bourse_etudiant_id)->where('annee_scolaire_id',$request->annee_scolaire_id)->where('etudiant_id',$request->etudiant_id)->first();
-        
-        if ($bourseEtudiant) {
-            $bourse = $bourseEtudiant->bourse;
-            
-            if ($bourse->type === 'pourcentage') {
-                $montantApresBourse = $frais->montant * (1 - $bourse->valeur / 100);
+        if ($fraisExistant) {
+            // Vérifier le type de frais existant
+            if ($fraisExistant->type_paiement === 'negociation') {
+                return response()->json([
+                    'error' => 'Cet étudiant a déjà une négociation en cours pour l\'année scolaire ' . $fraisExistant->anneeScolaire->libelle
+                ], 422);
             } else {
-                $montantApresBourse = max(0, $frais->montant - $bourse->valeur);
+                return response()->json([
+                    'error' => 'Cet étudiant a déjà des frais de scolarité enregistrés pour l\'année ' . $fraisExistant->anneeScolaire->libelle
+                ], 422);
             }
         }
-    }
 
-    DB::beginTransaction();
+        // Vérifier aussi dans les échéanciers si jamais il y a des négociations en cours sans frais_etudiant associé
+        $negociationExistante = Echeancier::whereHas('echeances', function ($query) use ($request, $anneeScolaireId) {
+            $query->whereHas('fraisEtudiant', function ($q) use ($request, $anneeScolaireId) {
+                $q->where('etudiant_id', $request->etudiant_id)
+                    ->where('annee_scolaire_id', $anneeScolaireId);
+            });
+        })->exists();
 
-    try {
-        // Créer le frais étudiant
-        $fraisEtudiant = FraisEtudiant::create([
-            'etudiant_id' => $request->etudiant_id,
-            'frais_scolarite_id' => $request->frais_scolarite_id,
-            'annee_scolaire_id' => $anneeScolaireId,
-            'montant_initial' => $frais->montant,
-            'montant_apres_bourse' => $montantApresBourse,
-            'bourse_etudiant_id' => $request->bourse_etudiant_id,
-            'type_paiement' => $request->type_paiement,
-            'frequence_paiement' => $request->frequence_paiement ?? 'annuel',
-            'statut' => 'en_cours'
-        ]);
+        if ($negociationExistante) {
+            return response()->json([
+                'error' => 'Une négociation existe déjà pour cet étudiant pour l\'année en cours'
+            ], 422);
+        }
 
-        // Gérer les échéances selon le type
-        if ($request->type_paiement === 'negociation') {
-            // Créer un échéancier pour la négociation
-            $echeancier = Echeancier::create([
-                'frais_etudiant_id' => $fraisEtudiant->id,
-                'created_by' => Auth::id(),
-                'commentaire' => $request->commentaire
+        // Calculer le montant après bourse
+        $montantApresBourse = $frais->montant;
+        $bourseEtudiant = null;
+
+        if ($request->filled('bourse_etudiant_id')) {
+            $bourseEtudiant = BourseEtudiant::with('bourse')->where('bourse_id', $request->bourse_etudiant_id)->where('annee_scolaire_id', $request->annee_scolaire_id)->where('etudiant_id', $request->etudiant_id)->first();
+
+            if ($bourseEtudiant) {
+                $bourse = $bourseEtudiant->bourse;
+
+                if ($bourse->type === 'pourcentage') {
+                    $montantApresBourse = $frais->montant * (1 - $bourse->valeur / 100);
+                } else {
+                    $montantApresBourse = max(0, $frais->montant - $bourse->valeur);
+                }
+            }
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Créer le frais étudiant
+            $fraisEtudiant = FraisEtudiant::create([
+                'etudiant_id' => $request->etudiant_id,
+                'frais_scolarite_id' => $request->frais_scolarite_id,
+                'annee_scolaire_id' => $anneeScolaireId,
+                'montant_initial' => $frais->montant,
+                'montant_apres_bourse' => $montantApresBourse,
+                'bourse_etudiant_id' => $request->bourse_etudiant_id,
+                'type_paiement' => $request->type_paiement,
+                'frequence_paiement' => $request->frequence_paiement ?? 'annuel',
+                'statut' => 'en_cours'
             ]);
 
-            // Créer les échéances négociées
-            foreach ($request->echeances as $index => $echeanceData) {
-                Echeance::create([
-                    'echeancier_id' => $echeancier->id,
+            // Gérer les échéances selon le type
+            if ($request->type_paiement === 'negociation') {
+                // Créer un échéancier pour la négociation
+                $echeancier = Echeancier::create([
                     'frais_etudiant_id' => $fraisEtudiant->id,
-                    'libelle' => $echeanceData['libelle'],
-                    'montant' => $echeanceData['montant'],
-                    'montant_paye' => 0,
-                    'date_limite' => $echeanceData['date_limite'],
-                    'ordre' => $index + 1,
-                    'statut' => 'en_attente'
+                    'created_by' => Auth::id(),
+                    'commentaire' => $request->commentaire
                 ]);
+
+                // Créer les échéances négociées
+                foreach ($request->echeances as $index => $echeanceData) {
+                    Echeance::create([
+                        'echeancier_id' => $echeancier->id,
+                        'frais_etudiant_id' => $fraisEtudiant->id,
+                        'libelle' => $echeanceData['libelle'],
+                        'montant' => $echeanceData['montant'],
+                        'montant_paye' => 0,
+                        'date_limite' => $echeanceData['date_limite'],
+                        'ordre' => $index + 1,
+                        'statut' => 'en_attente'
+                    ]);
+                }
+            } else {
+                // Créer les échéances basées sur les tranches globales ou la fréquence
+                $fraisEtudiant->creerEcheancesDepuisTranchesGlobales();
             }
-        } else {
-            // Créer les échéances basées sur les tranches globales ou la fréquence
-            $fraisEtudiant->creerEcheancesDepuisTranchesGlobales();
+
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Négociation créée avec succès',
+                'data' => $fraisEtudiant
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'error' => 'Erreur lors de la création: ' . $e->getMessage()
+            ], 500);
         }
-
-        DB::commit();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Négociation créée avec succès',
-            'data' => $fraisEtudiant
-        ]);
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return response()->json([
-            'error' => 'Erreur lors de la création: ' . $e->getMessage()
-        ], 500);
     }
-}
 
     /**
      * Afficher les détails d'une négociation
      */
     public function show($id)
-{
-    $fraisEtudiant = FraisEtudiant::with([
-        'etudiant',
-        'fraisScolarite.niveau',
-        'fraisScolarite.filiere',
-        'anneeScolaire',
-        'bourseEtudiant.bourse',
-        'echeances' => function($q) {
-            $q->orderBy('ordre');
-        },
-        'echeances.paiements'
-    ])->findOrFail($id);
+    {
+        $fraisEtudiant = FraisEtudiant::with([
+            'etudiant',
+            'fraisScolarite.niveau',
+            'fraisScolarite.filiere',
+            'anneeScolaire',
+            'bourseEtudiant.bourse',
+            'echeances' => function ($q) {
+                $q->orderBy('ordre');
+            },
+            'echeances.paiements'
+        ])->findOrFail($id);
 
-    // Ajouter une collection de tous les paiements
-    $tousLesPaiements = collect();
-    
-    foreach ($fraisEtudiant->echeances as $echeance) {
-        if ($echeance->paiements->isNotEmpty()) {
-            $tousLesPaiements = $tousLesPaiements->concat($echeance->paiements);
+        // Ajouter une collection de tous les paiements
+        $tousLesPaiements = collect();
+
+        foreach ($fraisEtudiant->echeances as $echeance) {
+            if ($echeance->paiements->isNotEmpty()) {
+                $tousLesPaiements = $tousLesPaiements->concat($echeance->paiements);
+            }
         }
-    }
-    
-    // Trier par date de paiement (du plus récent au plus ancien)
-    $tousLesPaiements = $tousLesPaiements->sortByDesc('date_paiement')->values();
-    
-    // Ajouter au tableau de réponse
-    $response = $fraisEtudiant->toArray();
-    $response['paiements'] = $tousLesPaiements;
 
-    return response()->json($response);
-}
+        // Trier par date de paiement (du plus récent au plus ancien)
+        $tousLesPaiements = $tousLesPaiements->sortByDesc('date_paiement')->values();
+
+        // Ajouter au tableau de réponse
+        $response = $fraisEtudiant->toArray();
+        $response['paiements'] = $tousLesPaiements;
+
+        return response()->json($response);
+    }
 
     /**
      * Afficher le formulaire d'édition
@@ -296,6 +296,13 @@ class NegociationController extends Controller
                 'mode_paiement' => $request->mode_paiement,
                 'reference' => $request->reference
             ]);
+
+
+            $fraisEtudiant = $echeance->fraisEtudiant;
+            $fraisEtudiant->mettreAJourStatut();
+
+
+
 
             return response()->json([
                 'success' => true,

@@ -44,6 +44,7 @@ use App\Http\Controllers\Admin\ClassCommitteeController;
 use App\Http\Controllers\CarteEtudiantController;
 use App\Http\Controllers\AnneeScolaireController;
 use App\Http\Controllers\Admin\EvaluationRoomController;
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Models\AnneeScolaire;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
@@ -476,12 +477,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::controller(AdminEtudiantController::class)->prefix('etudiants')->name('etudiants.')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('get-etudiant-non-boursier', "getNonBoursiers");
-        Route::get('{etudiant}', 'show')->name('show');
+    
         Route::post('import', 'importEtudiant')->name('import');
         $anneActive = AnneeScolaire::where('active', true)->first()->nom ?? null;
         Route::get('export', function () use ($anneActive) {
             return Excel::download(new EtudiantsExport, 'liste_des_etudiants_' . $anneActive . '.xlsx');
         })->name('export');
+            Route::get('{etudiant}', 'show')->name('show');
     });
 
     Route::controller(NotificationController::class)->group(function () {
@@ -492,7 +494,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/notifications/read-all', 'markAllAsRead');
 
         Route::delete('/notifications/{id}', 'destroy');
+        Route::delete('/notifications/delete-all', 'destroyAll');
     });
+
 
     // Routes pour les statistiques des filières
     Route::get('/statistiques/filieres/nombre', [StatistiquesController::class, 'NbreFilieres']);

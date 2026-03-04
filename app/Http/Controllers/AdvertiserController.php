@@ -8,16 +8,15 @@ use App\Http\Resources\AdvertiserResource;
 use App\Models\Advertiser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Illuminate\Support\Facades\Log; // Ajoutez ceci pour les logs
 
 class AdvertiserController extends Controller
 {
 	public function index()
 	{
 		return AdvertiserResource::collection(Advertiser::all());
-		// return view('advertisers.index')->with([
-		// 	'advertisers' => Advertiser::all()
-		// ]);
 	}
 
 	public function create(): View
@@ -30,16 +29,37 @@ class AdvertiserController extends Controller
 
 	public function store(AdvertiserRequest $request)
 	{
-		$ad = Advertiser::query()->create($request->validated());
-		return new AdvertiserResource($ad);
-		// successMsg('Partenaire ajouté avec succès');
-		// return to_route('admin.advertisers.index');
+		try {
+			$data = $request->validated();
+
+			if ($request->hasFile('logo')) {
+				Log::info('Upload de logo - store', [
+					'name' => $request->file('logo')->getClientOriginalName(),
+					'size' => $request->file('logo')->getSize(),
+					'tmp_path' => $request->file('logo')->getPathname()
+				]);
+				
+				$path = $request->file('logo')->store('logos', 'public');
+				$data['logo'] = $path;
+				
+				Log::info('Logo stocké', ['path' => $path]);
+			}
+			
+			$ad = Advertiser::query()->create($data);
+			return new AdvertiserResource($ad);
+			
+		} catch (\Exception $e) {
+			Log::error('Erreur store advertiser', [
+				'message' => $e->getMessage(),
+				'trace' => $e->getTraceAsString()
+			]);
+			return response()->json(['error' => $e->getMessage()], 500);
+		}
 	}
 
 	public function show(Advertiser $advertiser)
 	{
 		return new AdvertiserResource($advertiser);
-		// return view('advertisers.show', compact('advertiser'));
 	}
 
 	public function edit(Advertiser $advertiser): View
@@ -51,28 +71,68 @@ class AdvertiserController extends Controller
 
 	public function update(AdvertiserRequest $request, Advertiser $advertiser)
 	{
-		$advertiser->update($request->validated());
-		return new AdvertiserResource($advertiser);
-		// successMsg('Partenaire ajouté avec succès');
-		// return to_route('admin.advertisers.index');
+		try {
+			$data = $request->validated();
+			
+			Log::info('Début update advertiser', [
+				'id' => $advertiser->id,
+				'has_logo' => $request->hasFile('logo')
+			]);
+			
+			// Gérer l'upload du logo
+			if ($request->hasFile('logo')) {
+				Log::info('Upload de logo - update', [
+					'name' => $request->file('logo')->getClientOriginalName(),
+					'size' => $request->file('logo')->getSize(),
+					'tmp_path' => $request->file('logo')->getPathname()
+				]);
+				
+				// Supprimer l'ancien logo si existant
+				if ($advertiser->logo) {
+					Storage::disk('public')->delete($advertiser->logo);
+					Log::info('Ancien logo supprimé', ['old_logo' => $advertiser->logo]);
+				}
+				
+				$path = $request->file('logo')->store('logos', 'public');
+				$data['logo'] = $path;
+				
+				Log::info('Nouveau logo stocké', ['path' => $path]);
+			}
+			
+			$advertiser->update($data);
+			Log::info('Advertiser mis à jour avec succès');
+			
+			return new AdvertiserResource($advertiser);
+			
+		} catch (\Exception $e) {
+			Log::error('Erreur update advertiser', [
+				'message' => $e->getMessage(),
+				'trace' => $e->getTraceAsString()
+			]);
+			return response()->json(['error' => $e->getMessage()], 500);
+		}
 	}
-
-	// public function destroy(Request $request): RedirectResponse
-	// {
-	// 	$partenaireId = (int) $request->partenaireId;
-	// 	Advertiser::query()->find($partenaireId)->delete();
-	// 	successMsg('Partenaire supprimé avec succès');
-	// 	return to_route('admin.advertisers.index');
-	// }
 
 	public function destroy(Advertiser $advertiser)
 	{
 		if (!$advertiser) {
-			return __404('Partenaire non trouvé');
+			return response()->json(['error' => 'Partenaire non trouvé'], 404);
 		}
-		$advertiser->delete();
-		// successMsg('Partenaire supprimé avec succès');
-		// return to_route('admin.advertisers.index');
-		return new AdvertiserResource($advertiser);
+		
+		try {
+			// Supprimer le logo si existant
+			if ($advertiser->logo) {
+				Storage::disk('public')->delete($advertiser->logo);
+			}
+			
+			$advertiser->delete();
+			return new AdvertiserResource($advertiser);
+			
+		} catch (\Exception $e) {
+			Log::error('Erreur delete advertiser', [
+				'message' => $e->getMessage()
+			]);
+			return response()->json(['error' => $e->getMessage()], 500);
+		}
 	}
 }

@@ -218,7 +218,7 @@ class EvaluationController extends Controller
     public function destroy(Evaluation $evaluation)
     {
         if ($evaluation->getAttribute('published') or $evaluation->getAttribute('debut')->isBefore(now())) {
-            return __404("Impossible de supprimer cette évaluation.");
+            return __404("Impossible de supprimer cette évaluation.Soit elle a déja été publiée soit la date de debut est supérieure a aujourd'hui");
         }
 
         $evaluation->delete();
