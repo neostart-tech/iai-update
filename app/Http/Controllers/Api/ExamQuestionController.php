@@ -37,7 +37,7 @@ class ExamQuestionController extends Controller
             'content' => 'required|string',
             'type' => 'required|in:qcm_unique,qcm_multiple,texte_court,texte_long,vrai_faux,appariement,ordre,fichier',
             'config' => 'nullable|array',
-            'points' => 'integer|min:0',
+            'points' => 'min:0',
             'order' => 'integer',
             'metadata' => 'nullable|array',
             'options' => 'nullable|array' // Ajouter la validation des options
