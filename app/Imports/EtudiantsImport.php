@@ -38,6 +38,7 @@ class EtudiantsImport implements
 
     private int $importedCount = 0;
     private int $skippedCount = 0;
+    private int $updatedCount = 0;
     private array $errors = [];
 
     private array $filiereCache = [];
@@ -96,6 +97,12 @@ class EtudiantsImport implements
                 }
 
                 // Vérifier doublon matricule
+                // if (in_array($matricule, $this->existingMatricules)) {
+                //     $this->skippedCount++;
+                //     $this->addError($index + 2, 'Matricule déjà existant', $matricule);
+                //     continue;
+                // }
+
                 if (in_array($matricule, $this->existingMatricules)) {
                     $this->skippedCount++;
                     $this->addError($index + 2, 'Matricule déjà existant', $matricule);
@@ -166,19 +173,30 @@ class EtudiantsImport implements
                     'email' => $email,
                     'slug' => $slug,
                     'password' => Hash::make('password'),
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    // 'created_at' => $now,
+                    // 'updated_at' => $now,
                 ];
 
                 // Stocker l'association pour etudiant_group
-                $etudiantGroupsBatch[] = [
+                // $etudiantGroupsBatch[] = [
+                //     'filiere_id' => $filiereId,
+                //     'niveau_id' => $niveauId,
+                //     'group_id' => $groupId,
+                //     'annee_scolaire_id' => AnneeScolaire::where('active', true)->first()->getAttribute('id'),
+                //     'matricule_temp' => $matricule, // Pour liaison après insertion
+                //     'created_at' => $now,
+                //     'updated_at' => $now,
+                // ];
+
+                // Stocker l'association pour etudiant_group avec le matricule comme clé
+                $etudiantGroupsBatch[$matricule] = [
                     'filiere_id' => $filiereId,
                     'niveau_id' => $niveauId,
                     'group_id' => $groupId,
-                    'annee_scolaire_id' => AnneeScolaire::where('active', true)->first()->getAttribute('id'),
-                    'matricule_temp' => $matricule, // Pour liaison après insertion
-                    'created_at' => $now,
-                    'updated_at' => $now,
+                    'annee_scolaire_id' => $this->anneeScolaireId, // Utilisez la propriété déjà définie
+                    'matricule' => $matricule, // Changé de matricule_temp à matricule
+                    // 'created_at' => $now,
+                    // 'updated_at' => $now,
                 ];
 
 
@@ -227,65 +245,188 @@ class EtudiantsImport implements
     /**
      * Insérer un batch d'étudiants
      */
+    // private function insertBatch(array &$etudiantsBatch, array &$etudiantGroupsBatch)
+    // {
+    //     DB::transaction(function () use (&$etudiantsBatch, &$etudiantGroupsBatch) {
+    //         // Insertion des étudiants
+    //         $insertedIds = [];
+    //         foreach (array_chunk($etudiantsBatch, 50) as $chunk) {
+    //             DB::table('etudiants')->insert($chunk);
+
+    //             // Récupérer les IDs insérés
+    //             $matricules = array_column($chunk, 'matricule');
+    //             $etudiants = Etudiant::whereIn('matricule', $matricules)
+    //                 ->get(['id', 'matricule']);
+
+    //             foreach ($etudiants as $etudiant) {
+    //                 $insertedIds[$etudiant->matricule] = $etudiant->id;
+    //             }
+    //         }
+
+    //         // Préparer et insérer les etudiant_groups
+    //         $etudiantGroupsFinal = [];
+    //         foreach ($etudiantGroupsBatch as $group) {
+    //             if (isset($insertedIds[$group['matricule_temp']])) {
+    //                 $etudiantGroupsFinal[] = [
+    //                     'etudiant_id' => $insertedIds[$group['matricule_temp']],
+    //                     'group_id' => $group['group_id'],
+    //                     'filiere_id' => $group['filiere_id'],
+    //                     'niveau_id' => $group['niveau_id'],
+    //                     'annee_scolaire_id' => AnneeScolaire::where('active', true)->first()->getAttribute('id'),
+
+    //                 ];
+    //             }
+    //         }
+
+    //         if (!empty($etudiantGroupsFinal)) {
+    //             foreach (array_chunk($etudiantGroupsFinal, 50) as $chunk) {
+    //                 DB::table('etudiant_group')->insert($chunk);
+    //             }
+    //         }
+
+    //         $rolesUsersBatch = [];
+    //         foreach ($insertedIds as $etudiantId) {
+    //             $rolesUsersBatch[] = [
+    //                 'user_id'   => $etudiantId,
+    //                 'user_type' => 'App\\Models\\Etudiant',
+    //                 'role_id'   => $this->roleEtudiantId,
+    //             ];
+    //         }
+
+    //         if (!empty($rolesUsersBatch)) {
+    //             DB::table('role_user')->insert($rolesUsersBatch);
+    //         }
+
+
+    //         // Vider les batches
+    //         $etudiantsBatch = [];
+    //         $etudiantGroupsBatch = [];
+    //     });
+    // }
+
+    /**
+     * NOUVELLE MÉTHODE: Traite un batch avec UPSERT
+     */
+    /**
+     * Traite un batch avec UPSERT
+     */
     private function insertBatch(array &$etudiantsBatch, array &$etudiantGroupsBatch)
     {
         DB::transaction(function () use (&$etudiantsBatch, &$etudiantGroupsBatch) {
-            // Insertion des étudiants
-            $insertedIds = [];
-            foreach (array_chunk($etudiantsBatch, 50) as $chunk) {
-                DB::table('etudiants')->insert($chunk);
 
-                // Récupérer les IDs insérés
-                $matricules = array_column($chunk, 'matricule');
-                $etudiants = Etudiant::whereIn('matricule', $matricules)
-                    ->get(['id', 'matricule']);
+            // 1. UPSERT des étudiants
+            $etudiantsData = array_values($etudiantsBatch);
 
-                foreach ($etudiants as $etudiant) {
-                    $insertedIds[$etudiant->matricule] = $etudiant->id;
+            Etudiant::upsert(
+                $etudiantsData,
+                ['matricule'],
+                [
+                    'nom',
+                    'prenom',
+                    'tel',
+                    'genre',
+                    'date_naissance',
+                    'nationalite',
+                    'annee_admission',
+                    'email',
+                    'slug',
+                    'password',
+                    // 'updated_at'
+                ]
+            );
+
+            // 2. Récupérer les IDs des étudiants
+            $matricules = array_column($etudiantsBatch, 'matricule');
+            $etudiants = Etudiant::whereIn('matricule', $matricules)
+                ->get(['id', 'matricule'])
+                ->keyBy('matricule');
+
+            // 3. Compter les mises à jour
+            foreach ($matricules as $matricule) {
+                if (in_array($matricule, $this->existingMatricules)) {
+                    $this->updatedCount++;
                 }
             }
 
-            // Préparer et insérer les etudiant_groups
+            // 4. Préparer et insérer les etudiant_groups
             $etudiantGroupsFinal = [];
-            foreach ($etudiantGroupsBatch as $group) {
-                if (isset($insertedIds[$group['matricule_temp']])) {
-                    $etudiantGroupsFinal[] = [
-                        'etudiant_id' => $insertedIds[$group['matricule_temp']],
+            foreach ($etudiantGroupsBatch as $group) { // ICI: $group directement, pas de clé
+                if (isset($etudiants[$group['matricule']])) { // Utilisez matricule au lieu de matricule_temp
+                    $existing = DB::table('etudiant_group')
+                        ->where('etudiant_id', $etudiants[$group['matricule']]->id)
+                        ->where('annee_scolaire_id', $this->anneeScolaireId)
+                        ->first();
+
+                    $groupData = [
+                        'etudiant_id' => $etudiants[$group['matricule']]->id,
                         'group_id' => $group['group_id'],
                         'filiere_id' => $group['filiere_id'],
                         'niveau_id' => $group['niveau_id'],
-                        'annee_scolaire_id' => AnneeScolaire::where('active', true)->first()->getAttribute('id'),
-
+                        'annee_scolaire_id' => $this->anneeScolaireId,
+                        // 'updated_at' => now(),
                     ];
+
+                    if ($existing) {
+                        DB::table('etudiant_group')
+                            ->where('id', $existing->id)
+                            ->update($groupData);
+                    } else {
+                        // $groupData['created_at'] = now();
+                        $etudiantGroupsFinal[] = $groupData;
+                    }
                 }
             }
 
+            // Insérer les nouveaux etudiant_groups
             if (!empty($etudiantGroupsFinal)) {
                 foreach (array_chunk($etudiantGroupsFinal, 50) as $chunk) {
                     DB::table('etudiant_group')->insert($chunk);
                 }
             }
 
-            $rolesUsersBatch = [];
-            foreach ($insertedIds as $etudiantId) {
-                $rolesUsersBatch[] = [
-                    'user_id'   => $etudiantId,
-                    'user_type' => 'App\\Models\\Etudiant',
-                    'role_id'   => $this->roleEtudiantId,
-                ];
+            // 5. Gérer les rôles
+            $nouveauxEtudiantsIds = [];
+            foreach ($matricules as $matricule) {
+                if (!in_array($matricule, $this->existingMatricules)) {
+                    $nouveauxEtudiantsIds[] = $etudiants[$matricule]->id;
+                }
             }
 
-            if (!empty($rolesUsersBatch)) {
-                DB::table('role_user')->insert($rolesUsersBatch);
+            if (!empty($nouveauxEtudiantsIds)) {
+                $rolesUsersBatch = [];
+                foreach ($nouveauxEtudiantsIds as $etudiantId) {
+                    $roleExists = DB::table('role_user')
+                        ->where('user_id', $etudiantId)
+                        ->where('user_type', 'App\\Models\\Etudiant')
+                        ->where('role_id', $this->roleEtudiantId)
+                        ->exists();
+
+                    if (!$roleExists) {
+                        $rolesUsersBatch[] = [
+                            'user_id' => $etudiantId,
+                            'user_type' => 'App\\Models\\Etudiant',
+                            'role_id' => $this->roleEtudiantId,
+                        ];
+                    }
+                }
+
+                if (!empty($rolesUsersBatch)) {
+                    DB::table('role_user')->insert($rolesUsersBatch);
+                }
             }
 
+            // Mettre à jour les caches
+            foreach ($matricules as $matricule) {
+                if (!in_array($matricule, $this->existingMatricules)) {
+                    $this->existingMatricules[] = $matricule;
+                }
+            }
 
             // Vider les batches
             $etudiantsBatch = [];
             $etudiantGroupsBatch = [];
         });
     }
-
     /**
      * Vérifier si une ligne est vide
      */
@@ -394,7 +535,9 @@ class EtudiantsImport implements
             str_contains($sexeLower, 'masc') ||
             $sexeLower === 'm' ||
             $sexeLower === 'homme' ||
-            $sexeLower === 'h'
+            $sexeLower === 'h' ||
+            $sexeLower === 'masculin'
+
         ) {
             return 'Masculin';
         }
@@ -475,8 +618,8 @@ class EtudiantsImport implements
             'debut' => now()->startOfYear(),
             'fin' => now()->addYear()->endOfYear(),
             'actif' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
+            // 'created_at' => now(),
+            // 'updated_at' => now(),
         ]);
     }
 
@@ -516,13 +659,25 @@ class EtudiantsImport implements
     /**
      * Événement après l'import
      */
+    // public static function afterImport(AfterImport $event)
+    // {
+    //     $import = $event->getConcernable();
+
+    //     Log::info('Import étudiants terminé', [
+    //         'imported' => $import->importedCount,
+    //         'skipped' => $import->skippedCount,
+    //         'errors_count' => count($import->errors)
+    //     ]);
+    // }
+
     public static function afterImport(AfterImport $event)
     {
         $import = $event->getConcernable();
 
         Log::info('Import étudiants terminé', [
-            'imported' => $import->importedCount,
-            'skipped' => $import->skippedCount,
+            'nouveaux' => $import->importedCount - $import->updatedCount,
+            'mis_a_jour' => $import->updatedCount,
+            'ignores' => $import->skippedCount,
             'errors_count' => count($import->errors)
         ]);
     }
@@ -542,11 +697,22 @@ class EtudiantsImport implements
     /**
      * Getters pour les résultats
      */
+    // public function getResults()
+    // {
+    //     return [
+    //         'imported' => $this->importedCount,
+    //         'skipped' => $this->skippedCount,
+    //         'errors' => $this->errors,
+    //         'has_errors' => !empty($this->errors)
+    //     ];
+    // }
+
     public function getResults()
     {
         return [
-            'imported' => $this->importedCount,
-            'skipped' => $this->skippedCount,
+            'nouveaux' => $this->importedCount - $this->updatedCount,
+            'mis_a_jour' => $this->updatedCount,
+            'ignores' => $this->skippedCount,
             'errors' => $this->errors,
             'has_errors' => !empty($this->errors)
         ];
@@ -569,31 +735,30 @@ class EtudiantsImport implements
     }
 
     /**
- * Générer email si colonne absente
- * Format : première lettre du nom + prénom
- */
-private function generateCustomEmail($prenom, $nom, $matricule)
-{
-    $prenomClean = strtolower(preg_replace('/[^a-z0-9]/', '', iconv('UTF-8', 'ASCII//TRANSLIT', $prenom)));
-    $nomClean = strtolower(preg_replace('/[^a-z0-9]/', '', iconv('UTF-8', 'ASCII//TRANSLIT', $nom)));
+     * Générer email si colonne absente
+     * Format : première lettre du nom + prénom
+     */
+    private function generateCustomEmail($prenom, $nom, $matricule)
+    {
+        $prenomClean = strtolower(preg_replace('/[^a-z0-9]/', '', iconv('UTF-8', 'ASCII//TRANSLIT', $prenom)));
+        $nomClean = strtolower(preg_replace('/[^a-z0-9]/', '', iconv('UTF-8', 'ASCII//TRANSLIT', $nom)));
 
-    // Première lettre du nom + prénom
-    $emailBase = substr($nomClean, 0, 1) . $prenomClean . '@etudiant.exemple.com';
+        // Première lettre du nom + prénom
+        $emailBase = substr($nomClean, 0, 1) . $prenomClean . '@etudiant.exemple.com';
 
-    // Vérifier unicité
-    if (!in_array($emailBase, $this->existingEmails)) {
-        return $emailBase;
+        // Vérifier unicité
+        if (!in_array($emailBase, $this->existingEmails)) {
+            return $emailBase;
+        }
+
+        // Si déjà existant → ajouter matricule
+        $emailWithMatricule = substr($nomClean, 0, 1) . $prenomClean . $matricule . '@etudiant.exemple.com';
+
+        if (!in_array($emailWithMatricule, $this->existingEmails)) {
+            return $emailWithMatricule;
+        }
+
+        // Dernier fallback
+        return substr($nomClean, 0, 1) . $prenomClean . $matricule . time() . '@etudiant.exemple.com';
     }
-
-    // Si déjà existant → ajouter matricule
-    $emailWithMatricule = substr($nomClean, 0, 1) . $prenomClean . $matricule . '@etudiant.exemple.com';
-
-    if (!in_array($emailWithMatricule, $this->existingEmails)) {
-        return $emailWithMatricule;
-    }
-
-    // Dernier fallback
-    return substr($nomClean, 0, 1) . $prenomClean . $matricule . time() . '@etudiant.exemple.com';
-}
-
 }

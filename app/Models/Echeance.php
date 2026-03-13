@@ -164,4 +164,6 @@ class Echeance extends Model
     {
         return $query->whereBetween('date_limite', [$debut, $fin]);
     }
+
+
 }

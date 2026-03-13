@@ -36,12 +36,20 @@ class EmploiDuTempsResource extends JsonResource
                 'uv_id' => $this->resource->uv?->slug,
                 'salle' => $this->resource->salle?->nom,
                 'salle_slug' => $this->resource->salle?->slug,
-                 'salle_id' => $this->resource->salle?->id,
+                'salle_id' => $this->resource->salle?->id,
 
                 // owner null => safe navigation
                 'teacher' => null,
                 'teacher_id' => null,
 
+                'est_virtuelle' => $this->resource->salle->type === "virtuelle" ? true : false,
+                'est_physique' => $this->resource->salle->type === "physique" ? true : false,
+   
+                // Champs spécifiques aux salles virtuelles
+                'lien_reunion' => $this->when($this->resource->salle->type === "virtuelle", $this->salle->lien_reunion),
+                'lien_reunion_formate' => $this->when($this->resource->salle->type === "virtuelle", $this->salle->lien_reunion_formate),
+                'plateforme' => $this->when($this->resource->salle->type === "virtuelle", $this->salle->plateforme),
+                'plateforme_nom' => $this->when($this->resource->salle->type === "virtuelle", $this->salle->plateforme_nom),
                 'group' => $group ? $this->getGroupFullName($group) : "--",
                 'group_id' => $group?->slug,
                 'color' => $this->getColor(),
@@ -73,15 +81,23 @@ class EmploiDuTempsResource extends JsonResource
             'uv_id' => $this->resource->uv?->slug,
             'salle' => $this->resource->salle?->nom,
             'salle_slug' => $this->resource->salle?->slug,
-                 'salle_id' => $this->resource->salle?->id,
+            'salle_id' => $this->resource->salle?->id,
 
             'teacher' => $this->resource->owner?->nom,
             'teacher_id' => $this->resource->owner?->slug,
 
+            'est_virtuelle' => $this->resource->salle->type === "virtuelle" ? true : false,
+            'est_physique' => $this->resource->salle->type === "physique" ? true : false,
+           
 
+        // Champs spécifiques aux salles virtuelles
+                'lien_reunion' => $this->when($this->resource->salle->type === "virtuelle", $this->salle->lien_reunion),
+                'lien_reunion_formate' => $this->when($this->resource->salle->type === "virtuelle", $this->salle->lien_reunion_formate),
+                'plateforme' => $this->when($this->resource->salle->type === "virtuelle", $this->salle->plateforme),
+                'plateforme_nom' => $this->when($this->resource->salle->type === "virtuelle", $this->salle->plateforme_nom),
             'group' => $this->getGroupFullName($group),
             'group_id' => $group?->id,
-             'group_slug' => $group?->slug,
+            'group_slug' => $group?->slug,
             'color' => $this->getColor(),
             'title' => $this->getTitle(),
             'plageHoraire' => $this->getPlageHoraire(),

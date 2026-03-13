@@ -152,6 +152,42 @@ class Etudiant extends Authenticatable
 		return $this->reclamationsEnCours()->count() < 3;
 	}
 
+	// app/Models/Etudiant.php
+
+// Ajoutez ces méthodes à la fin de la classe, avant la dernière accolade
+
+/**
+ * Relation avec les frais étudiants (un étudiant peut avoir plusieurs frais sur différentes années)
+ */
+public function fraisEtudiant()
+{
+    return $this->hasMany(FraisEtudiant::class, 'etudiant_id');
+}
+
+/**
+ * Relation avec le frais étudiant de l'année en cours
+ */
+public function fraisEtudiantActuel()
+{
+    return $this->hasOne(FraisEtudiant::class, 'etudiant_id')
+        ->where('annee_scolaire_id', getAnneeScolaireId());
+}
+
+
+
+
+public function echeances()
+{
+    return $this->hasManyThrough(
+        Echeance::class,
+        FraisEtudiant::class,
+        'etudiant_id', // Clé étrangère sur frais_etudiants
+        'frais_etudiant_id', // Clé étrangère sur echeances
+        'id', // Clé locale sur etudiants
+        'id' // Clé locale sur frais_etudiants
+    );
+}
+
 
 
 	// 	public function filieres()
@@ -348,6 +384,59 @@ class Etudiant extends Authenticatable
 
 		return $query->first();
 	}
+
+
+
+	public function presences(): HasMany
+{
+    return $this->hasMany(CoursPresence::class, 'etudiant_id');
+}
+
+/**
+ * Les comportements de l'étudiant
+ */
+public function comportements(): HasMany
+{
+    return $this->hasMany(Comportement::class, 'etudiant_id');
+}
+
+/**
+ * Les justificatifs de l'étudiant
+ */
+public function justificatifs(): HasMany
+{
+    return $this->hasMany(Justificatif::class, 'etudiant_id');
+}
+
+
+/**
+ * Statistiques de présence
+ */
+public function getStatistiquesPresencesAttribute()
+{
+    $total = $this->presences()->count();
+    
+    if ($total === 0) {
+        return null;
+    }
+    
+    $presents = $this->presences()->where('statut', 'present')->count();
+    $absents = $this->presences()->whereIn('statut', ['absent', 'absent_justifie'])->count();
+    $retards = $this->presences()->whereIn('statut', ['retard', 'retard_justifie'])->count();
+    
+    return [
+        'total' => $total,
+        'presents' => $presents,
+        'absents' => $absents,
+        'retards' => $retards,
+        'taux_presence' => $total > 0 ? round(($presents / $total) * 100, 2) : 0,
+        'taux_absent' => $total > 0 ? round(($absents / $total) * 100, 2) : 0,
+        'moyenne_retards' => $total > 0 ? round($retards / $total * 100, 2) : 0
+    ];
+}
+
+
+
 
 	
 }

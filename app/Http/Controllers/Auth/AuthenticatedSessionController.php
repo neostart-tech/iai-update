@@ -9,6 +9,7 @@ use Illuminate\Http\{RedirectResponse, Request};
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Testing\Fluent\Concerns\Has;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use MercurySeries\Flashy\Flashy;
@@ -72,4 +73,5 @@ class AuthenticatedSessionController extends Controller
 
 		return redirect()->route('login');
 	}
+
 }

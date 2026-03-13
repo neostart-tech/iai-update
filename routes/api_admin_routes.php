@@ -44,6 +44,7 @@ use App\Http\Controllers\Admin\ClassCommitteeController;
 use App\Http\Controllers\CarteEtudiantController;
 use App\Http\Controllers\AnneeScolaireController;
 use App\Http\Controllers\Admin\EvaluationRoomController;
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Models\AnneeScolaire;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
@@ -110,6 +111,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get("{salle}/show", 'show');
         Route::post('ajouter-une-salle', 'store')->name('store');
+        Route::put('{salle}/modifier-une-salle', 'update')->name('update');
         Route::get('{salle}/emploi-du-temps', 'displayCalendar')->name('display-calendar');
         Route::get('{salle}/load-edt', 'loadCalendar')->name('load-calendar');
         Route::delete('{salle}/supprimer-une-salle', 'destroy')->name('delete');
@@ -122,7 +124,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('check-availability', 'checkAvailability')->name('check-availability');
         Route::delete('{slug}/delete', 'destroy')->name('delete');
         Route::get('/matrice/export', 'exportMatrice');
-
+        Route::get('/data', 'getEmploiDuTempsData');
     });
 
     // Gestion des Rôles par l'administration
@@ -166,10 +168,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::controller(CandidatureController::class)->prefix('candidature')->name('candidatures.')->group(function () {
         Route::get('liste', 'index')->name('index');
+        Route::get('creation-d-une-candidature', 'inscriptionIndexForm')->name('create');
+        Route::post("store-by-admin", "storeByAdmin")->name("store-by-admin");
         Route::get('payement-des-frais-de-participation', 'payementCandidaturesIndex')->name('payement-des-frais-de-participation');
         Route::get('participation-au-concours', 'participantCandidaturesIndex')->name('participation-au-concours');
         Route::get('admission-a-' . Str::slug(env('APP_NAME')), 'admisCandidaturesIndex')->name('admission');
         Route::get('liste-des-rectifications', 'rectificationIndex')->name('index.rectifications');
+        Route::get('liste-des-admis', 'InscriptionCandidaturesIndex')->name('liste-des-admis');
         Route::get('liste-des-rejets', 'rejectionIndex')->name('index.rejections');
         Route::get('{candidature}/evaluer', 'show')->name('show');
         Route::get('choix-de-groupe', 'chooseClassAssignmentGroupView')->name('choose-class-assignment-group-view');
@@ -182,7 +187,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('{candidature}/rejeter', 'rejectCandidature')->name('reject');
         Route::put('{candidature}/demander-rectification', 'askForRectificationOnCandidature')->name('ask-for-rectification');
         Route::post('{candidature}/reorienter', 'reorienter')->name('reorienter');
+        Route::post('{candidature}/inscrire-un-etudiant', 'insertStudent')->name('inscrire-un-etudiant');
     });
+
 
     Route::controller(AgendaController::class)->prefix('agenda')->name('agenda.')->group(function () {
         Route::get('/', 'index')->name('index');
@@ -272,6 +279,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('{evaluation}/supprimer', 'destroy')->name('delete');
             Route::get('{slug}/publier', 'publish')->name('publish');
             Route::get('{evaluation}/fiche-de-note', 'getNoteFiche')->name(name: 'fiche-de-note');
+            Route::get('/get-liste-enseignant-evaluations', 'getListEvaluationForTeacher');
+            Route::get('/get-liste-etudiant-evaluations', 'getListEvaluationForStudent');
         });
 
         // Allocation de salles, surveillants, répartition étudiants
@@ -384,17 +393,6 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
 
-
-
-    // Route pour les publications
-    // Route::controller(ContactController::class)->prefix('messages')->name('messages.')->group(function () {
-    // 	Route::get('', 'index')->name('index');
-    // 	Route::get('{contact}', 'show')->name('show');
-    // 	Route::get('{contact}/lire', 'read')->name('read');
-    // 	Route::get('count-unread-message', 'countEnreadMessage')->name('count-unread-message');
-    // 	Route::delete('{contact}', 'destroy')->name('delete');
-    // });
-
     Route::controller(ContactController::class)
         ->prefix('messages')
         ->name('messages.')
@@ -476,12 +474,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::controller(AdminEtudiantController::class)->prefix('etudiants')->name('etudiants.')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('get-etudiant-non-boursier', "getNonBoursiers");
-        Route::get('{etudiant}', 'show')->name('show');
+
         Route::post('import', 'importEtudiant')->name('import');
         $anneActive = AnneeScolaire::where('active', true)->first()->nom ?? null;
         Route::get('export', function () use ($anneActive) {
             return Excel::download(new EtudiantsExport, 'liste_des_etudiants_' . $anneActive . '.xlsx');
         })->name('export');
+        Route::get('{etudiant}', 'show')->name('show');
     });
 
     Route::controller(NotificationController::class)->group(function () {
@@ -492,7 +491,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/notifications/read-all', 'markAllAsRead');
 
         Route::delete('/notifications/{id}', 'destroy');
+        Route::delete('/notifications/delete-all', 'destroyAll');
     });
+
 
     // Routes pour les statistiques des filières
     Route::get('/statistiques/filieres/nombre', [StatistiquesController::class, 'NbreFilieres']);

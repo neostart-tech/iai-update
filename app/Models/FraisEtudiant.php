@@ -96,7 +96,7 @@ class FraisEtudiant extends Model
 
     public function getNombreEcheancesParFrequenceAttribute()
     {
-        return match($this->frequence_paiement) {
+        return match ($this->frequence_paiement) {
             'annuel' => 1,
             'trimestriel' => 4,
             'bimestriel' => 6,
@@ -111,46 +111,46 @@ class FraisEtudiant extends Model
         return $this->montant_apres_bourse / $this->nombre_echeances_par_frequence;
     }
 
-   public function getEcheancesActivesAttribute()
-{
-    if ($this->type_paiement === 'tranches_globales') {
-        // Récupérer les tranches globales sans ordre (ou avec un ordre différent)
-        return TranchePaiement::where('frais_scolarite_id', $this->frais_scolarite_id)
-            ->orderBy('id') // Ou orderBy('created_at') si vous préférez
-            ->get()
-            ->map(function($tranche, $index) {
-                return (object)[
-                    'id' => $tranche->id,
-                    'libelle' => $tranche->libelle,
-                    'montant' => $tranche->montant,
-                    'date_limite' => $tranche->date_limite,
-                    'ordre' => $index + 1, // Ordre basé sur l'index
-                    'est_globale' => true
-                ];
-            });
+    public function getEcheancesActivesAttribute()
+    {
+        if ($this->type_paiement === 'tranches_globales') {
+            // Récupérer les tranches globales sans ordre (ou avec un ordre différent)
+            return TranchePaiement::where('frais_scolarite_id', $this->frais_scolarite_id)
+                ->orderBy('id') // Ou orderBy('created_at') si vous préférez
+                ->get()
+                ->map(function ($tranche, $index) {
+                    return (object)[
+                        'id' => $tranche->id,
+                        'libelle' => $tranche->libelle,
+                        'montant' => $tranche->montant,
+                        'date_limite' => $tranche->date_limite,
+                        'ordre' => $index + 1, // Ordre basé sur l'index
+                        'est_globale' => true
+                    ];
+                });
+        }
+
+        // Récupérer les échéances négociées
+        return $this->echeances()->orderBy('id')->get();
     }
-    
-    // Récupérer les échéances négociées
-    return $this->echeances()->orderBy('id')->get();
-}
 
     public function getEstEnRetardAttribute()
     {
         if ($this->reste_a_payer <= 0) return false;
-        
+
         foreach ($this->echeances_actives as $echeance) {
             if (isset($echeance->est_en_retard) && $echeance->est_en_retard) {
                 return true;
             }
         }
-        
+
         return false;
     }
 
     public function getProchaineEcheanceAttribute()
     {
         $echeances = $this->echeances_actives;
-        
+
         return $echeances
             ->where('date_limite', '>=', now())
             ->where('statut', '!=', 'paye')
@@ -161,14 +161,13 @@ class FraisEtudiant extends Model
     public function getEcheancesEnRetardAttribute()
     {
         $echeances = $this->echeances_actives;
-        
+
         return $echeances
-            ->filter(function($echeance) {
+            ->filter(function ($echeance) {
                 return $echeance->est_en_retard ?? false;
             });
     }
 
-    // ==================== MÉTHODES ====================
 
     public function updateStatut()
     {
@@ -179,9 +178,9 @@ class FraisEtudiant extends Model
         } else {
             $this->statut = 'en_cours';
         }
-        
+
         $this->saveQuietly();
-        
+
         return $this;
     }
 
@@ -195,7 +194,7 @@ class FraisEtudiant extends Model
         $echeances = [];
 
         for ($i = 0; $i < $this->nombre_echeances_par_frequence; $i++) {
-            $dateLimite = match($this->frequence_paiement) {
+            $dateLimite = match ($this->frequence_paiement) {
                 'trimestriel' => $dateDebut->copy()->addMonths(3 * ($i + 1)),
                 'bimestriel' => $dateDebut->copy()->addMonths(2 * ($i + 1)),
                 'mensuel' => $dateDebut->copy()->addMonths($i + 1),
@@ -216,78 +215,62 @@ class FraisEtudiant extends Model
         return $echeances;
     }
 
-    // public function creerEcheancesDepuisTranchesGlobales()
-    // {
-    //     if ($this->type_paiement !== 'tranches_globales') {
-    //         return false;
-    //     }
-
-    //     $tranches = TranchePaiement::where('frais_scolarite_id', $this->frais_scolarite_id)
-    //         ->orderBy('id')
-    //         ->get();
-
-    //     if ($tranches->isEmpty()) {
-    //         // Si pas de tranches définies, utiliser la fréquence
-    //         $echeancesData = $this->genererEcheancesParFrequence();
-            
-    //         foreach ($echeancesData as $data) {
-    //             Echeance::create($data);
-    //         }
-    //     } else {
-    //         // Utiliser les tranches existantes
-    //         foreach ($tranches as $index => $tranche) {
-    //             Echeance::create([
-    //                 'frais_etudiant_id' => $this->id,
-    //                 'libelle' => $tranche->libelle,
-    //                 'montant' => $tranche->montant,
-    //                 'montant_paye' => 0,
-    //                 'date_limite' => $tranche->date_limite,
-    //                 'ordre' => $tranche->ordre ?? $index + 1,
-    //                 'statut' => 'en_attente'
-    //             ]);
-    //         }
-    //     }
-
-    //     return true;
-    // }
     public function creerEcheancesDepuisTranchesGlobales()
-{
-    if ($this->type_paiement !== 'tranches_globales') {
-        return false;
+    {
+        if ($this->type_paiement !== 'tranches_globales') {
+            return false;
+        }
+
+        // Récupérer les VRAIES tranches globales
+        $tranches = TranchePaiement::where('frais_scolarite_id', $this->frais_scolarite_id)
+            ->orderBy('id')
+            ->get();
+
+        if ($tranches->isNotEmpty()) {
+            // Utiliser les tranches réelles
+            foreach ($tranches as $index => $tranche) {
+                Echeance::create([
+                    'frais_etudiant_id' => $this->id,
+                    'libelle' => $tranche->libelle,
+                    'montant' => $tranche->montant,
+                    'montant_paye' => 0,
+                    'date_limite' => $tranche->date_limite,
+                    'ordre' => $index + 1,
+                    'statut' => 'en_attente'
+                ]);
+            }
+        } else {
+            // Fallback: générer selon la fréquence
+            $echeancesData = $this->genererEcheancesParFrequence();
+            foreach ($echeancesData as $data) {
+                Echeance::create($data);
+            }
+        }
+
+        return true;
     }
 
-    // Récupérer les VRAIES tranches globales
-    $tranches = TranchePaiement::where('frais_scolarite_id', $this->frais_scolarite_id)
-        ->orderBy('id')
-        ->get();
-
-    if ($tranches->isNotEmpty()) {
-        // Utiliser les tranches réelles
-        foreach ($tranches as $index => $tranche) {
-            Echeance::create([
-                'frais_etudiant_id' => $this->id,
-                'libelle' => $tranche->libelle,
-                'montant' => $tranche->montant,
-                'montant_paye' => 0,
-                'date_limite' => $tranche->date_limite,
-                'ordre' => $index + 1,
-                'statut' => 'en_attente'
-            ]);
-        }
-    } else {
-        // Fallback: générer selon la fréquence
-        $echeancesData = $this->genererEcheancesParFrequence();
-        foreach ($echeancesData as $data) {
-            Echeance::create($data);
-        }
+    // Dans le modèle FraisEtudiant
+    public function calculerTotalPaiements()
+    {
+        return $this->echeances()
+            ->join('paiements', 'echeances.id', '=', 'paiements.payable_id')
+            ->sum('paiements.montant');
     }
 
-    return true;
-}
+    public function mettreAJourStatut()
+    {
+        $totalPaiements = $this->calculerTotalPaiements();
+        $nouveauStatut = $totalPaiements >= $this->montant_apres_bourse ? 'solde' : 'en_cours';
+
+        $this->update(['statut' => $nouveauStatut]);
+
+        return $nouveauStatut;
+    }
 
     private function getLibelleEcheance($ordre)
     {
-        return match($this->frequence_paiement) {
+        return match ($this->frequence_paiement) {
             'trimestriel' => "Trimestre $ordre",
             'bimestriel' => "Bimestre $ordre",
             'mensuel' => "Mois $ordre",

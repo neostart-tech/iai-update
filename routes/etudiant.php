@@ -3,6 +3,7 @@
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\CvController;
+use App\Http\Controllers\enseignantAuth\AuthentificationSessionController;
 use App\Http\Controllers\EtudiantAuth\AuthenticatedSessionController;
 use App\Http\Controllers\EtudiantAuth\EmailVerificationNotificationController;
 use App\Http\Controllers\EtudiantAuth\EmailVerificationPromptController;

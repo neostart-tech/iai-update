@@ -9,6 +9,7 @@ use App\Providers\RouteServiceProvider;
 use Illuminate\Http\{RedirectResponse, Request};
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use MercurySeries\Flashy\Flashy;
@@ -70,4 +71,59 @@ class AuthenticatedSessionController extends Controller
 
 		return to_route('home');
 	}
+
+	public function update(Request $request)
+    {
+        $request->validate([
+            'current_password' => ['required', 'string'],
+            'new_password' => [
+                'required', 
+                'string',
+                'confirmed',
+                Password::min(8)
+                    ->mixedCase()
+                    ->numbers()
+            ],
+        ]);
+
+        $user = $request->user('etudiant');
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'Utilisateur non authentifié.'
+            ], 401);
+        }
+
+        // Vérifier que l'ancien mot de passe est correct
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json([
+                'message' => 'Le mot de passe actuel est incorrect.',
+                'errors' => [
+                    'current_password' => ['Le mot de passe actuel est incorrect.']
+                ]
+            ], 422);
+        }
+
+        // Vérifier que le nouveau mot de passe est différent
+        if (Hash::check($request->new_password, $user->password)) {
+            return response()->json([
+                'message' => 'Le nouveau mot de passe doit être différent de l\'ancien.',
+                'errors' => [
+                    'new_password' => ['Le nouveau mot de passe doit être différent de l\'ancien.']
+                ]
+            ], 422);
+        }
+
+        // Mettre à jour le mot de passe
+        $user->password = Hash::make($request->new_password);
+        $user->save();
+
+        // Optionnel : Révoquer tous les tokens
+        $user->tokens()->delete();
+
+        return response()->json([
+            'message' => 'Mot de passe modifié avec succès.',
+            'success' => true
+        ], 200);
+    }
 }

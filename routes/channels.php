@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\DB;
 
 /*
 |--------------------------------------------------------------------------
@@ -14,5 +15,19 @@ use Illuminate\Support\Facades\Broadcast;
 */
 
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
+    return (int) $user->id === (int) $id;
+});
+
+Broadcast::channel('conversation.{id}', function ($user,$id) {
+
+    return DB::table('conversation_users')
+        ->where('conversation_id',$id)
+        ->where('participant_id',$user->id)
+        ->where('participant_type',get_class($user))
+        ->exists();
+});
+
+// Canal pour les notifications utilisateur
+Broadcast::channel('user.{id}', function ($user, $id) {
     return (int) $user->id === (int) $id;
 });

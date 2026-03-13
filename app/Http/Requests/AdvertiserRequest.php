@@ -20,7 +20,9 @@ class AdvertiserRequest extends FormRequest
 			'email' => ['required', 'email'],
 			'ville' => ['required', 'string'],
 			'site' => ['nullable', 'url'],
-			'details' => ['required', 'string']
+			'details' => ['required', 'string'],
+			'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', 
+
 		];
 	}
 

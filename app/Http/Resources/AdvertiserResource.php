@@ -23,6 +23,9 @@ class AdvertiserResource extends JsonResource
             "site" => $this->resource->site,
             "ville" => $this->resource->ville,
             "slug" => $this->resource->slug,
+            "logo_url" => $this->when($this->resource->logo, function () {
+                return $this->resource->FileFulllPath();
+            }), 
         ];
     }
 }

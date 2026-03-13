@@ -66,8 +66,9 @@ class RoleSeeder extends Seeder
 			'nom' => 'Responsable du site'
 		]);
 
-//		Role::create([
-//			'nom' => 'Responsable du site publique'
-//		]);
+		Role::create([
+			'nom' => 'Delegue'
+		]);
+
 	}
 }

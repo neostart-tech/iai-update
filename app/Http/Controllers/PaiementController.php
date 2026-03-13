@@ -1,587 +1,173 @@
 <?php
+// app/Http/Controllers/PaiementController.php
 
 namespace App\Http\Controllers;
 
 use App\Models\Etudiant;
 use App\Models\Paiement;
-use App\Models\Candidature;
-use App\Models\TranchePaiement;
-use App\Models\FraisScolarite;
-use App\Models\AnneeScolaire;
-use App\Enums\GenreEnum;
-use App\Http\Resources\AnneeScolaireResource;
-use App\Http\Resources\MiniUserResource;
-use App\Http\Resources\PaiementResource;
-use App\Http\Resources\UserResource;
-use App\Models\Echeance;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Notifications\PaiementNotification;
+use App\Services\PaiementEtudiantService;
+use Exception;
 use Illuminate\Http\Request;
-use Spatie\Browsershot\Browsershot;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
-use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Validator;
 
 class PaiementController extends Controller
 {
-    public function index()
+     protected $paiementService;
+    
+    public function __construct(PaiementEtudiantService $paiementService)
     {
-        // Tous les paiements
-        $paiements = Paiement::with(['etudiant', 'payable'])
-            ->latest()
-            ->get();
-
-        $annee = AnneeScolaire::where('active', true)->firstOrFail();
-
-        $etudiants = Etudiant::whereHas('candidatures', function ($q) use ($annee) {
-            $q->where('annee_scolaire_id', $annee->id);
-        })
-            ->with([
-                'candidatures' => function ($q) use ($annee) {
-                    $q->where('annee_scolaire_id', $annee->id)
-                        ->with(['filiere:id,nom', 'niveau:id,libelle']);
-                },"candidatures.album"
-            ])
-            ->get()
-            ->filter(function ($etudiant) use ($annee) {
-
-                $candidature = $etudiant->candidatures->first();
-                if (!$candidature || !$candidature->niveau) {
-                    return false;
-                }
-
-                $frais = FraisScolarite::where('annee_scolaire_id', $annee->id)
-                    ->where('niveau_id', $candidature->niveau->id)
-                    ->first();
-
-                if (!$frais) {
-                    return false;
-                }
-
-                $montantTotal = TranchePaiement::where('frais_scolarite_id', $frais->id)
-                    ->sum('montant');
-
-                // Montant déjà payé (MORPH)
-                $montantPaye = Paiement::where('etudiant_id', $etudiant->id)
-                    ->where('payable_type', TranchePaiement::class)
-                    ->whereHas('payable', function ($q) use ($frais) {
-                        $q->where('payable_id', $frais->id);
-                    })
-                    ->where('annule', false)
-                    ->sum('montant');
-
-                return $montantPaye < $montantTotal;
-            })
-            ->values();
-
-
-            // return response()->json([
-            //     "paiements"=>PaiementResource::collection($paiements),
-            //     "etudiants"=>MiniUserResource::collection($etudiants),
-
-            // ]);
-
-        return view('comptabilite.paiements._index', compact('paiements', 'etudiants'));
+        $this->paiementService = $paiementService;
     }
-
-
-    public function getTranches($etudiantId)
+    
+    /**
+     * Récupérer les informations de paiement d'un étudiant
+     */
+    public function getInfos($etudiantId)
     {
-        $etudiant = Etudiant::findOrFail($etudiantId);
-        $anneeActive = AnneeScolaire::where('active', true)->first();
-
-        $candidature = Candidature::where('etudiant_id', $etudiant->id)
-            ->where('annee_scolaire_id', $anneeActive->id ?? null)
-            ->latest()
-            ->first();
-
-        if (!$candidature) {
-            return response()->json([]);
+        try {
+            $infos = $this->paiementService->getInfosPaiement($etudiantId);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $infos
+            ]);
+            
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
         }
-
-        // Récupérer l'étudiant pour connaître son genre
-        $etudiant = Etudiant::findOrFail($etudiantId);
-
-        // Récupérer les frais appropriés selon le genre
-        $frais = FraisScolarite::with('tranchepaiement')
-            ->where('niveau_id', $candidature->niveau_id)
-            ->where(function ($query) use ($etudiant) {
-                $query->where('genre', $etudiant->genre->value)
-                    ->orWhere('genre', 'Tous');
-            })
-            ->orderBy('genre', 'desc') // Priorité aux frais spécifiques au genre
-            ->get();
-
-
-        $tranches = $frais->flatMap->tranchepaiement;
-
-
-        $tranchesNonSoldees = $tranches->filter(function ($tranche) use ($etudiantId) {
-            $totalPaye = Paiement::where('etudiant_id', $etudiantId)
-                ->where('annule', false)
-                ->where('tranche_paiement_id', $tranche->id)
-                ->sum('montant');
-
-            return $totalPaye < $tranche->montant;
-        });
-
-        return response()->json($tranchesNonSoldees->values());
     }
-    // public function store(Request $request)
-    // {
-    //     $request->validate([
-    //         'etudiant_id' => 'required|exists:etudiants,id',
-    //         'montant' => 'required|numeric|min:0',
-    //         'mode_paiement' => 'required|string',
-    //         'reference' => 'nullable',
-    //         'justificatif' => 'nullable|required_if:mode_paiement,banque,semoa|file|mimes:jpg,jpeg,png,pdf|max:2048'
-
-    //     ], [
-    //         'etudiant_id.required' => 'Veuillez sélectionner un étudiant',
-    //         'montant.required' => 'Le montant est requis',
-    //         'mode_paiement.required' => 'Le mode de paiement est requis',
-    //         'justificatif.required_if' => 'Un justificatif est obligatoire pour un paiement par banque ou SEMOA.',
-    //     ]);
-
-
-    //     $etudiantId = $request->etudiant_id;
-    //     // $trancheIdDepart = $request->tranche_paiement_id;
-    //     $montantRestant = $request->montant;
-    //     $mode = $request->mode_paiement;
-    //     if ($request->reference == null) {
-    //         $reference = random_int(0, 99999999);
-    //     }
-    //     $reference = $request->reference;
-
-    //     $etudiant = Etudiant::findOrFail($etudiantId);
-    //     $anneeActive = AnneeScolaire::where('active', true)->first();
-
-    //     $candidature = Candidature::where('etudiant_id', $etudiantId)
-    //         ->where('annee_scolaire_id', $anneeActive->id ?? null)
-    //         ->latest()
-    //         ->first();
-
-    //     if (!$candidature) {
-    //         return redirect()->back()->with('error', 'Aucune candidature trouvée pour cet étudiant.');
-    //     }
-
-    //     // Récupérer les frais appropriés selon le genre de l'étudiant
-    //     $frais = FraisScolarite::with('tranchepaiement')
-    //         ->where('niveau_id', $candidature->niveau_id)
-    //         ->where(function ($query) use ($etudiant) {
-    //             $query->where('genre', $etudiant->genre->value)
-    //                 ->orWhere('genre', 'Tous');
-    //         })
-    //         ->orderBy('genre', 'desc') // Priorité aux frais spécifiques au genre
-    //         ->get();
-
-    //     $tranches = collect($frais->flatMap->tranchepaiement);
-
-
-
-
-    //     $recap = [];
-
-    //     foreach ($tranches as $tranche) {
-    //         $dejaPaye = Paiement::where('etudiant_id', $etudiantId)
-    //             ->where('payable_id', $tranche->id)
-    //             ->where('payable_type', TranchePaiement::class)
-    //             ->sum('montant');
-
-    //         $reste = $tranche->montant - $dejaPaye;
-
-    //         if ($reste <= 0 || $montantRestant <= 0) continue;
-
-    //         $montantAPayer = min($montantRestant, $reste);
-
-    //         $path = "";
-    //         if ($request->hasFile('justificatif')) {
-    //             $extension = $request->file('justificatif')->getClientOriginalExtension();
-    //             $filename = time() . '_' . $request->etudiant_id . $extension;
-    //             $path = "/justificatif_paiement" . "/" . $filename;
-    //             $path =  $request->file('justificatif')->storeAs($path, $filename, 'public');
-    //         }
-
-    //         $paiement = $tranche->paiements()->create([
-    //             'etudiant_id' => $etudiantId,
-    //             'montant' => $montantAPayer,
-    //             'mode_paiement' => $mode,
-    //             'reference' => $reference,
-    //             'date_paiement' => now(),
-    //             'justificatif' => $path,
-    //         ]);
-
-    //         $recap[] = [
-    //             'tranche' => $tranche->libelle,
-    //             'montant' => $montantAPayer,
-    //         ];
-
-    //         $paiementsAnterieurs = Paiement::where('etudiant_id', $etudiantId)
-    //             ->orderBy('date_paiement', 'asc')
-    //             ->get();
-    //         $montantTotalScolarite = $tranches->sum('montant');
-    //         $montantDejaPaye = Paiement::where('etudiant_id', $etudiantId)->sum('montant');
-    //         $resteGlobal = $montantTotalScolarite - $montantDejaPaye;
-
-
-    //         $html = view('comptabilite.paiements._recu', [
-    //             'paiement' => $paiement,
-    //             'etudiant' => $etudiant,
-    //             'candidature' => $candidature,
-    //             'recap' => $recap,
-    //             'paiementsAnterieurs' => $paiementsAnterieurs,
-    //             'montantTotalScolarite' => $montantTotalScolarite,
-    //             'montantDejaPaye' => $montantDejaPaye,
-    //             'resteGlobal' => $resteGlobal,
-    //         ])->render();
-
-    //         $filename = 'recu_' . $paiement->id . '_' . time() . '.pdf';
-    //         $folder = storage_path('app/public/recus');
-
-    //         if (!file_exists($folder)) {
-    //             mkdir($folder, 0775, true);
-    //         }
-
-    //         $filePath = $folder . '/' . $filename;
-
-    //         Browsershot::html($html)
-    //             ->setOption('args', ['--no-sandbox'])
-    //             ->format('A4')
-    //             ->margins(10, 10, 10, 10)
-    //             ->savePdf($filePath);
-
-
-    //         $paiement->update([
-    //             'recu' => 'storage/recus/' . $filename
-    //         ]);
-
-    //         $montantRestant -= $montantAPayer;
-    //     }
-
-
-
-    //     $alerte = null;
-    //     if ($montantRestant > 0) {
-    //         $alerte = "Attention, le montant saisi dépasse le reste à payer. Seul le montant dû a été enregistré.";
-    //     }
-
-    //     if (empty($recap)) {
-    //         return redirect()->back()
-    //             ->with('error', 'Aucun paiement n\'a été enregistré. Vérifiez le montant ou les tranches.');
-    //     }
-
-    //     return redirect()->back()
-    //         ->with('success', 'Paiement enregistré avec succès.' . ($alerte ? ' ' . $alerte : ''))
-    //         ->with('recap', $recap);
-    // }
-
-
-//  public function store(Request $request)
-// {
-  
-//     $request->validate([
-//         'etudiant_id'   => 'required|exists:etudiants,id',
-//         'montant'       => 'required|numeric|min:0',
-//         'mode_paiement' => 'required|string',
-//         'reference'     => 'nullable|string',
-//         'justificatif'  => 'nullable|required_if:mode_paiement,banque,semoa|file|mimes:jpg,jpeg,png,pdf|max:2048',
-//     ], [
-//         'etudiant_id.required'   => 'Veuillez sélectionner un étudiant',
-//         'montant.required'       => 'Le montant est requis',
-//         'mode_paiement.required' => 'Le mode de paiement est requis',
-//         'justificatif.required_if' => 'Un justificatif est obligatoire pour un paiement par banque ou SEMOA.',
-//     ]);
-
-//     $etudiantId      = $request->etudiant_id;
-//     $montantRestant  = $request->montant;
-//     $mode            = $request->mode_paiement;
-
-//     $etudiant = Etudiant::findOrFail($etudiantId);
-
-//     $anneeActive = AnneeScolaire::where('active', true)->first();
-//     if (!$anneeActive) {
-//         return back()->with('error', 'Aucune année scolaire active.');
-//     }
-
-//     $candidature = Candidature::where('etudiant_id', $etudiantId)
-//         ->where('annee_scolaire_id', $anneeActive->id)
-//         ->latest()
-//         ->first();
-
-//     if (!$candidature) {
-//         return back()->with('error', 'Aucune candidature trouvée pour cet étudiant.');
-//     }
-
-//     $frais = FraisScolarite::with('tranchepaiement')
-//         ->where('niveau_id', $candidature->niveau_id)
-//         ->where(function ($query) use ($etudiant) {
-//             $query->where('genre', $etudiant->genre->value)
-//                   ->orWhere('genre', 'Tous');
-//         })
-//         ->orderBy('genre', 'desc')
-//         ->get();
-
-//     $tranches = collect($frais->flatMap->tranchepaiement);
-
-//     if ($tranches->isEmpty()) {
-//         return back()->with('error', 'Aucune tranche de paiement définie.');
-//     }
-
-  
-//     $recap = [];
-
-//     foreach ($tranches as $tranche) {
-//         if ($montantRestant <= 0) break;
-
-//         $dejaPaye = Paiement::where('etudiant_id', $etudiantId)
-//             ->where('payable_type', TranchePaiement::class)
-//             ->where('payable_id', $tranche->id)
-//             ->sum('montant');
-
-//         $reste = $tranche->montant - $dejaPaye;
-//         if ($reste <= 0) continue;
-
-//         $montantAPayer = min($montantRestant, $reste);
-
-//         /* ===== Justificatif ===== */
-//         $pathJustificatif = null;
-//         if ($request->hasFile('justificatif')) {
-//             $pathJustificatif = $request->file('justificatif')
-//                 ->store('justificatif_paiement', 'public');
-//         }
-
-//         /* ===== Générer une référence unique ===== */
-//         do {
-//             $reference = random_int(10000000, 99999999);
-//         } while (Paiement::where('reference', $reference)->exists());
-
-//         /* ===== Création du paiement (MORPH) ===== */
-//         $paiement = $tranche->paiements()->create([
-//             'etudiant_id'   => $etudiantId,
-//             'montant'       => $montantAPayer,
-//             'mode_paiement' => $mode,
-//             'reference'     => $reference,
-//             'date_paiement' => now(),
-//             'justificatif'  => $pathJustificatif,
-//         ]);
-
-//         $recap[] = [
-//             'tranche' => $tranche->libelle,
-//             'montant' => $montantAPayer,
-//             'reference' => $reference,
-//         ];
-
-//         $montantRestant -= $montantAPayer;
-//     }
-
-//     if (empty($recap)) {
-//         return back()->with('error', 'Aucun paiement n’a été enregistré.');
-//     }
-
-//     $alerte = null;
-//     if ($montantRestant > 0) {
-//         $alerte = "Attention : le montant saisi dépasse le reste à payer.";
-//     }
-
-//     return back()
-//         ->with('success', 'Paiement enregistré avec succès.' . ($alerte ? ' ' . $alerte : ''))
-//         ->with('recap', $recap);
-// }
-
-public function store(Request $request)
+    
+    /**
+     * Récupérer le récapitulatif d'un étudiant
+     */
+    public function getRecap($etudiantId)
+    {
+        try {
+            $recap = $this->paiementService->getRecap($etudiantId);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $recap
+            ]);
+            
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+    
+    /**
+     * Récupérer l'historique des paiements d'un étudiant
+     */
+    public function getHistorique($etudiantId)
+    {
+        try {
+            $historique = $this->paiementService->getHistorique($etudiantId);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $historique
+            ]);
+            
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+    
+    /**
+     * Effectuer un paiement
+     */
+    public function store(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'etudiant_id' => 'required|exists:etudiants,id',
+            'montant' => 'required|numeric|min:1',
+            'mode_paiement' => 'required|string|in:especes,banque,semoa,caisse,carte,virement,cheque',
+            'reference' => 'nullable|string|max:255',
+            'payable_id' => 'nullable|integer',
+            'payable_type' => 'nullable|string|in:echeance,tranche',
+        ]);
+        
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+        
+        try {
+            $result = $this->paiementService->traiterPaiement(
+                $request->etudiant_id,
+                $request->montant,
+                $request->mode_paiement,
+                $request->reference,
+                $request->payable_id,
+                $request->payable_type
+            );
+            
+            return response()->json($result);
+            Notification::send(new PaiementNotification($result));
+            
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+    
+    /**
+     * Rechercher des étudiants (optionnel)
+     */
+    public function rechercherEtudiants(Request $request)
     {
         $request->validate([
-            'echeance_id' => 'required|exists:echeances,id',
-            'montant' => 'required|numeric|min:1'
+            'search' => 'required|string|min:2'
         ]);
-
-        return DB::transaction(function () use ($request) {
-
-            $echeance = Echeance::findOrFail($request->echeance_id);
-
-            $paiement = Paiement::create([
-                'etudiant_id' => $echeance->echeancier->etudiant_id,
-                'payable_id' => $echeance->id,
-                'payable_type' => Echeance::class,
-                'montant' => $request->montant,
-                'date_paiement' => now(),
+        
+        try {
+            $etudiants = Etudiant::with(['dernierGroupe.niveau', 'dernierGroupe.filiere'])
+                ->where(function($query) use ($request) {
+                    $query->where('nom', 'like', '%' . $request->search . '%')
+                          ->orWhere('prenom', 'like', '%' . $request->search . '%')
+                          ->orWhere('matricule', 'like', '%' . $request->search . '%');
+                })
+                ->limit(20)
+                ->get()
+                ->map(function($e) {
+                    return [
+                        'id' => $e->id,
+                        'slug' => $e->slug,
+                        'nom' => $e->nom,
+                        'prenom' => $e->prenom,
+                        'nom_complet' => $e->nom . ' ' . $e->prenom,
+                        'matricule' => $e->matricule,
+                        'niveau' => $e->dernierGroupe->niveau->libelle ?? null,
+                        'filiere' => $e->dernierGroupe->filiere->nom ?? null,
+                        'telephone' => $e->tel,
+                    ];
+                });
+            
+            return response()->json([
+                'success' => true,
+                'data' => $etudiants
             ]);
-
-            $echeance->increment('montant_paye', $request->montant);
-
-            if ($echeance->montant_paye >= $echeance->montant) {
-                $echeance->update(['statut' => 'paye']);
-            } else {
-                $echeance->update(['statut' => 'partiel']);
-            }
-
-            $echeancier = $echeance->echeancier;
-            $echeancier->increment('montant_paye', $request->montant);
-
-            $reste = $echeancier->montant_total - $echeancier->montant_paye;
-
-            $echeancier->update([
-                'reste_a_payer' => $reste,
-                'est_solde' => $reste <= 0
-            ]);
-
-            return response()->json(['success' => true]);
-        });
-    }
-
-
-
-
-    public function annuler(Request $request)
-    {
-        $request->validate([
-            'paiement_id' => 'required|exists:paiements,id',
-            'motif_annulation' => 'required|string',
-        ]);
-
-        $paiement = Paiement::findOrFail($request->paiement_id);
-
-        if ($paiement->annule) {
-            return back()->with('error', 'Ce paiement est déjà annulé.');
+            
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
         }
-
-        $paiement->update([
-            'annule' => true,
-            'motif_annulation' => $request->motif_annulation,
-            'date_annulation' => now(),
-            'annule_par' => auth()->id(),
-            "status" => "annule",
-        ]);
-
-        return response()->json("Le paiement a été annulé avec succès.");
-
-        // return back()->with('success', 'Le paiement a été annulé avec succès.');
     }
-
-    public function valider(Paiement $paiement)
-    {
-        if ($paiement->status === 'valide') {
-            return back()->with('error', 'Ce paiement est déjà validé.');
-        }
-
-
-        $memereference = $paiement->reference;
-        $paiements = Paiement::where('reference', $memereference)
-            ->where('annule', false)
-            ->get();
-        if ($paiements->isEmpty()) {
-            return back()->with('error', 'Aucun paiement trouvé avec cette référence.');
-        }
-        foreach ($paiements as $p) {
-            if ($p->status === 'valide') {
-                continue;
-            }
-            $p->update([
-                'status' => 'valide',
-            ]);
-        }
-        return response()->json([
-            'success' => true,
-            'message' => 'Le paiement a été validé avec succès.',
-        ]);
-        // return back()->with('success', 'Le paiement a été validé avec succès.');
-    }
-
-
-    public function getInformationPaiementEtudiants()
-    {
-        $annee = AnneeScolaire::where('active', true)->firstOrFail();
-        $today = Carbon::today();
-
-        $etudiants = Etudiant::whereHas(
-            'candidatures',
-            fn($q) =>
-            $q->where('annee_scolaire_id', $annee->id)
-        )
-            ->with([
-                'candidatures' => fn($q) => $q->where('annee_scolaire_id', $annee->id)
-                    ->with([
-                        'filiere:id,nom',
-                        'niveau:id,libelle',
-                        'tranches.paiements' => fn($q) =>
-                        $q->where('annule', false)
-                    ]),
-            ])
-            ->get();
-
-        $etudiants_infos = $etudiants->map(function ($etudiant) use ($today) {
-            $inscription = $etudiant->candidatures->first();
-            if (!$inscription) return null;
-
-            $tranches_data = $inscription->tranches->map(function ($tranche) use ($today) {
-                $paye   = $tranche->paiements->sum('montant');
-                $status = $paye >= $tranche->montant
-                    ? 'soldé'
-                    : ($today->gte($tranche->date_limite) ? 'en_retard' : 'a_jour');
-
-                return [
-                    'libelle'     => $tranche->libelle,
-                    'montant'     => $tranche->montant,
-                    'paye'        => $paye,
-                    'date_limite' => $tranche->date_limite,
-                    'status'      => $status,
-                ];
-            });
-
-            $total_frais = $tranches_data->sum('montant');
-            $total_paye  = $tranches_data->sum('paye');
-            $retards     = $tranches_data->where('status', 'en_retard')->isNotEmpty();
-
-            $statut = $total_paye >= $total_frais
-                ? 'total_paye'
-                : ($retards ? 'en_retard' : 'a_jour');
-
-            return [
-                'etudiant'     => $etudiant,
-                'filiere'      => $inscription->filiere->nom,
-                'niveau'       => $inscription->niveau->libelle,
-                'total_frais'  => $total_frais,
-                'total_paye'   => $total_paye,
-                'statut'       => $statut,
-                'tranches'     => $tranches_data->values(),
-                'reste_a_payer' => $total_frais - $total_paye,
-            ];
-        })->filter();
-
-
-        return response()->json([
-            "message"=>"Plan paiement enrégistrer avec succes"
-        ]);
-
-        // return view('comptabilite.historique._paye', compact('annee', 'etudiants_infos'));
-    }
-
-
-
-    //     public function getInformationPaiementEtudiant($etudiantId){
-
-    // $etudiant = Etudiant::with('niveau.tranchesPaiement')->findOrFail($etudiantId);
-
-    //     $tranches = $etudiant->niveau->tranchesPaiement->map(function($tranche) use ($etudiant) {
-    //         $montantPaye = $etudiant->paiements()
-    //             ->where('annule', false)
-    //             ->where('tranche_paiement_id', $tranche->id)
-    //             ->sum('montant');
-
-    //         return [
-    //             'libelle' => $tranche->libelle,
-    //             'date_limite' => $tranche->date_limite->format('d/m/Y'),
-    //             'montant' => $tranche->montant,
-    //             'montant_paye' => $montantPaye,
-    //             'reste_a_payer' => $tranche->montant - $montantPaye,
-    //             'est_reglee' => $montantPaye >= $tranche->montant,
-    //         ];
-    //     });
-
-    //     return response()->json([
-    //         'tranches' => $tranches,
-    //         'total_du' => $tranches->sum('montant'),
-    //         'total_paye' => $etudiant->paiements()->where('annule', false)->sum('montant'),
-    //          'reste_a_payer' => $tranche->montant - $montantPaye,
-    //     ]);
-    // }
 }
