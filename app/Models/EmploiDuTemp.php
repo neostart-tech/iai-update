@@ -7,7 +7,7 @@ use App\Models\Scopes\CurrentAnneeScolaireScope;
 use App\Traits\Routing\{GenerateUniqueSlugTrait, ModelsSlugKeyTrait};
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\{BelongsTo, MorphOne, MorphTo};
+use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany, HasOne, MorphOne, MorphTo};
 
 /**
  * @property User|Etudiant $owner
@@ -100,4 +100,57 @@ class EmploiDuTemp extends Model
 	public function presences(){
 		return $this->hasMany(CoursPresence::class,'emploi_du_temps_id');
 	}
+
+	public function enseignantPresence(): HasOne
+{
+    return $this->hasOne(EnseignantPresence::class, 'emploi_du_temps_id');
+}
+
+
+public function seances(): HasMany
+{
+    return $this->hasMany(Seance::class, 'emploi_du_temps_id');
+}
+
+/**
+ * Relation avec les présences (via les séances)
+ */
+public function toutesPresences()
+{
+    return $this->hasManyThrough(
+        CoursPresence::class,
+        Seance::class,
+        'emploi_du_temps_id', // Clé étrangère sur seances
+        'seance_id',          // Clé étrangère sur presences
+        'id',                 // Clé locale sur emploi_du_temps
+        'id'                  // Clé locale sur seances
+    );
+}
+
+/**
+ * Obtenir la séance du jour pour ce cours
+ */
+public function seanceDuJour($date = null)
+{
+    $date = $date ?? now()->toDateString();
+    
+    return $this->seances()
+        ->whereDate('date_seance', $date)
+        ->first();
+}
+
+/**
+ * Créer une séance pour une date donnée
+ */
+public function creerSeance($date, $options = [])
+{
+    return $this->seances()->create(array_merge([
+        'date_seance' => $date,
+        'heure_debut_prevue' => $this->debut,
+        'heure_fin_prevue' => $this->fin,
+        'statut' => 'planifie'
+    ], $options));
+}
+
+
 }

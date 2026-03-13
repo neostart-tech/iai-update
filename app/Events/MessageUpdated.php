@@ -6,7 +6,6 @@ namespace App\Events;
 use App\Models\Message;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -20,7 +19,7 @@ class MessageUpdated implements ShouldBroadcast
 
     public function __construct(Message $message)
     {
-        $this->message = $message->load('sender');
+        $this->message = $message->load('sender', 'attachments');
     }
 
     public function broadcastOn()
@@ -41,6 +40,7 @@ class MessageUpdated implements ShouldBroadcast
             'is_edited' => $this->message->is_edited,
             'edited_at' => $this->message->edited_at,
             'conversation_id' => $this->message->conversation_id,
+            'sender_id' => $this->message->sender_id,
             'sender' => [
                 'id' => $this->message->sender->id,
                 'nom' => $this->message->sender->nom,

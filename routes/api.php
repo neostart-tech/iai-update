@@ -4,13 +4,22 @@ use App\Http\Controllers\Admin\NegociationController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ReclamationController;
 use App\Http\Controllers\Api\Admin\CandidaturePresenceController;
+use App\Http\Controllers\Api\CommuniqueController;
 use App\Http\Controllers\Api\Etudiant\MonParcoursController;
+use App\Http\Controllers\API\ExamPartController;
+use App\Http\Controllers\API\ExamQuestionController;
+use App\Http\Controllers\API\ExamQuestionOptionController;
+use App\Http\Controllers\API\ExamSessionController;
+use App\Http\Controllers\API\ExamSubmissionController;
 use App\Http\Controllers\Api\SemoaCallBackController;
 use App\Http\Controllers\BourseController;
 use App\Http\Controllers\BroadcastAuthController;
 use App\Http\Controllers\ChangePasswordController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\DashboardPaiementController;
+use App\Http\Controllers\EnseignantPresenceController;
+use App\Http\Controllers\EnseignantPresenceExportController;
+use App\Http\Controllers\EtudiantSituationController;
 use App\Http\Controllers\messageController;
 use App\Http\Controllers\MyCalendarController;
 use App\Http\Controllers\NoteController;
@@ -63,14 +72,176 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('mes-depots', 'myApplications')->name('my-applications');
     });
 
+
+
+    // Route::controller(PresenceController::class)->prefix('presence')->group(function () {
+    //     Route::get('/liste-des-cours', 'index');
+    //     Route::get('/get-my-course', 'mesCours');
+    //     Route::post('/save-student-presence', 'enregistrerAbsences');
+    //     Route::post('/save-enseignant-presence', 'enregistrerPresenceEnseignant');
+    // });
+
+
+    //     Route::get('/presences/export/{emploiDuTempsId}', [PresenceExportController::class, 'exportByCours']);
+    //     Route::post('/presences/export/filtered', [PresenceExportController::class, 'exportWithFilters']);
+
+    // Route::prefix('etudiant')->group(function () {
+    //     Route::get('/mes-communiques', [CommuniqueController::class, 'mesCommuniques']);
+    //     Route::get('/communiques/{notification}', [CommuniqueController::class, 'show']);
+    //     Route::post('/communiques/{notification}/lu', [CommuniqueController::class, 'marquerCommeLu']);
+    //     Route::post('/communiques/tout/lu', [CommuniqueController::class, 'marquerToutLu']);
+    // });
+
+    // // Routes pour l'administration
+    // Route::prefix('admin')->group(function () {
+    //     Route::post('/communiques', [CommuniqueController::class, 'store']);
+    //     Route::get('/communiques/statistiques', [CommuniqueController::class, 'statistiques']);
+    //     Route::get('/communiques/options-ciblage', [CommuniqueController::class, 'optionsCiblage']);
+    // });
     Route::controller(PresenceController::class)->prefix('presence')->group(function () {
+
+        // ========================================
+        // ROUTES EXISTANTES (conservées)
+        // ========================================
+
+        // Liste tous les cours
+        Route::get('/liste-des-cours', 'index');
+
+        // Cours de l'utilisateur connecté
         Route::get('/get-my-course', 'mesCours');
+
+        // Enregistrer les présences étudiants
         Route::post('/save-student-presence', 'enregistrerAbsences');
+
+        // Enregistrer présence enseignant
+        Route::post('/save-enseignant-presence', 'enregistrerPresenceEnseignant');
+
+
+        // ========================================
+        // ROUTES POUR LES SÉANCES
+        // ========================================
+
+        // Liste des séances d'un cours
+        Route::get('/cours/{coursId}/seances', 'listeSeances');
+
+        // ⚠️ ROUTE IMPORTANTE POUR CHARGER LES ÉTUDIANTS AVEC DATE ⚠️
+        Route::get('/cours/{coursId}/etudiants', 'getEtudiantsAvecPresences');
+
+        // Étudiants d'une séance spécifique
+        Route::get('/seance/{seanceId}/etudiants', 'getEtudiantsParSeance');
+
+        // Valider une séance
+        Route::post('/seance/{seanceId}/valider', 'validerSeance');
+
+        // Annuler une séance
+        Route::put('/seance/{seanceId}/annuler', 'annulerSeance');
+
+
+        // ========================================
+        // ROUTES POUR LE COMPORTEMENT
+        // ========================================
+
+        // Mettre à jour le comportement d'un étudiant pour une présence
+        Route::put('/presence/{presenceId}/comportement', 'updateComportement');
+
+        // Historique des comportements d'un étudiant
+        Route::get('/etudiant/{etudiantId}/comportements', 'getComportementsEtudiant');
+
+
+        // ========================================
+        // ROUTES POUR LES STATISTIQUES
+        // ========================================
+
+        // Statistiques globales
+        Route::get('/statistiques/globales', 'statistiquesGlobales');
+
+        // Statistiques par cours
+        Route::get('/statistiques/cours/{coursId}', 'statistiquesCours');
+
+        // Statistiques par étudiant
+        Route::get('/statistiques/etudiant/{etudiantId}', 'statistiquesEtudiant');
+
+        // Statistiques par période (avec params: debut, fin, groupe_id)
+        Route::get('/statistiques/periodiques', 'statistiquesPeriodiques');
+
+
+        // ========================================
+        // ROUTES POUR L'HISTORIQUE
+        // ========================================
+
+        // Historique complet d'un étudiant
+        Route::get('/historique/etudiant/{etudiantId}', 'historiqueEtudiant');
+
+        // Historique d'un cours
+        Route::get('/historique/cours/{coursId}', 'historiqueCours');
+
+        // Détail d'une séance
+        Route::get('/historique/seance/{seanceId}', 'historiqueSeance');
+
+
+        // ========================================
+        // ROUTES POUR LES EXPORTS
+        // ========================================
+
+        // Export Excel des présences d'un cours
+        Route::post('/export/cours/{coursId}', 'exportPresencesCours');
+
+        // Export Excel des présences d'un étudiant
+        Route::post('/export/etudiant/{etudiantId}', 'exportPresencesEtudiant');
+
+        // Export Excel des présences d'une séance
+        Route::post('/export/seance/{seanceId}', 'exportPresencesSeance');
+
+
+        // ========================================
+        // ROUTES POUR LES JUSTIFICATIFS
+        // ========================================
+
+        // Upload d'un justificatif pour une présence
+        Route::post('/presence/{presenceId}/justificatif', 'uploadJustificatif');
+
+        // Liste des justificatifs en attente de validation
+        Route::get('/justificatifs/en-attente', 'justificatifsEnAttente');
+
+        // Valider un justificatif
+        Route::put('/justificatif/{justificatifId}/valider', 'validerJustificatif');
+
+        // Refuser un justificatif
+        Route::put('/justificatif/{justificatifId}/refuser', 'refuserJustificatif');
+
+
+        // ========================================
+        // ROUTES POUR LES ALERTES
+        // ========================================
+
+        // Liste des alertes
+        Route::get('/alertes', 'getAlertes');
+
+        // Traiter une alerte
+        Route::put('/alerte/{alerteId}/traiter', 'traiterAlerte');
+
+        // Étudiants à surveiller
+        Route::get('/etudiants/a-surveiller', 'etudiantsASurveiller');
+
+
+        // ========================================
+        // ROUTES POUR LES CONSEILS DE CLASSE
+        // ========================================
+
+        // Fiche pour conseil de classe
+        Route::get('/conseil/classe/{classeId}', 'getFicheConseil');
+
+        // Fiche individuelle pour un étudiant
+        Route::get('/conseil/etudiant/{etudiantId}', 'getFicheEtudiantConseil');
+
+        // Générer synthèse PDF pour le conseil
+        Route::post('/conseil/synthese', 'genererSyntheseConseil');
     });
 
-    Route::get('/presences/export/{emploiDuTempsId}', [PresenceExportController::class, 'exportByCours']);
-    Route::post('/presences/export/filtered', [PresenceExportController::class, 'exportWithFilters']);
 
+    Route::get('/export/cours/{emploiDuTempsId}', [EnseignantPresenceExportController::class, 'exportForCours']);
+    Route::post('/export/filtered', [EnseignantPresenceExportController::class, 'exportFiltered']);
+    Route::get('/export/recap-uv/{enseignantId}/{uvId}', [EnseignantPresenceExportController::class, 'exportRecapUV']);
 
     Route::controller(BourseController::class)->prefix('bourse')->group(function () {
         Route::get('/liste', 'index')->name('bourse.index');
@@ -161,6 +332,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/paiements-data', [PaiementExportController::class, 'getExportData']);
     });
 
+    Route::prefix('etudiants')->group(function () {
+        Route::get('/situation', [EtudiantSituationController::class, 'index']);
+        Route::get('/situation/statistiques', [EtudiantSituationController::class, 'statistiques']);
+        Route::get('/situation/{id}', [EtudiantSituationController::class, 'show']);
+        Route::get('/situation/export/csv', [EtudiantSituationController::class, 'exportCSV']);
+    });
+
+
+
+
+
 
     Route::prefix('dashboard/paiements')->group(function () {
         // Statistiques globales
@@ -190,55 +372,118 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
 
-  // Conversations
-Route::get('/conversations', [ConversationController::class, 'index']);
-Route::post('/conversations', [ConversationController::class, 'store']);
-Route::get('/conversations/{conversation}', [ConversationController::class, 'show']);
-Route::put('/conversations/{conversation}', [ConversationController::class, 'update']);
-Route::delete('/conversations/{conversation}', [ConversationController::class, 'destroy']);
+    // Conversations
+    Route::get('/conversations', [ConversationController::class, 'index']);
+    Route::post('/conversations', [ConversationController::class, 'store']);
+    Route::get('/conversations/{conversation}', [ConversationController::class, 'show']);
+    Route::put('/conversations/{conversation}', [ConversationController::class, 'update']);
+    Route::delete('/conversations/{conversation}', [ConversationController::class, 'destroy']);
 
-// Messages d'une conversation
-Route::get('/conversations/{conversation}/messages', [MessageController::class, 'index']);
-Route::post('/conversations/{conversation}/messages', [MessageController::class, 'store']);
-Route::get('/conversations/{conversation}/messages/{message}', [MessageController::class, 'show']);
-Route::delete('/conversations/{conversation}/messages/{message}', [MessageController::class, 'destroy']);
+    // Messages d'une conversation
+    Route::get('/conversations/{conversation}/messages', [MessageController::class, 'index']);
+    Route::post('/conversations/{conversation}/messages', [MessageController::class, 'store']);
+    Route::get('/conversations/{conversation}/messages/{message}', [MessageController::class, 'show']);
+    Route::delete('/conversations/{conversation}/messages/{message}', [MessageController::class, 'destroy']);
+    Route::put('/conversations/{conversation}/messages/{message}', [MessageController::class, 'update']);
+    // Pièces jointes des messages
+    Route::prefix('conversations/{conversation}/messages/{message}/attachments')->group(function () {
+        // Télécharger une pièce jointe
+        Route::get('/{attachment}/download', [MessageController::class, 'downloadAttachment'])
+            ->name('messages.attachments.download');
 
-// Pièces jointes des messages
-Route::prefix('conversations/{conversation}/messages/{message}/attachments')->group(function () {
-    // Télécharger une pièce jointe
-    Route::get('/{attachment}/download', [MessageController::class, 'downloadAttachment'])
-        ->name('messages.attachments.download');
-    
-    // Prévisualiser une pièce jointe (images, PDFs)
-    Route::get('/{attachment}/preview', [MessageController::class, 'previewAttachment'])
-        ->name('messages.attachments.preview');
-    
-    // Optionnel: Supprimer une pièce jointe spécifique
-    Route::delete('/{attachment}', [MessageController::class, 'deleteAttachment'])
-        ->name('messages.attachments.destroy');
-});
+        // Prévisualiser une pièce jointe (images, PDFs)
+        Route::get('/{attachment}/preview', [MessageController::class, 'previewAttachment'])
+            ->name('messages.attachments.preview');
 
-// Participants d'une conversation
-Route::get('/conversations/{conversation}/participants', [ConversationController::class, 'participants']);
-Route::post('/conversations/{conversation}/participants', [ConversationController::class, 'addParticipant']);
-Route::delete('/conversations/{conversation}/participants/{user}', [ConversationController::class, 'removeParticipant']);
+        // Optionnel: Supprimer une pièce jointe spécifique
+        Route::delete('/{attachment}', [MessageController::class, 'deleteAttachment'])
+            ->name('messages.attachments.destroy');
+    });
+
+    // Participants d'une conversation
+    Route::get('/conversations/{conversation}/participants', [ConversationController::class, 'participants']);
+    Route::post('/conversations/{conversation}/participants', [ConversationController::class, 'addParticipant']);
+    Route::delete('/conversations/{conversation}/participants/{user}', [ConversationController::class, 'removeParticipant']);
+
+
+
+    Route::put('/conversations/{conversation}/participants/{user}/role', [ConversationController::class, 'changeParticipantRole']);
+
+    // Activer/désactiver le mode "seuls les admins peuvent parler"
+    Route::post('/conversations/{conversation}/toggle-admin-only', [ConversationController::class, 'toggleAdminOnly']);
+
+    // Vérifier si un utilisateur peut envoyer un message
+    Route::get('/conversations/{conversation}/can-send-message', [ConversationController::class, 'canSendMessage']);
+
+    Route::prefix('evaluations/{evaluationId}')->group(function () {
+        Route::get('/parts', [ExamPartController::class, 'index']);
+    });
+    Route::apiResource('exam-parts', ExamPartController::class);
+    Route::post('exam-parts/reorder', [ExamPartController::class, 'reorder']);
+
+    // ==================== QUESTIONS ====================
+    Route::prefix('exam-parts/{partId}')->group(function () {
+        Route::get('/questions', [ExamQuestionController::class, 'index']);
+    });
+    Route::apiResource('exam-questions', ExamQuestionController::class);
+    Route::post('exam-questions/reorder', [ExamQuestionController::class, 'reorder']);
+    Route::patch('exam-questions/{id}/toggle-active', [ExamQuestionController::class, 'toggleActive']);
+
+    // ==================== OPTIONS ====================
+    Route::prefix('exam-questions/{questionId}')->group(function () {
+        Route::get('/options', [ExamQuestionOptionController::class, 'index']);
+    });
+    Route::apiResource('exam-question-options', ExamQuestionOptionController::class);
+    Route::post('exam-question-options/reorder', [ExamQuestionOptionController::class, 'reorder']);
+    Route::patch('exam-question-options/{id}/mark-correct', [ExamQuestionOptionController::class, 'markCorrect']);
+
+    // ==================== SESSIONS & SOUMISSIONS (ÉTUDIANTS) ====================
+    Route::prefix('exam/{evaluationId}')->group(function () {
+        // Sessions
+        Route::post('/start', [ExamSessionController::class, 'start']);
+        Route::get('/progress', [ExamSessionController::class, 'progress']);
+
+        // Soumissions
+        Route::post('/save', [ExamSubmissionController::class, 'save']);
+        Route::post('/submit-question', [ExamSubmissionController::class, 'submitQuestion']);
+        Route::post('/submit-all', [ExamSubmissionController::class, 'submitAll']);
+
+        // Récupération des soumissions d'un étudiant
+        Route::get('/student/{etudiantId}/submissions', [ExamSubmissionController::class, 'index']);
+
+        // Statistiques
+        Route::get('/statistics', [ExamSubmissionController::class, 'statistics']);
+    });
+
+    Route::get('/exam/{evaluationId}/submissions/all', [ExamSubmissionController::class, 'allSubmissions']);
+
+    // ==================== SESSIONS (GESTION) ====================
+    Route::get('/evaluations/{evaluationId}/sessions', [ExamSessionController::class, 'examSessions']);
+    Route::apiResource('exam-sessions', ExamSessionController::class)->except(['index', 'store']);
+    Route::post('/exam-sessions/{id}/ping', [ExamSessionController::class, 'ping']);
+
+    // ==================== SOUMISSIONS (GESTION) ====================
+    Route::get('/exam-submissions/{id}', [ExamSubmissionController::class, 'show']);
+    Route::post('/exam-sessions/clean-duplicates', [ExamSessionController::class, 'cleanDuplicates']);
+
+    Route::post('/exam-submissions/{id}/grade', [ExamSubmissionController::class, 'grade']);
 
 
     //    Route::get('/conversations', [ConversationController::class, 'index']);
     // Route::post('/conversations', [ConversationController::class, 'store']);
     // Route::get('/conversations/{conversation}', [ConversationController::class, 'show']);
     // Route::post('/conversations/{conversation}/mark-all-read', [ConversationController::class, 'markAllAsRead']);
-    
+
     // // Messages
     // Route::get('/conversations/{conversation}/messages', [MessageController::class, 'index']);
     // Route::post('/conversations/{conversation}/messages', [MessageController::class, 'store']);
     // Route::get('/conversations/{conversation}/messages/{message}', [MessageController::class, 'show']);
     // Route::put('/conversations/{conversation}/messages/{message}', [MessageController::class, 'update']);
     // Route::delete('/conversations/{conversation}/messages/{message}', [MessageController::class, 'destroy']);
-    
+
     // // Marquer comme lu
     // Route::post('/conversations/{conversation}/messages/read', [MessageController::class, 'markAsRead']);
-    
+
     // // Pièces jointes
     // Route::get('/conversations/{conversation}/messages/{message}/attachments/{attachment}/download', 
     //           [MessageController::class, 'downloadAttachment']);
@@ -259,4 +504,4 @@ require __DIR__ . '/api_comptable.php';
 
 require __DIR__ . '/api_etudiant.php';
 
-require __DIR__ . '/api_professeur.php';
+// require __DIR__ . '/api_professeur.php';

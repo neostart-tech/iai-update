@@ -1,8 +1,8 @@
 <?php
+// app/Events/NewConversationCreated.php
 
 namespace App\Events;
 
-use App\Models\Conversation;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -14,12 +14,12 @@ class NewConversationCreated implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $conversation;
+    public $conversationId;  // ← Changé : seulement l'ID
     public $participantId;
 
-    public function __construct(Conversation $conversation, $participantId)
+    public function __construct($conversationId, $participantId)  // ← Changé : reçoit l'ID au lieu de l'objet
     {
-        $this->conversation = $conversation->load('participants');
+        $this->conversationId = $conversationId;  // ← Stocke seulement l'ID
         $this->participantId = $participantId;
     }
 
@@ -36,7 +36,7 @@ class NewConversationCreated implements ShouldBroadcast
     public function broadcastWith()
     {
         return [
-            'conversation' => $this->conversation
+            'conversation_id' => $this->conversationId  // ← Diffuse seulement l'ID
         ];
     }
 }

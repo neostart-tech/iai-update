@@ -24,4 +24,8 @@ class BourseEtudiant extends Model
      public function etudiant(){
         return $this->belongsTo(Etudiant::class);
     }
+
+    public function anneeScolaire(){
+        return $this->belongsTo(AnneeScolaire::class);
+    }
 }

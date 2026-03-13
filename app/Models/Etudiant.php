@@ -385,5 +385,58 @@ public function echeances()
 		return $query->first();
 	}
 
+
+
+	public function presences(): HasMany
+{
+    return $this->hasMany(CoursPresence::class, 'etudiant_id');
+}
+
+/**
+ * Les comportements de l'étudiant
+ */
+public function comportements(): HasMany
+{
+    return $this->hasMany(Comportement::class, 'etudiant_id');
+}
+
+/**
+ * Les justificatifs de l'étudiant
+ */
+public function justificatifs(): HasMany
+{
+    return $this->hasMany(Justificatif::class, 'etudiant_id');
+}
+
+
+/**
+ * Statistiques de présence
+ */
+public function getStatistiquesPresencesAttribute()
+{
+    $total = $this->presences()->count();
+    
+    if ($total === 0) {
+        return null;
+    }
+    
+    $presents = $this->presences()->where('statut', 'present')->count();
+    $absents = $this->presences()->whereIn('statut', ['absent', 'absent_justifie'])->count();
+    $retards = $this->presences()->whereIn('statut', ['retard', 'retard_justifie'])->count();
+    
+    return [
+        'total' => $total,
+        'presents' => $presents,
+        'absents' => $absents,
+        'retards' => $retards,
+        'taux_presence' => $total > 0 ? round(($presents / $total) * 100, 2) : 0,
+        'taux_absent' => $total > 0 ? round(($absents / $total) * 100, 2) : 0,
+        'moyenne_retards' => $total > 0 ? round($retards / $total * 100, 2) : 0
+    ];
+}
+
+
+
+
 	
 }

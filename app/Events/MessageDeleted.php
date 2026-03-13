@@ -18,10 +18,10 @@ class MessageDeleted implements ShouldBroadcast
     public $messageId;
     public $conversationId;
 
-    public function __construct($messageId, $conversationId)
+    public function __construct(Message $message)
     {
-        $this->messageId = $messageId;
-        $this->conversationId = $conversationId;
+        $this->messageId = $message->id;
+        $this->conversationId = $message->conversation_id;
     }
 
     public function broadcastOn()
@@ -37,8 +37,9 @@ class MessageDeleted implements ShouldBroadcast
     public function broadcastWith()
     {
         return [
-            'id' => $this->messageId,
-            'conversation_id' => $this->conversationId
+            'message_id' => $this->messageId,
+            'conversation_id' => $this->conversationId,
+            'deleted_at' => now()->toIso8601String()
         ];
     }
 }

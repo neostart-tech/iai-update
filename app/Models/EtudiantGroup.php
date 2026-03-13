@@ -35,6 +35,12 @@ class EtudiantGroup extends Pivot
         return $this->belongsTo(Group::class, 'group_id');
     }
 
+    
+    public function etudiant(): BelongsTo
+    {
+        return $this->belongsTo(Etudiant::class, 'group_id');
+    }
+
     public function anneeScolaire(): BelongsTo
     {
         return $this->belongsTo(AnneeScolaire::class, 'annee_scolaire_id');

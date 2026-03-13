@@ -2,16 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\MessageDeleted;
 use App\Events\MessageSent;
+use App\Events\MessageUpdated;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageAttachment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage; 
+use Illuminate\Support\Facades\Storage;
 
 
-class MessageController extends Controller 
+class MessageController extends Controller
 {
     public function store(Request $request, Conversation $conversation)
     {
@@ -19,12 +21,12 @@ class MessageController extends Controller
 
         // Validation adaptée selon qu'il y a du texte ou des fichiers
         $rules = [];
-        
+
         if ($request->hasFile('attachments')) {
             $rules['attachments'] = 'array|max:10'; // Max 10 fichiers
             $rules['attachments.*'] = 'file|mimes:jpeg,png,jpg,gif,pdf,doc,docx,xls,xlsx,zip|max:10240'; // 10MB max
         }
-        
+
         if ($request->has('body')) {
             $rules['body'] = 'string|nullable';
         }
@@ -56,7 +58,7 @@ class MessageController extends Controller
             if ($request->hasFile('attachments')) {
                 foreach ($request->file('attachments') as $file) {
                     $path = $file->store('attachments/' . $conversation->id, 'public');
-                    
+
                     $attachment = new MessageAttachment([
                         'file_path' => $path,
                         'file_name' => $file->getClientOriginalName(),
@@ -64,7 +66,7 @@ class MessageController extends Controller
                         'mime_type' => $file->getMimeType(),
                         'file_extension' => $file->getClientOriginalExtension()
                     ]);
-                    
+
                     $attachment->message()->associate($message);
                     $attachment->save();
                 }
@@ -78,7 +80,6 @@ class MessageController extends Controller
             broadcast(new MessageSent($message))->toOthers();
 
             return response()->json($message->load('sender', 'attachments'), 201);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['error' => $e->getMessage()], 500);
@@ -86,40 +87,136 @@ class MessageController extends Controller
     }
 
     // Méthode pour télécharger un fichier
-    public function downloadAttachment(Conversation $conversation, Message $message, MessageAttachment $attachment)
-    {
-        // Vérifier que l'utilisateur a accès à la conversation
+   /**
+ * Version améliorée avec gestion des erreurs
+ */
+public function downloadAttachment(Conversation $conversation, Message $message, MessageAttachment $attachment)
+{
+    try {
+        // Vérifier l'accès
         $user = auth()->user();
-        
-        $hasAccess = DB::table('conversation_users')
-            ->where('conversation_id', $conversation->id)
-            ->where('participant_id', $user->id)
-            ->where('participant_type', get_class($user))
-            ->exists();
-
-        if (!$hasAccess) {
+        if (!$this->checkAccess($user, $conversation)) {
             return response()->json(['error' => 'Non autorisé'], 403);
         }
 
-        // Vérifier que la pièce jointe appartient bien au message et à la conversation
-        if ($attachment->message_id !== $message->id || $message->conversation_id !== $conversation->id) {
+        // Vérifier l'appartenance
+        if (!$this->checkOwnership($attachment, $message, $conversation)) {
             return response()->json(['error' => 'Fichier non trouvé'], 404);
         }
 
-        // Vérifier que le fichier existe
-        if (!Storage::disk('public')->exists($attachment->file_path)) {
+        // Vérifier l'existence du fichier
+        $filePath = storage_path('app/public/' . $attachment->file_path);
+        if (!file_exists($filePath)) {
             return response()->json(['error' => 'Fichier non trouvé sur le serveur'], 404);
         }
 
-        return Storage::disk('public')->download($attachment->file_path, $attachment->file_name);
+        // Déterminer le nom de fichier correct
+        $fileName = $this->getCorrectFileName($attachment);
+        
+        // Déterminer le type MIME
+        $mimeType = $this->getMimeType($attachment, $filePath);
+
+        // Log pour déboguer
+       
+
+        // Retourner le fichier avec les bons en-têtes
+        return response()->download(
+            $filePath,
+            $fileName,
+            [
+                'Content-Type' => $mimeType,
+                'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+                'Content-Transfer-Encoding' => 'binary',
+                'Accept-Ranges' => 'bytes',
+                'Cache-Control' => 'private',
+                'Pragma' => 'private',
+                'Expires' => 'Mon, 26 Jul 1997 05:00:00 GMT',
+            ]
+        );
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Erreur lors du téléchargement',
+            'message' => $e->getMessage()
+        ], 500);
     }
+}
+
+/**
+ * Méthodes privées utilitaires
+ */
+private function checkAccess($user, $conversation)
+{
+    return DB::table('conversation_users')
+        ->where('conversation_id', $conversation->id)
+        ->where('participant_id', $user->id)
+        ->where('participant_type', get_class($user))
+        ->exists();
+}
+
+private function checkOwnership($attachment, $message, $conversation)
+{
+    return $attachment->message_id === $message->id 
+        && $message->conversation_id === $conversation->id;
+}
+
+private function getCorrectFileName($attachment)
+{
+    $fileName = $attachment->file_name;
+    $extension = $attachment->file_extension;
+    
+    // Vérifier si le nom a déjà une extension
+    $hasExtension = !empty(pathinfo($fileName, PATHINFO_EXTENSION));
+    
+    // Si pas d'extension mais qu'on a l'extension en base, l'ajouter
+    if (!$hasExtension && !empty($extension)) {
+        $fileName = $fileName . '.' . $extension;
+    }
+    
+    // Nettoyer le nom de fichier (enlever les caractères spéciaux)
+    $fileName = preg_replace('/[^\w\-\.\s]/u', '_', $fileName);
+    
+    return $fileName;
+}
+
+private function getMimeType($attachment, $filePath)
+{
+    // Utiliser le mime_type enregistré
+    if (!empty($attachment->mime_type)) {
+        return $attachment->mime_type;
+    }
+    
+    // Détecter par l'extension
+    $extension = $attachment->file_extension ?? pathinfo($attachment->file_name, PATHINFO_EXTENSION);
+    
+    $mimeTypes = [
+        'pdf' => 'application/pdf',
+        'doc' => 'application/msword',
+        'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'xls' => 'application/vnd.ms-excel',
+        'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'gif' => 'image/gif',
+        'zip' => 'application/zip',
+        'txt' => 'text/plain',
+    ];
+    
+    if (isset($mimeTypes[strtolower($extension)])) {
+        return $mimeTypes[strtolower($extension)];
+    }
+    
+    // Détection par le contenu du fichier
+    return mime_content_type($filePath) ?? 'application/octet-stream';
+}
 
     // Méthode pour prévisualiser un fichier (images)
     public function previewAttachment(Conversation $conversation, Message $message, MessageAttachment $attachment)
     {
         // Mêmes vérifications que pour le téléchargement
         $user = auth()->user();
-        
+
         $hasAccess = DB::table('conversation_users')
             ->where('conversation_id', $conversation->id)
             ->where('participant_id', $user->id)
@@ -156,7 +253,7 @@ class MessageController extends Controller
     {
         // ... votre code existant
         $user = auth()->user();
-        
+
         $hasAccess = DB::table('conversation_users')
             ->where('conversation_id', $conversation->id)
             ->where('participant_id', $user->id)
@@ -190,7 +287,7 @@ class MessageController extends Controller
     public function destroy(Conversation $conversation, Message $message)
     {
         $user = auth()->user();
-        
+
         if ($message->sender_id !== $user->id || $message->sender_type !== get_class($user)) {
             return response()->json(['error' => 'Non autorisé'], 403);
         }
@@ -200,40 +297,76 @@ class MessageController extends Controller
             Storage::disk('public')->delete($attachment->file_path);
         }
 
+        broadcast(new MessageDeleted($message))->toOthers();
+
+
         $message->delete();
-        
+
         return response()->json(['message' => 'Message supprimé']);
     }
 
     public function deleteAttachment(Conversation $conversation, Message $message, MessageAttachment $attachment)
-{
-    $user = auth()->user();
-    
-    // Vérifier que l'utilisateur est le propriétaire du message
-    if ($message->sender_id !== $user->id || $message->sender_type !== get_class($user)) {
-        return response()->json(['error' => 'Non autorisé'], 403);
+    {
+        $user = auth()->user();
+
+        // Vérifier que l'utilisateur est le propriétaire du message
+        if ($message->sender_id !== $user->id || $message->sender_type !== get_class($user)) {
+            return response()->json(['error' => 'Non autorisé'], 403);
+        }
+
+        // Vérifier que la pièce jointe appartient bien au message
+        if ($attachment->message_id !== $message->id) {
+            return response()->json(['error' => 'Pièce jointe non trouvée'], 404);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Supprimer le fichier physiquement
+            Storage::disk('public')->delete($attachment->file_path);
+
+            // Supprimer l'enregistrement
+                broadcast(new MessageDeleted($message))->toOthers();
+
+            $attachment->delete();
+
+            DB::commit();
+
+            return response()->json(['message' => 'Pièce jointe supprimée avec succès']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 
-    // Vérifier que la pièce jointe appartient bien au message
-    if ($attachment->message_id !== $message->id) {
-        return response()->json(['error' => 'Pièce jointe non trouvée'], 404);
-    }
+    public function update(Request $request, Conversation $conversation, Message $message)
+    {
+        $user = auth()->user();
 
-    DB::beginTransaction();
-    try {
-        // Supprimer le fichier physiquement
-        Storage::disk('public')->delete($attachment->file_path);
-        
-        // Supprimer l'enregistrement
-        $attachment->delete();
-        
-        DB::commit();
-        
-        return response()->json(['message' => 'Pièce jointe supprimée avec succès']);
-        
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return response()->json(['error' => $e->getMessage()], 500);
+        // Vérifier que l'utilisateur est le propriétaire du message
+        if ($message->sender_id !== $user->id || $message->sender_type !== get_class($user)) {
+            return response()->json(['error' => 'Non autorisé'], 403);
+        }
+
+        // Vérifier que le message appartient bien à la conversation
+        if ($message->conversation_id !== $conversation->id) {
+            return response()->json(['error' => 'Message non trouvé'], 404);
+        }
+
+        $request->validate([
+            'body' => 'required|string'
+        ]);
+
+        $message->body = $request->body;
+        $message->is_edited = true;
+        $message->edited_at = now();
+        $message->save();
+
+        // Recharger les relations
+        $message->load('sender', 'attachments');
+
+        // Optionnel : broadcaster la modification
+        broadcast(new MessageUpdated($message))->toOthers();
+
+        return response()->json($message, 200);
     }
-}
 }

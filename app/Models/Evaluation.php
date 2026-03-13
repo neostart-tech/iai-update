@@ -107,44 +107,44 @@ class Evaluation extends Model
         return $this->hasMany(EvaluationAnonymous::class);
     }
 
-    public function questions()
-    {
-        return $this->hasMany(EvaluationQuestion::class);
-    }
+    // public function questions()
+    // {
+    //     return $this->hasMany(EvaluationQuestion::class);
+    // }
 
-    public function submissions()
-    {
-        return $this->hasMany(EvaluationSubmission::class);
-    }
+    // public function submissions()
+    // {
+    //     return $this->hasMany(EvaluationSubmission::class);
+    // }
 
     public function emploiDutemp()
     {
         return $this->belongsTo(EmploiDuTemp::class, 'emploi_du_temps_id');
     }
 
-    public function caseStudyContext()
-    {
-        return $this->hasOne(EvaluationCaseStudyContext::class);
-    }
+    // public function caseStudyContext()
+    // {
+    //     return $this->hasOne(EvaluationCaseStudyContext::class);
+    // }
 
-     public function parts(): HasMany
-    {
-        return $this->hasMany(Part::class)->orderBy('order');
-    }
+    //  public function parts(): HasMany
+    // {
+    //     return $this->hasMany(Part::class)->orderBy('order');
+    // }
 
     /**
      * Récupérer toutes les questions à travers les parties
      */
-    public function allQuestions()
-    {
-        return $this->hasManyThrough(
-            EvaluationQuestion::class,
-            Part::class,
-            'evaluation_id', // Clé étrangère sur parts
-            'part_id',       // Clé étrangère sur evaluation_questions
-            'id',            // Clé locale sur evaluations
-            'id'             // Clé locale sur parts
-        );
-    }
+    // public function allQuestions()
+    // {
+    //     return $this->hasManyThrough(
+    //         EvaluationQuestion::class,
+    //         Part::class,
+    //         'evaluation_id', // Clé étrangère sur parts
+    //         'part_id',       // Clé étrangère sur evaluation_questions
+    //         'id',            // Clé locale sur evaluations
+    //         'id'             // Clé locale sur parts
+    //     );
+    // }
 }
 

@@ -638,28 +638,77 @@ class EmploiDuTempController extends Controller
 
 	public function setEmploiDuTempsForUser(): void {}
 
+public function exportMatrice(Request $request)
+{
+    $request->validate([
+        'group_id' => 'required|exists:groups,id',
+        'type_export' => 'required|in:tous,cours,evaluations',
+        'date_debut' => 'required|date',
+        'date_fin' => 'nullable|date|after_or_equal:date_debut',
+    ]);
 
-	public function exportMatrice(Request $request)
-	{
-		$request->validate([
-			'group_id' => 'required|exists:groups,id',
-			'semaine' => 'nullable|date',
-		]);
+    $group_id = $request->group_id;
+    $type_export = $request->type_export;
+    $date_debut = Carbon::parse($request->date_debut);
+    $date_fin = $request->date_fin ? Carbon::parse($request->date_fin) : $date_debut->copy();
 
-		$group_id = $request->group_id;
-		$date_ref = $request->semaine ? Carbon::parse($request->semaine) : Carbon::now();
+    $groupe = Group::find($group_id);
+    
+    // Générer le nom du fichier avec le type
+    $typeTexte = '';
+    if ($type_export === 'cours') {
+        $typeTexte = '_cours';
+    } elseif ($type_export === 'evaluations') {
+        $typeTexte = '_evaluations';
+    }
+    
+    $date_debut_str = $date_debut->format('d-m-Y');
+    $date_fin_str = $date_fin->format('d-m-Y');
+    
+    if ($date_debut->format('Y-m-d') === $date_fin->format('Y-m-d')) {
+        $filename = 'emploi_du_temps' . $typeTexte . '_' . $groupe->nom . '_' . $date_debut_str . '.xlsx';
+    } else {
+        $filename = 'emploi_du_temps' . $typeTexte . '_' . $groupe->nom . '_du_' . $date_debut_str . '_au_' . $date_fin_str . '.xlsx';
+    }
 
-		// Une semaine va du lundi au dimanche
-		$date_debut = $date_ref->copy()->startOfWeek(Carbon::MONDAY);
-		$date_fin = $date_ref->copy()->endOfWeek(Carbon::SUNDAY);
+    return Excel::download(
+        new EmploiDuTempsMatriceExport($group_id, $date_debut, $date_fin, $type_export),
+        $filename
+    );
+}
 
-		$groupe = Group::find($group_id);
-		$filename = 'emploi_du_temps_' . $groupe->nom . '_' .
-			$date_debut->format('d-m-Y') . '.xlsx';
 
-		return Excel::download(
-			new EmploiDuTempsMatriceExport($group_id, $date_debut, $date_fin),
-			$filename
-		);
-	}
+ public function getEmploiDuTempsData(Request $request)
+    {
+        $request->validate([
+            'group_id' => 'required|exists:groups,id',
+            'type_export' => 'required|in:tous,cours,evaluations',
+            'date_debut' => 'required|date',
+            'date_fin' => 'nullable|date|after_or_equal:date_debut',
+        ]);
+
+        $group_id = $request->group_id;
+        $type_export = $request->type_export;
+        $date_debut = Carbon::parse($request->date_debut)->startOfDay();
+        $date_fin = $request->date_fin 
+            ? Carbon::parse($request->date_fin)->endOfDay() 
+            : $date_debut->copy()->endOfDay();
+
+        // Créer une instance de l'export
+        $export = new EmploiDuTempsMatriceExport($group_id, $date_debut, $date_fin, $type_export);
+        
+        // Récupérer les cours organisés
+        $coursOrganises = $export->getCoursGroupes();
+        
+        // Récupérer les informations du groupe
+        $groupe = Group::with('niveau')->find($group_id);
+
+        return response()->json([
+            'success' => true,
+            'cours' => $coursOrganises,
+            'groupe' => $groupe
+        ]);
+    }
+
+	
 }

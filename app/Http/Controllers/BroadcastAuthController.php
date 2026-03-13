@@ -13,14 +13,14 @@ class BroadcastAuthController extends Controller
         $user = $request->user();
         
         if (!$user) {
-            Log::error('❌ Auth broadcasting: utilisateur non authentifié');
+            Log::error('Auth broadcasting: utilisateur non authentifié');
             return response()->json(['error' => 'Unauthenticated'], 401);
         }
 
         $channelName = $request->channel_name;
         $socketId = $request->socket_id;
 
-        Log::info('🔑 Auth broadcasting', [
+        Log::info('Auth broadcasting', [
             'user_id' => $user->id,
             'channel' => $channelName,
             'socket_id' => $socketId
@@ -40,14 +40,14 @@ class BroadcastAuthController extends Controller
         }
 
         if (!$conversationId) {
-            Log::error('❌ Impossible d\'extraire l\'ID de conversation', [
+            Log::error('Impossible d\'extraire l\'ID de conversation', [
                 'channel' => $channelName,
                 'clean' => $cleanChannel
             ]);
             return response()->json(['error' => 'Invalid channel format'], 403);
         }
 
-        Log::info('🔍 Vérification participation', [
+        Log::info('Vérification participation', [
             'user_id' => $user->id,
             'conversation_id' => $conversationId
         ]);
@@ -60,7 +60,7 @@ class BroadcastAuthController extends Controller
             ->exists();
 
         if (!$isParticipant) {
-            Log::warning('❌ Utilisateur non autorisé', [
+            Log::warning('Utilisateur non autorisé', [
                 'user_id' => $user->id,
                 'conversation_id' => $conversationId
             ]);
@@ -75,7 +75,7 @@ class BroadcastAuthController extends Controller
         $key = env('REVERB_APP_KEY', 'oseylu5sd3axnur0phhu');
         $auth = $key . ':' . $signature;
 
-        Log::info('✅ Auth réussie', [
+        Log::info('Auth réussie', [
             'auth' => $auth,
             'channel' => $channelName
         ]);
