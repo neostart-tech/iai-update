@@ -26,7 +26,8 @@ class UserRequest extends FormRequest
 			'roles' => ['nullable', 'array', 'min:1'],
 			'tel' => ['required'],
 			'supervisor_type' => ['required', 'in:interne,externe,non_surveillant'],
-			'supervisor_notes' => ['nullable', 'string']
+			'supervisor_notes' => ['nullable', 'string'],
+			'nif'=>'nullable'
 		];
 
 	}
@@ -41,7 +42,8 @@ class UserRequest extends FormRequest
 			"genre.required" => "Le genre est requis",
 			"tel.required" => "Le numéro de téléphone est requis",
 			"supervisor_type.required" => "Le type de surveillant est requis",
-			"supervisor_type.in" => "Type de surveillant invalide"
+			"supervisor_type.in" => "Type de surveillant invalide",
+			
 		];
 	}
 
@@ -58,7 +60,8 @@ class UserRequest extends FormRequest
 			'roles' => 'Le rôle',
 			'tel' => 'Le numero de téléphone',
 			'supervisor_type' => 'Le type de surveillant',
-			'supervisor_notes' => 'Les notes de surveillance'
+			'supervisor_notes' => 'Les notes de surveillance',
+			'nif'=>"Numéro d’identification fiscale"
 		];
 	}
 

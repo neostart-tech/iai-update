@@ -122,6 +122,10 @@ class Etudiant extends Authenticatable
 			->latest('id');
 	}
 
+	public function tickets()
+{
+    return $this->morphMany(Ticket::class, 'ticketable');
+}
 	public function group()
 	{
 		return $this->hasOneThrough(

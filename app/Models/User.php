@@ -56,6 +56,7 @@ class User extends Authenticatable
 		'group_id',
 		'supervisor_type',
 		'supervisor_notes',
+		'nif'
 	];
 
 	protected $hidden = [
@@ -123,6 +124,11 @@ class User extends Authenticatable
 		return static::query()->whereRelation('roles', fn(Builder $builder) => $builder->whereIn('role_id', static::$enseignantRolesId));
 	}
 
+
+	public function tickets()
+{
+    return $this->morphMany(Ticket::class, 'ticketable');
+}
 
 
 	public static function surveillants(): Builder

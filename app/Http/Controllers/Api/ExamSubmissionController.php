@@ -543,4 +543,95 @@ public function allSubmissions(string $evaluationId): JsonResponse
         ], 500);
     }
 }
+
+
+ public function submitComplex(Request $request, string $evaluationId): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'question_id' => 'required|exists:exam_questions,id',
+            'etudiant_id' => 'required|exists:etudiants,id',
+            'reponse' => 'required|array' // La réponse structurée
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Trouver l'évaluation par son slug
+            $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
+            
+            // Vérifier que la question existe
+            $question = ExamQuestion::find($request->question_id);
+
+            // Créer ou mettre à jour la soumission
+            $submission = ExamSubmission::updateOrCreate(
+                [
+                    'evaluation_id' => $evaluation->id,
+                    'etudiant_id' => $request->etudiant_id,
+                    'question_id' => $request->question_id
+                ],
+                [
+                    'reponse' => $request->reponse,
+                    'submitted_at' => now(),
+                    'auto_saved_at' => now(),
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent()
+                ]
+            );
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Réponse soumise avec succès',
+                'data' => $submission
+            ], 200);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la soumission',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+     public function details(ExamSubmission $examSubmission): JsonResponse
+    {
+        try {
+            $examSubmission->load(['question', 'etudiant', 'evaluation']);
+            
+            // Charger les données supplémentaires selon le type
+            if ($examSubmission->question->type === 'complex_data') {
+                $examSubmission->question->load('complexData');
+            } elseif ($examSubmission->question->type === 'structured_data') {
+                $examSubmission->question->load('structuredData');
+            } elseif ($examSubmission->question->type === 'multi_parts') {
+                $examSubmission->question->load('multiParts');
+            } elseif ($examSubmission->question->type === 'guided_writing') {
+                $examSubmission->question->load('guidedWriting');
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Détails récupérés',
+                'data' => $examSubmission
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

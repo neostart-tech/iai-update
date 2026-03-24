@@ -37,6 +37,7 @@ class UserResource extends JsonResource
 
             'supervisor_notes' => $this->resource->supervisor_notes,
             'roles' => RoleResource::collection($this->resource->roles),
+            'nif'=>$this->resource->nif
         ];
     }
 

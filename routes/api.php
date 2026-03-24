@@ -6,6 +6,7 @@ use App\Http\Controllers\ReclamationController;
 use App\Http\Controllers\Api\Admin\CandidaturePresenceController;
 use App\Http\Controllers\Api\CommuniqueController;
 use App\Http\Controllers\Api\Etudiant\MonParcoursController;
+use App\Http\Controllers\Api\ExamComplexResponseController;
 use App\Http\Controllers\API\ExamPartController;
 use App\Http\Controllers\API\ExamQuestionController;
 use App\Http\Controllers\API\ExamQuestionOptionController;
@@ -29,6 +30,7 @@ use App\Http\Controllers\PaiementGlobalController;
 use App\Http\Controllers\PlanPaiementController;
 use App\Http\Controllers\PresenceController;
 use App\Http\Controllers\PresenceExportController;
+use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TranchePaiementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Broadcast;
@@ -467,6 +469,24 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/exam-sessions/clean-duplicates', [ExamSessionController::class, 'cleanDuplicates']);
 
     Route::post('/exam-submissions/{id}/grade', [ExamSubmissionController::class, 'grade']);
+
+Route::post('/exam/{evaluationId}/submit-complex', [ExamSubmissionController::class, 'submitComplex']);
+Route::get('/exam-submissions/{id}/details', [ExamSubmissionController::class, 'details']);
+
+
+Route::prefix('exam')->group(function () {
+    
+    Route::post('/{evaluationId}/save-complex', [ExamComplexResponseController::class, 'saveComplex']);
+    Route::get('/{evaluationId}/student/{etudiantId}/submissions', [ExamComplexResponseController::class, 'getStudentSubmissions']);
+});
+
+Route::prefix('tickets')->group(function(){
+  Route::get('/liste', [TicketController::class, 'index']);
+    Route::post('/ajouter', [TicketController::class, 'store']);
+    Route::delete('/{id}/supprimer', [TicketController::class, 'destroy']);
+    Route::post('/{id}/fermer', [TicketController::class, 'close']);
+});
+
 
 
     //    Route::get('/conversations', [ConversationController::class, 'index']);

@@ -143,9 +143,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('create', 'create')->name('create');
         Route::post('create', 'store')->name('store');
+         Route::post('create-enseignant', 'storeEnseignant');
         Route::get('{user}/edit', 'edit')->name('edit');
-        Route::put('{user}/update', 'update')->name('update');
+        Route::put('{user}/update', 'update');
+        Route::put('{user}/update-enseignant', 'updateEnseignant');
         Route::delete('{user}/delete', 'destroy')->name('delete');
+        
         Route::get('{user}/load-edt', 'loadEmploiDuTemps')->name('load-edt'); // charge les edt de l'utilisateur
         Route::get('{user}/emploi-du-temps', 'ShowEmploiDuTemps')->name('show-edt'); // charge les edt de l'utilisateur
         Route::post('{user}/add-edt', 'storeEmploiDuTemps')->name('store-edt'); // charge les edt de l'utilisateur

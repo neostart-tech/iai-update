@@ -32,6 +32,68 @@ class ExamSubmission extends Model
         'updated_at' => 'datetime'
     ];
 
+    /**
+     * 🔴 NOUVEAU: Accesseur pour récupérer une valeur spécifique d'un tableau
+     */
+    public function getTableCellValue($row, $column)
+    {
+        $reponse = $this->reponse;
+        
+        if (!isset($reponse['type']) || $reponse['type'] !== 'complex_data') {
+            return null;
+        }
+        
+        $cellKey = "{$row}-{$column}";
+        return $reponse['data'][$cellKey] ?? null;
+    }
+
+    /**
+     * 🔴 NOUVEAU: Accesseur pour récupérer une partie spécifique d'une question multi-parties
+     */
+    public function getMultiPartValue($partIndex)
+    {
+        $reponse = $this->reponse;
+        
+        if (!isset($reponse['type']) || $reponse['type'] !== 'multi_parts') {
+            return null;
+        }
+        
+        $partKey = "part_{$partIndex}";
+        return $reponse['data'][$partKey] ?? null;
+    }
+
+    /**
+     * 🔴 NOUVEAU: Vérifier si une réponse complexe est complète
+     */
+    public function isComplexComplete()
+    {
+        $reponse = $this->reponse;
+        
+        if (!isset($reponse['type'])) {
+            return true; // Réponse simple toujours complète
+        }
+
+        switch ($reponse['type']) {
+            case 'complex_data':
+                // Logique pour vérifier si toutes les cellules sont remplies
+                // À adapter selon votre besoin
+                return !empty($reponse['data']);
+                
+            case 'multi_parts':
+                // Logique pour vérifier si toutes les parties sont remplies
+                // À adapter selon votre besoin
+                return !empty($reponse['data']);
+                
+            case 'structured_data':
+                // Logique pour vérifier si tous les items sont remplis
+                // À adapter selon votre besoin
+                return !empty($reponse['data']);
+                
+            default:
+                return true;
+        }
+    }
+
     public function evaluation(): BelongsTo
     {
         return $this->belongsTo(Evaluation::class);

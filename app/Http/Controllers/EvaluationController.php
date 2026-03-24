@@ -285,6 +285,7 @@ class EvaluationController extends Controller
         $evaluations = Evaluation::where('group_id', $groupIds)
             ->with(['salle', 'group'])
             ->where('is_online', true)
+            ->where('published', true)
             ->orderBy('date', 'asc')
             ->get();
 
@@ -297,6 +298,7 @@ class EvaluationController extends Controller
 
         $evaluations = Evaluation::with(['salle', 'group', 'group.niveau'])
             ->where('is_online', true)
+            ->where('published', true)
             ->orderBy('date', 'asc')
             ->get();
 

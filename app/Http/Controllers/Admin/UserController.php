@@ -121,6 +121,25 @@ class UserController extends Controller
 		// return redirect()->route('admin.users.index')->with(successMsg('Utilisateur créé avec succès'));
 	}
 
+	public function storeEnseignant(UserRequest $request)
+	{
+		$clearPassword = 'password';
+
+		$data = $request->validated();
+
+		$data['password'] = Hash::make($clearPassword);
+
+		$user = User::create($data);
+
+		$user->roles()->attach([2]);
+
+		Mail::to($user)->send(new AdminWelcomeMail($user, $clearPassword));
+
+		return new UserResource($user);
+
+		// return redirect()->route('admin.users.index')->with(successMsg('Utilisateur créé avec succès'));
+	}
+
 	public function edit(User $user)
 	{
 
@@ -141,7 +160,57 @@ class UserController extends Controller
 			'roles' => ['nullable', 'array', 'min:1'],
 			'tel' => ['required'],
 			'supervisor_type' => ['required', 'in:interne,externe,non_surveillant'],
-			'supervisor_notes' => ['nullable', 'string']
+			'supervisor_notes' => ['nullable', 'string'],
+			'nif'=>"nullable",
+			'nationalite'=>"nullable"
+		], [
+			'nom.required' => "Le nom est requis",
+			'prenom.required' => "Le prénom est requis",
+			'genre.required' => "Le genre est requis",
+			'email.required' => "L'adresse mail est requise",
+			'roles.min' => "Veuillez choisir au moins un rôle",
+			'tel.required' => "Le numéro de téléphone est requis",
+			'supervisor_type.required' => "Le type de surveillant est requis",
+			'supervisor_type.in' => "Type de surveillant invalide",
+			
+		], [
+			'nom' => 'Le nom',
+			'prenom' => 'Le prénom',
+			'genre' => 'Le genre',
+			'email' => 'L\'adresse mail',
+			'roles' => 'Le rôle',
+			'tel' => 'Le numero de téléphone',
+			'supervisor_type' => 'Le type de surveillant',
+			'supervisor_notes' => 'Les notes de surveillance',
+			'nif'=>"Numéro d’identification fiscale",
+			'nationalite'=>"La nationalité"
+		]);
+		$user->update($request->all());
+		$user->roles()->sync($request->get('roles'));
+		if ($request->user()->getAttribute('id') === $user->getAttribute('id')) {
+			// Todo rediriger sur la page de profil de l'utilisateur
+			//			return back()->with(successMsg('Profil modifié avec succès'));
+		}
+
+		return new UserResource($user);
+		// return to_route('admin.users.index')->with(successMsg('Profil modifié avec succès'));
+	}
+
+
+		public function updateEnseignant(Request $request, User $user)
+	{
+		$request->validate([
+			'nom' => ['required'],
+			'prenom' => ['required'],
+			'biographie' => ['nullable'],
+			'genre' => ['required', 'string'],
+			'email' => ['required', 'email',],
+			'roles' => ['nullable', 'array', 'min:1'],
+			'tel' => ['required'],
+			'supervisor_type' => ['required', 'in:interne,externe,non_surveillant'],
+			'supervisor_notes' => ['nullable', 'string'],
+			'nif'=>"nullable",
+			'nationalite'=>"nullable"
 		], [
 			'nom.required' => "Le nom est requis",
 			'prenom.required' => "Le prénom est requis",
@@ -159,10 +228,12 @@ class UserController extends Controller
 			'roles' => 'Le rôle',
 			'tel' => 'Le numero de téléphone',
 			'supervisor_type' => 'Le type de surveillant',
-			'supervisor_notes' => 'Les notes de surveillance'
+			'supervisor_notes' => 'Les notes de surveillance',
+			'nif'=>"Le numéro d'identification fiscale",
+			'nationalite'=>"La nationalite"
 		]);
 		$user->update($request->all());
-		$user->roles()->sync($request->get('roles'));
+		$user->roles()->sync([2]);
 		if ($request->user()->getAttribute('id') === $user->getAttribute('id')) {
 			// Todo rediriger sur la page de profil de l'utilisateur
 			//			return back()->with(successMsg('Profil modifié avec succès'));
