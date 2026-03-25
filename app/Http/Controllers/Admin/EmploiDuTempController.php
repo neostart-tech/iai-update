@@ -6,6 +6,7 @@ use App\Enums\TypeProgrammeEnum;
 use App\Exports\EmploiDuTempsMatriceExport;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Admin\EmploiDuTempsResource;
+use App\Imports\EmploiDuTempsImport;
 use App\Models\{EmploiDuTemp, Group, Salle, UniteValeur, User};
 use Illuminate\Contracts\Routing\ResponseFactory;
 use Illuminate\Http\{Request, Response};
@@ -169,23 +170,37 @@ class EmploiDuTempController extends Controller
 				return __422("L'heure de fin doit être postérieure à l'heure de début.");
 			}
 
+			// $salleId = Salle::where('slug', $request->salle)
+			// 	->orWhere('id', intval($request->salle))
+			// 	->value('id');
 			$salleId = Salle::where('slug', $request->salle)
 				->orWhere('id', intval($request->salle))
+				->orWhere('nom', 'LIKE', '%' . $request->salle . '%')
 				->value('id');
 			if (!$salleId) return __422('Salle invalide.');
 
+			// $groupId = Group::where('slug', $request->grade)
+			// 	->orWhere('id', intval($request->grade))
+			// 	->value('id');
 			$groupId = Group::where('slug', $request->grade)
 				->orWhere('id', intval($request->grade))
+				->orWhere('nom', 'LIKE', '%' . $request->grade . '%')
 				->value('id');
 			if (!$groupId) return __422('Groupe invalide.');
 
+			// $uvId = UniteValeur::where('slug', $request->uv_id)
+			// 	->orWhere('id', intval($request->uv_id))
+			// 	->value('id');
 			$uvId = UniteValeur::where('slug', $request->uv_id)
 				->orWhere('id', intval($request->uv_id))
+				->orWhere('code', 'LIKE', '%' . $request->uv_id . '%')
+				->orWhere('nom', 'LIKE', '%' . $request->uv_id . '%')
 				->value('id');
 			if (!$uvId) return __422('Unité de valeur invalide.');
 
 			$ownerId = User::where('slug', $request->teacher)
 				->orWhere('id', intval($request->teacher))
+				->orWhereRaw("CONCAT(nom,' ',prenom) LIKE ?", ["%{$request->teacher}%"])
 				->value('id');
 			if (!$ownerId) return __422('Enseignant invalide.');
 
@@ -220,6 +235,24 @@ class EmploiDuTempController extends Controller
 		}
 
 		return new EmploiDuTempsResource($emploiDuTemps);
+	}
+
+
+	public function importExcel(Request $request)
+	{
+		$request->validate([
+			'file' => 'required|mimes:xlsx,csv'
+		]);
+
+		Excel::import(
+			new EmploiDuTempsImport(),
+			$request->file('file')
+		);
+
+		return response()->json([
+			'success' => true,
+			'message' => 'Import avec logique complète terminé'
+		]);
 	}
 
 
@@ -638,77 +671,75 @@ class EmploiDuTempController extends Controller
 
 	public function setEmploiDuTempsForUser(): void {}
 
-public function exportMatrice(Request $request)
-{
-    $request->validate([
-        'group_id' => 'required|exists:groups,id',
-        'type_export' => 'required|in:tous,cours,evaluations',
-        'date_debut' => 'required|date',
-        'date_fin' => 'nullable|date|after_or_equal:date_debut',
-    ]);
+	public function exportMatrice(Request $request)
+	{
+		$request->validate([
+			'group_id' => 'required|exists:groups,id',
+			'type_export' => 'required|in:tous,cours,evaluations',
+			'date_debut' => 'required|date',
+			'date_fin' => 'nullable|date|after_or_equal:date_debut',
+		]);
 
-    $group_id = $request->group_id;
-    $type_export = $request->type_export;
-    $date_debut = Carbon::parse($request->date_debut);
-    $date_fin = $request->date_fin ? Carbon::parse($request->date_fin) : $date_debut->copy();
+		$group_id = $request->group_id;
+		$type_export = $request->type_export;
+		$date_debut = Carbon::parse($request->date_debut);
+		$date_fin = $request->date_fin ? Carbon::parse($request->date_fin) : $date_debut->copy();
 
-    $groupe = Group::find($group_id);
-    
-    // Générer le nom du fichier avec le type
-    $typeTexte = '';
-    if ($type_export === 'cours') {
-        $typeTexte = '_cours';
-    } elseif ($type_export === 'evaluations') {
-        $typeTexte = '_evaluations';
-    }
-    
-    $date_debut_str = $date_debut->format('d-m-Y');
-    $date_fin_str = $date_fin->format('d-m-Y');
-    
-    if ($date_debut->format('Y-m-d') === $date_fin->format('Y-m-d')) {
-        $filename = 'emploi_du_temps' . $typeTexte . '_' . $groupe->nom . '_' . $date_debut_str . '.xlsx';
-    } else {
-        $filename = 'emploi_du_temps' . $typeTexte . '_' . $groupe->nom . '_du_' . $date_debut_str . '_au_' . $date_fin_str . '.xlsx';
-    }
+		$groupe = Group::find($group_id);
 
-    return Excel::download(
-        new EmploiDuTempsMatriceExport($group_id, $date_debut, $date_fin, $type_export),
-        $filename
-    );
-}
+		// Générer le nom du fichier avec le type
+		$typeTexte = '';
+		if ($type_export === 'cours') {
+			$typeTexte = '_cours';
+		} elseif ($type_export === 'evaluations') {
+			$typeTexte = '_evaluations';
+		}
+
+		$date_debut_str = $date_debut->format('d-m-Y');
+		$date_fin_str = $date_fin->format('d-m-Y');
+
+		if ($date_debut->format('Y-m-d') === $date_fin->format('Y-m-d')) {
+			$filename = 'emploi_du_temps' . $typeTexte . '_' . $groupe->nom . '_' . $date_debut_str . '.xlsx';
+		} else {
+			$filename = 'emploi_du_temps' . $typeTexte . '_' . $groupe->nom . '_du_' . $date_debut_str . '_au_' . $date_fin_str . '.xlsx';
+		}
+
+		return Excel::download(
+			new EmploiDuTempsMatriceExport($group_id, $date_debut, $date_fin, $type_export),
+			$filename
+		);
+	}
 
 
- public function getEmploiDuTempsData(Request $request)
-    {
-        $request->validate([
-            'group_id' => 'required|exists:groups,id',
-            'type_export' => 'required|in:tous,cours,evaluations',
-            'date_debut' => 'required|date',
-            'date_fin' => 'nullable|date|after_or_equal:date_debut',
-        ]);
+	public function getEmploiDuTempsData(Request $request)
+	{
+		$request->validate([
+			'group_id' => 'required|exists:groups,id',
+			'type_export' => 'required|in:tous,cours,evaluations',
+			'date_debut' => 'required|date',
+			'date_fin' => 'nullable|date|after_or_equal:date_debut',
+		]);
 
-        $group_id = $request->group_id;
-        $type_export = $request->type_export;
-        $date_debut = Carbon::parse($request->date_debut)->startOfDay();
-        $date_fin = $request->date_fin 
-            ? Carbon::parse($request->date_fin)->endOfDay() 
-            : $date_debut->copy()->endOfDay();
+		$group_id = $request->group_id;
+		$type_export = $request->type_export;
+		$date_debut = Carbon::parse($request->date_debut)->startOfDay();
+		$date_fin = $request->date_fin
+			? Carbon::parse($request->date_fin)->endOfDay()
+			: $date_debut->copy()->endOfDay();
 
-        // Créer une instance de l'export
-        $export = new EmploiDuTempsMatriceExport($group_id, $date_debut, $date_fin, $type_export);
-        
-        // Récupérer les cours organisés
-        $coursOrganises = $export->getCoursGroupes();
-        
-        // Récupérer les informations du groupe
-        $groupe = Group::with('niveau')->find($group_id);
+		// Créer une instance de l'export
+		$export = new EmploiDuTempsMatriceExport($group_id, $date_debut, $date_fin, $type_export);
 
-        return response()->json([
-            'success' => true,
-            'cours' => $coursOrganises,
-            'groupe' => $groupe
-        ]);
-    }
+		// Récupérer les cours organisés
+		$coursOrganises = $export->getCoursGroupes();
 
-	
+		// Récupérer les informations du groupe
+		$groupe = Group::with('niveau')->find($group_id);
+
+		return response()->json([
+			'success' => true,
+			'cours' => $coursOrganises,
+			'groupe' => $groupe
+		]);
+	}
 }

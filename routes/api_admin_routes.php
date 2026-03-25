@@ -125,6 +125,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('{slug}/delete', 'destroy')->name('delete');
         Route::get('/matrice/export', 'exportMatrice');
         Route::get('/data', 'getEmploiDuTempsData');
+        Route::post('/import','importExcel');
     });
 
     // Gestion des Rôles par l'administration
@@ -145,6 +146,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('create', 'store')->name('store');
          Route::post('create-enseignant', 'storeEnseignant');
         Route::get('{user}/edit', 'edit')->name('edit');
+        Route::get('{user}/show', 'show');
         Route::put('{user}/update', 'update');
         Route::put('{user}/update-enseignant', 'updateEnseignant');
         Route::delete('{user}/delete', 'destroy')->name('delete');

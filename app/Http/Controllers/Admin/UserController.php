@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
 {
@@ -73,6 +74,12 @@ class UserController extends Controller
 		return UserResource::collection($users);
 	}
 
+
+	public function show(User $user)
+	{
+		return new  UserResource($user->load('roles'));
+	}
+
 	public function getEnseignant()
 	{
 		$users = User::enseignants()->get();
@@ -108,6 +115,23 @@ class UserController extends Controller
 
 		$data = $request->validated();
 
+		// Gestion des documents
+		if ($request->hasFile('identity_document')) {
+			$data['identity_document_path'] = $this->uploadDocument($request->file('identity_document'), 'identite');
+		}
+
+		if ($request->hasFile('nif_document')) {
+			$data['nif_document_path'] = $this->uploadDocument($request->file('nif_document'), 'nif');
+		}
+
+		if ($request->hasFile('diploma_document')) {
+			$data['diploma_document_path'] = $this->uploadDocument($request->file('diploma_document'), 'diplomes');
+		}
+
+		if ($request->hasFile('cv_document')) {
+			$data['cv_document_path'] = $this->uploadDocument($request->file('cv_document'), 'cv');
+		}
+
 		$data['password'] = Hash::make($clearPassword);
 
 		$user = User::create($data);
@@ -117,15 +141,60 @@ class UserController extends Controller
 		Mail::to($user)->send(new AdminWelcomeMail($user, $clearPassword));
 
 		return new UserResource($user);
-
-		// return redirect()->route('admin.users.index')->with(successMsg('Utilisateur créé avec succès'));
 	}
 
-	public function storeEnseignant(UserRequest $request)
+	public function storeEnseignant(Request $request)
 	{
+		$validated = $request->validate([
+			'nom' => 'required|string|max:255',
+			'prenom' => 'required|string|max:255',
+			'email' => 'required|email|unique:users,email',
+			'tel' => 'required|string|max:20',
+			'genre' => 'required|string',
+			'nationalite' => 'required|string',
+			'nif' => 'nullable|string|max:50|unique:users,nif',
+			'supervisor_type' => 'required|in:non_surveillant,interne,externe',
+			'biographie' => 'nullable|string',
+			'identity_document' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
+			'nif_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+			'diploma_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
+			'cv_document' => 'nullable|file|mimes:pdf,doc,docx|max:5120',
+		]);
+
+		// Validation conditionnelle pour le NIF si Togolais
+		if ($validated['nationalite'] === 'Togo') {
+			if (empty($validated['nif'])) {
+				return response()->json([
+					'errors' => ['nif' => ['Le numéro NIF est obligatoire pour les professeurs togolais.']]
+				], 422);
+			}
+			if (!$request->hasFile('nif_document')) {
+				return response()->json([
+					'errors' => ['nif_document' => ['Le justificatif du NIF est obligatoire pour les professeurs togolais.']]
+				], 422);
+			}
+		}
+
 		$clearPassword = 'password';
 
-		$data = $request->validated();
+		$data = $validated;
+
+		// Gestion des documents
+		if ($request->hasFile('identity_document')) {
+			$data['identity_document_path'] = $this->uploadDocument($request->file('identity_document'), 'identite');
+		}
+
+		if ($request->hasFile('nif_document')) {
+			$data['nif_document_path'] = $this->uploadDocument($request->file('nif_document'), 'nif');
+		}
+
+		if ($request->hasFile('diploma_document')) {
+			$data['diploma_document_path'] = $this->uploadDocument($request->file('diploma_document'), 'diplomes');
+		}
+
+		if ($request->hasFile('cv_document')) {
+			$data['cv_document_path'] = $this->uploadDocument($request->file('cv_document'), 'cv');
+		}
 
 		$data['password'] = Hash::make($clearPassword);
 
@@ -136,19 +205,23 @@ class UserController extends Controller
 		Mail::to($user)->send(new AdminWelcomeMail($user, $clearPassword));
 
 		return new UserResource($user);
+	}
 
-		// return redirect()->route('admin.users.index')->with(successMsg('Utilisateur créé avec succès'));
+	private function uploadDocument($file, $folder): string
+	{
+		$filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+		$path = $file->storeAs("documents/{$folder}", $filename, 'public');
+		return $path;
 	}
 
 	public function edit(User $user)
 	{
 
-	return new UserResource($user->load('roles'));
+		return new UserResource($user->load('roles'));
 		// return view('admin.users.edit', compact('user'))->with([
 		// 	'roles' => Role::all()
 		// ]);
 	}
-
 	public function update(Request $request, User $user)
 	{
 		$request->validate([
@@ -156,13 +229,13 @@ class UserController extends Controller
 			'prenom' => ['required'],
 			'biographie' => ['nullable'],
 			'genre' => ['required', 'string'],
-			'email' => ['required', 'email',],
+			'email' => ['required', 'email'],
 			'roles' => ['nullable', 'array', 'min:1'],
 			'tel' => ['required'],
 			'supervisor_type' => ['required', 'in:interne,externe,non_surveillant'],
 			'supervisor_notes' => ['nullable', 'string'],
-			'nif'=>"nullable",
-			'nationalite'=>"nullable"
+			'nif' => "nullable",
+			'nationalite' => "nullable"
 		], [
 			'nom.required' => "Le nom est requis",
 			'prenom.required' => "Le prénom est requis",
@@ -172,77 +245,83 @@ class UserController extends Controller
 			'tel.required' => "Le numéro de téléphone est requis",
 			'supervisor_type.required' => "Le type de surveillant est requis",
 			'supervisor_type.in' => "Type de surveillant invalide",
-			
-		], [
-			'nom' => 'Le nom',
-			'prenom' => 'Le prénom',
-			'genre' => 'Le genre',
-			'email' => 'L\'adresse mail',
-			'roles' => 'Le rôle',
-			'tel' => 'Le numero de téléphone',
-			'supervisor_type' => 'Le type de surveillant',
-			'supervisor_notes' => 'Les notes de surveillance',
-			'nif'=>"Numéro d’identification fiscale",
-			'nationalite'=>"La nationalité"
 		]);
+
 		$user->update($request->all());
 		$user->roles()->sync($request->get('roles'));
-		if ($request->user()->getAttribute('id') === $user->getAttribute('id')) {
-			// Todo rediriger sur la page de profil de l'utilisateur
-			//			return back()->with(successMsg('Profil modifié avec succès'));
-		}
 
 		return new UserResource($user);
-		// return to_route('admin.users.index')->with(successMsg('Profil modifié avec succès'));
 	}
 
+	public function updateEnseignant(Request $request, User $user)
+{
+    $request->validate([
+        'nom' => ['required'],
+        'prenom' => ['required'],
+        'biographie' => ['nullable'],
+        'genre' => ['required', 'string'],
+        'email' => ['required', 'email'],
+        'tel' => ['required'],
+        'supervisor_type' => ['required', 'in:interne,externe,non_surveillant'],
+        'supervisor_notes' => ['nullable', 'string'],
+        'nif' => "nullable",
+        'nationalite' => "nullable",
+        'identity_document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        'nif_document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        'diploma_document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+        'cv_document' => ['nullable', 'file', 'mimes:pdf,doc,docx', 'max:5120'],
+    ], [
+        'nom.required' => "Le nom est requis",
+        'prenom.required' => "Le prénom est requis",
+        'genre.required' => "Le genre est requis",
+        'email.required' => "L'adresse mail est requise",
+        'tel.required' => "Le numéro de téléphone est requis",
+        'supervisor_type.required' => "Le type de surveillant est requis",
+        'supervisor_type.in' => "Type de surveillant invalide"
+    ]);
 
-		public function updateEnseignant(Request $request, User $user)
-	{
-		$request->validate([
-			'nom' => ['required'],
-			'prenom' => ['required'],
-			'biographie' => ['nullable'],
-			'genre' => ['required', 'string'],
-			'email' => ['required', 'email',],
-			'roles' => ['nullable', 'array', 'min:1'],
-			'tel' => ['required'],
-			'supervisor_type' => ['required', 'in:interne,externe,non_surveillant'],
-			'supervisor_notes' => ['nullable', 'string'],
-			'nif'=>"nullable",
-			'nationalite'=>"nullable"
-		], [
-			'nom.required' => "Le nom est requis",
-			'prenom.required' => "Le prénom est requis",
-			'genre.required' => "Le genre est requis",
-			'email.required' => "L'adresse mail est requise",
-			'roles.min' => "Veuillez choisir au moins un rôle",
-			'tel.required' => "Le numéro de téléphone est requis",
-			'supervisor_type.required' => "Le type de surveillant est requis",
-			'supervisor_type.in' => "Type de surveillant invalide"
-		], [
-			'nom' => 'Le nom',
-			'prenom' => 'Le prénom',
-			'genre' => 'Le genre',
-			'email' => 'L\'adresse mail',
-			'roles' => 'Le rôle',
-			'tel' => 'Le numero de téléphone',
-			'supervisor_type' => 'Le type de surveillant',
-			'supervisor_notes' => 'Les notes de surveillance',
-			'nif'=>"Le numéro d'identification fiscale",
-			'nationalite'=>"La nationalite"
-		]);
-		$user->update($request->all());
-		$user->roles()->sync([2]);
-		if ($request->user()->getAttribute('id') === $user->getAttribute('id')) {
-			// Todo rediriger sur la page de profil de l'utilisateur
-			//			return back()->with(successMsg('Profil modifié avec succès'));
-		}
-
-		return new UserResource($user);
-		// return to_route('admin.users.index')->with(successMsg('Profil modifié avec succès'));
-	}
-
+    // Récupérer toutes les données
+    $data = $request->all();
+    
+    // Gestion des documents (si de nouveaux fichiers sont téléchargés)
+    if ($request->hasFile('identity_document')) {
+        // Supprimer l'ancien document s'il existe
+        if ($user->identity_document_path) {
+            Storage::disk('public')->delete($user->identity_document_path);
+        }
+        $data['identity_document_path'] = $this->uploadDocument($request->file('identity_document'), 'identite');
+    }
+    
+    if ($request->hasFile('nif_document')) {
+        if ($user->nif_document_path) {
+            Storage::disk('public')->delete($user->nif_document_path);
+        }
+        $data['nif_document_path'] = $this->uploadDocument($request->file('nif_document'), 'nif');
+    }
+    
+    if ($request->hasFile('diploma_document')) {
+        if ($user->diploma_document_path) {
+            Storage::disk('public')->delete($user->diploma_document_path);
+        }
+        $data['diploma_document_path'] = $this->uploadDocument($request->file('diploma_document'), 'diplomes');
+    }
+    
+    if ($request->hasFile('cv_document')) {
+        if ($user->cv_document_path) {
+            Storage::disk('public')->delete($user->cv_document_path);
+        }
+        $data['cv_document_path'] = $this->uploadDocument($request->file('cv_document'), 'cv');
+    }
+    
+    // Mettre à jour l'utilisateur
+    $user->update($data);
+    $user->roles()->sync([2]);
+    
+    // Recharger l'utilisateur avec ses relations
+    $user->load('roles');
+    
+    return new UserResource($user);
+}
 	public function loadEmploiDuTemps(User $user)
 	{
 		return EmploiDuTempsResource::collection($user->emploiDuTemps);
@@ -250,7 +329,7 @@ class UserController extends Controller
 
 	public function ShowEmploiDuTemps(User $user)
 	{
-			
+
 		return EmploiDuTempsResource::collection($user->emploiDuTemps);
 		//		dd(['resourceUrl' => route('admin.users.load-edt', $user)]);
 		return view('admin.users.teacher-calendar.calendar', compact('user'))->with([
@@ -300,16 +379,27 @@ class UserController extends Controller
 	// 	return to_route('admin.users.index')->with(successMsg('Élément supprimé avec succès'));
 	// }
 
-
 	public function destroy(User $user)
 	{
+		// Supprimer les documents associés
+		if ($user->identity_document_path) {
+			Storage::disk('public')->delete($user->identity_document_path);
+		}
+		if ($user->nif_document_path) {
+			Storage::disk('public')->delete($user->nif_document_path);
+		}
+		if ($user->diploma_document_path) {
+			Storage::disk('public')->delete($user->diploma_document_path);
+		}
+		if ($user->cv_document_path) {
+			Storage::disk('public')->delete($user->cv_document_path);
+		}
+
 		$user->roles()->detach();
 		$user->delete();
 
 		return new UserResource($user);
-		// return to_route('admin.users.index')->with(successMsg('Élément supprimé avec succès'));
 	}
-
 
 	/**
 	 * Retourne un récapitulatif des heures effectuées par chaque enseignant.
@@ -438,6 +528,6 @@ class UserController extends Controller
 		// ]);
 		return redirect()->backt()->with([
 			'success'  => 'Import effectué avec succes',
-]);
+		]);
 	}
 }

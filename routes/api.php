@@ -7,12 +7,14 @@ use App\Http\Controllers\Api\Admin\CandidaturePresenceController;
 use App\Http\Controllers\Api\CommuniqueController;
 use App\Http\Controllers\Api\Etudiant\MonParcoursController;
 use App\Http\Controllers\Api\ExamComplexResponseController;
-use App\Http\Controllers\API\ExamPartController;
-use App\Http\Controllers\API\ExamQuestionController;
-use App\Http\Controllers\API\ExamQuestionOptionController;
-use App\Http\Controllers\API\ExamSessionController;
-use App\Http\Controllers\API\ExamSubmissionController;
+use App\Http\Controllers\Api\ExamPartController;
+use App\Http\Controllers\Api\ExamQuestionController;
+use App\Http\Controllers\Api\ExamQuestionOptionController;
+use App\Http\Controllers\Api\ExamSessionController;
+use App\Http\Controllers\Api\ExamSubmissionController;
 use App\Http\Controllers\Api\SemoaCallBackController;
+use App\Http\Controllers\Api\Support\CategoryController;
+use App\Http\Controllers\Api\Support\TicketController as SupportTicketController;
 use App\Http\Controllers\BourseController;
 use App\Http\Controllers\BroadcastAuthController;
 use App\Http\Controllers\ChangePasswordController;
@@ -73,6 +75,36 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('{announcement}/postuler-a-une-offre', 'applyToAnnouncement')->name('apply-to-announcement');
         Route::get('mes-depots', 'myApplications')->name('my-applications');
     });
+
+    Route::prefix('support')->middleware('auth:sanctum')->group(function () {
+    
+    // Catégories (accessibles à tous les utilisateurs connectés)
+    Route::get('categories', [CategoryController::class, 'index']);
+    Route::get('categories/{category}', [CategoryController::class, 'show']);
+    
+    // Tickets
+    Route::get('tickets', [SupportTicketController::class, 'index']);
+    Route::post('tickets', [SupportTicketController::class, 'store']);
+    Route::get('tickets/{ticket}', [SupportTicketController::class, 'show']);
+    
+    // Actions sur tickets (réservées informaticien)
+    // Route::middleware('informaticien')->group(function () {
+    //     Route::put('tickets/{ticket}/assign', [SupportTicketController::class, 'assign']);
+    //     Route::put('tickets/{ticket}/status', [SupportTicketController::class, 'updateStatus']);
+    // });
+    
+    // Évaluation (accessible par le créateur du ticket)
+    Route::post('tickets/{ticket}/rate', [SupportTicketController::class, 'rate']);
+    
+    // Messages
+    Route::get('tickets/{ticket}/messages', [MessageController::class, 'index']);
+    Route::post('tickets/{ticket}/messages', [MessageController::class, 'store']);
+    Route::delete('messages/{message}', [MessageController::class, 'destroy']);
+
+     Route::get('messages/unread', [MessageController::class, 'unread']);
+    Route::put('messages/{message}/read', [MessageController::class, 'markAsRead']);
+    Route::put('tickets/{ticket}/messages/read-all', [MessageController::class, 'markAllAsRead']);
+});
 
 
 

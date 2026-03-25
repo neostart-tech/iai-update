@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\GenreEnum;
+use App\Models\Support\SupportMessage;
+use App\Models\Support\SupportTicket;
 use App\Notifications\admins\PasswordResetLinkSentNotification;
 use App\Traits\Routing\{GenerateUniqueSlugTrait, ModelsSlugKeyTrait};
 use App\Traits\UserIdentityTrait;
@@ -56,7 +58,11 @@ class User extends Authenticatable
 		'group_id',
 		'supervisor_type',
 		'supervisor_notes',
-		'nif'
+		'nif',
+		'identity_document_path',
+		'nif_document_path',
+		'diploma_document_path',
+		'cv_document_path'
 	];
 
 	protected $hidden = [
@@ -78,6 +84,77 @@ class User extends Authenticatable
 			'user_id',
 			'role_id'
 		);
+	}
+
+
+	public function supportTickets()
+{
+    return $this->morphMany(SupportTicket::class, 'ticketable');
+}
+
+public function assignedTickets()
+{
+    return $this->hasMany(SupportTicket::class, 'assigned_to');
+}
+
+public function supportMessages()
+{
+    return $this->hasMany(SupportMessage::class, 'user_id');
+}
+
+// Vérifier si l'utilisateur est informaticien
+public function isInformaticien(): bool
+{
+    return $this->roles()->where('nom', 'Informaticien')->exists();
+}
+
+
+	/**
+	 * Vérifie si l'utilisateur est togolais
+	 */
+	public function isTogolais(): bool
+	{
+		return $this->nationalite === 'Togo';
+	}
+
+	/**
+	 * Vérifie si le NIF est requis
+	 */
+	public function requiresNif(): bool
+	{
+		return $this->isTogolais();
+	}
+
+	/**
+	 * Récupère le chemin du document d'identité
+	 */
+	public function getIdentityDocumentUrlAttribute(): ?string
+	{
+		return $this->identity_document_path ? asset(Storage::url($this->identity_document_path)) : null;
+	}
+
+	/**
+	 * Récupère le chemin du document NIF
+	 */
+	public function getNifDocumentUrlAttribute(): ?string
+	{
+		return $this->nif_document_path ? asset(Storage::url($this->nif_document_path)) : null;
+	}
+
+	/**
+	 * Récupère le chemin du diplôme
+	 */
+	public function getDiplomaDocumentUrlAttribute(): ?string
+	{
+		return $this->diploma_document_path ? asset(Storage::url($this->diploma_document_path)) : null;
+	}
+
+	/**
+	 * Récupère le chemin du CV
+	 */
+	public function getCvDocumentUrlAttribute(): ?string
+	{
+		return $this->cv_document_path ? asset(Storage::url($this->cv_document_path)) : null;
 	}
 
 	public function permissions(): HasManyThrough
@@ -126,9 +203,9 @@ class User extends Authenticatable
 
 
 	public function tickets()
-{
-    return $this->morphMany(Ticket::class, 'ticketable');
-}
+	{
+		return $this->morphMany(Ticket::class, 'ticketable');
+	}
 
 
 	public static function surveillants(): Builder

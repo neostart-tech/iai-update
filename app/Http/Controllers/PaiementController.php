@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/PaiementController.php
 
 namespace App\Http\Controllers;
 

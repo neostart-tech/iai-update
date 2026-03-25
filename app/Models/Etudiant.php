@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\GenreEnum;
+use App\Models\Support\SupportTicket;
 use App\Notifications\Etudiants\PasswordResetLinkSentNotification;
 use App\Traits\Routing\{GenerateUniqueSlugTrait, ModelsSlugKeyTrait};
 use App\Traits\UserIdentityTrait;
@@ -54,6 +55,8 @@ class Etudiant extends Authenticatable
 		//		'email_verified_at'
 	];
 
+
+
 	protected $casts = [
 		'genre' => GenreEnum::class,
 		'date_naissance' => 'datetime'
@@ -63,6 +66,11 @@ class Etudiant extends Authenticatable
 	{
 		return $this->hasMany(Note::class);
 	}
+
+	public function supportTickets()
+{
+    return $this->morphMany(SupportTicket::class, 'ticketable');
+}
 
 
 	public function roles(): MorphToMany
