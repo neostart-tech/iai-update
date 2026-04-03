@@ -2,44 +2,38 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\FraisInscriptionResource;
 use App\Models\FraisInscription;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class FraisInscriptionController extends Controller
 {
-
     public function index()
     {
-        $frais = FraisInscription::latest()->get();
-
-
-        // return response()->json(
-        //     [
-        //         "frais" => FraisScolariteResource::collection($frais),
-        //         "annees" => AnneeScolaireResource::collection($annees),
-        //         "niveaux" => NiveauResource::collection($niveaux),
-        //     ]
-        // );
-
-        return view('comptabilite.frais_inscription.index', compact('frais'));
+        $frais = FraisInscription::with('anneeScolaire')->latest()->get();
+        return FraisInscriptionResource::collection($frais);
     }
-
 
     public function store(Request $request)
     {
         $request->validate([
-            'montant' => 'required|integer|min:100',
+            'montant' => 'required|integer|min:0',
         ]);
-
 
         $frais = FraisInscription::create([
             'montant' => $request->montant,
             'slug' => Str::uuid(),
+            ...injectAnneeScolaireId()
         ]);
 
-        // return new FraisScolariteResource($frais);
-        return redirect()->route('comptable.frais-inscription.index')->with('success', 'Frais enregistré avec succès');
+        return new FraisInscriptionResource($frais);
+    }
+
+    public function show($id)
+    {
+        $frais = FraisInscription::findOrFail($id);
+        return new FraisInscriptionResource($frais);
     }
 
     public function update(Request $request, $id)
@@ -49,21 +43,27 @@ class FraisInscriptionController extends Controller
         ]);
 
         $frais = FraisInscription::findOrFail($id);
+        $frais->update($request->only('montant'));
 
-        $frais->update($request->all());
-        // return new FraisScolariteResource($frais);
-
-        return redirect()->route('comptable.frais-inscription.index')->with('success', 'Frais modifié avec succès');
+        return new FraisInscriptionResource($frais);
     }
 
     public function destroy($id)
     {
         $frais = FraisInscription::findOrFail($id);
         $frais->delete();
+        return response()->json(['message' => 'Frais supprimé avec succès']);
+    }
 
-        // return new FraisScolariteResource($frais);
+    public function activate($id)
+    {
+        // On désactive tout
+        FraisInscription::query()->update(['active' => false]);
+        
+        // On active celui-ci
+        $frais = FraisInscription::findOrFail($id);
+        $frais->update(['active' => true]);
 
-
-        return redirect()->route('comptable.frais-inscription.index')->with('success', 'Frais supprimé avec succès');
+        return new FraisInscriptionResource($frais);
     }
 }

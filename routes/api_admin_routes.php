@@ -9,6 +9,7 @@ use App\Http\Controllers\{
     ClubController,
     EtudiantController,
     EvaluationController,
+    FraisInscriptionController,
     GroupController,
     ConfigurationController,
     NiveauController,
@@ -210,6 +211,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{id}/activate', 'activer')->name('activer');
         Route::put('{id}/desactivate', 'desactiver')->name('desactiver');
         Route::put('{annee}/update', 'update')->name('update');
+    });
+
+    Route::controller(FraisInscriptionController::class)->prefix('frais-inscription')->name('frais-inscription.')->group(function () {
+        Route::get('/index', 'index')->name('index');
+        Route::post('/payer', 'store')->name('store');
+        Route::get('/{id}/detail', 'show')->name('show');
+        Route::put('/update/{id}', 'update')->name('update');
+        Route::put('/activate/{id}', 'activate')->name('activate');
+        Route::delete('/destroy/{id}', 'destroy')->name('delete');
     });
 
     Route::controller(NiveauController::class)->prefix('niveau')->name('niveau.')->group(function () {

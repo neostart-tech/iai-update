@@ -14,9 +14,8 @@ class RelanceTrancheMail extends Mailable
 {
   use Queueable, SerializesModels;
 
-	public function __construct(private readonly string $greeting)
-	{
-	}
+    public function __construct(public Etudiant $etudiant, public string $contenu)
+    {}
 
     /**
      * Get the message envelope.
@@ -35,10 +34,11 @@ class RelanceTrancheMail extends Mailable
 	public function content(): Content
 	{
 		return new Content(
-		   view: 'mails.relance_tranche',
+		    view: 'mails.relance_tranche',
 			with: [
+				'etudiant' => $this->etudiant,
+				'contenu' => $this->contenu,
 				'mailTitle' => 'Relance de paiement des frais de scolarité',
-				'mailContent' => $this->getMainContent(),
 				'buttonText' => 'Cliquez-ici pour accéder à votre compte',
 				'buttonHref' => route('officiel.login'),
 			]
@@ -46,11 +46,6 @@ class RelanceTrancheMail extends Mailable
 	}
 
 	
-   private function getMainContent(): string
-	{
-		return $this->greeting .
-			"Nous vous envoyons ce message pour vous inviter a soldé votre frais de scolarité
-		";
-	}
+
 	
 }

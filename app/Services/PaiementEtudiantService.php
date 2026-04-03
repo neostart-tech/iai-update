@@ -75,7 +75,7 @@ class PaiementEtudiantService
     {
         // Récupérer le dernier groupe pour les infos
         $dernierGroupe = $etudiant->etudiantGroups->first();
-        $niveau = $dernierGroupe && $dernierGroupe->niveau ? $dernierGroupe->niveau->nom : null;
+        $niveau = $dernierGroupe && $dernierGroupe->niveau ? $dernierGroupe->niveau->libelle : null;
         $filiere = $dernierGroupe && $dernierGroupe->filiere ? $dernierGroupe->filiere->nom : null;
 
         $totalPaye = $fraisEtudiant->echeances->sum('montant_paye');
@@ -167,7 +167,7 @@ class PaiementEtudiantService
         );
 
         if (!$fraisScolarite) {
-            throw new Exception("Aucun frais de scolarité trouvé pour le niveau " . ($niveau->nom ?? $niveauId));
+            throw new Exception("Aucun frais de scolarité trouvé pour le niveau " . ($niveau->libelle ?? $niveauId));
         }
 
         // Récupérer les tranches de paiement
@@ -194,7 +194,7 @@ class PaiementEtudiantService
                 'prenom' => $etudiant->prenom,
                 'nom_complet' => $etudiant->nom . ' ' . $etudiant->prenom,
                 'matricule' => $etudiant->matricule,
-                'niveau' => $niveau->nom ?? null,
+                'niveau' => $niveau->libelle ?? null,
                 'filiere' => $filiere->nom ?? null,
                 'genre' => $etudiant->genre,
                 'telephone' => $etudiant->tel,
@@ -493,6 +493,7 @@ private function formatTranches($tranches, $coefficient)
                     'montant' => (float) $paiement->montant,
                     'mode_label' => Paiement::MODES_PAIEMENT[$paiement->mode_paiement] ?? $paiement->mode_paiement,
                     'reference' => $paiement->reference,
+                    'commentaire' => $paiement->commentaire,
                     'libelle' => $libelle,
                     'type_payable' => $typePayable,
                     'payable_id' => $paiement->payable_id,
@@ -545,7 +546,7 @@ private function formatTranches($tranches, $coefficient)
     /**
      * Traite un nouveau paiement
      */
-    public function traiterPaiement($etudiantId, $montant, $modePaiement, $reference = null, $payableId = null, $payableType = null)
+    public function traiterPaiement($etudiantId, $montant, $modePaiement, $reference = null, $payableId = null, $payableType = null, $naturePaiement = 'scolarite', $fraisRetraitMM = 0, $commentaire = null)
     {
         DB::beginTransaction();
 
@@ -574,6 +575,9 @@ private function formatTranches($tranches, $coefficient)
             $paiement->etudiant_id = $etudiantId;
             $paiement->montant = $montant;
             $paiement->mode_paiement = $modePaiement;
+            $paiement->nature_paiement = $naturePaiement;
+            $paiement->frais_retrait_mm = $fraisRetraitMM ?? 0;
+            $paiement->commentaire = $commentaire;
             $paiement->reference = $reference;
             $paiement->status = 'valide';
             $paiement->date_paiement = now();
@@ -593,6 +597,7 @@ private function formatTranches($tranches, $coefficient)
                     'id' => $paiement->id,
                     'montant' => (float) $paiement->montant,
                     'mode_paiement' => $paiement->mode_paiement,
+                    'nature_paiement' => $paiement->nature_paiement,
                     'reference' => $paiement->reference,
                     'date_paiement' => $paiement->date_paiement->format('Y-m-d H:i:s'),
                 ],

@@ -34,12 +34,17 @@ class Paiement extends Model
     }
 
 
-     const MODES_PAIEMENT = [
+    const MODES_PAIEMENT = [
         'especes' => 'Espèces',
         'carte' => 'Carte bancaire',
         'virement' => 'Virement',
         'cheque' => 'Chèque',
         'mobile_money' => 'Mobile Money'
+    ];
+
+    const NATURES_PAIEMENT = [
+        'inscription' => 'Frais d\'Inscription',
+        'scolarite' => 'Frais de Scolarité'
     ];
 
     const STATUTS = [

@@ -42,7 +42,7 @@ class PaiementExportService
             
             case 'niveau':
                 $niveau = Niveau::find($id);
-                $nom = $niveau ? $niveau->nom : 'niveau';
+                $nom = $niveau ? $niveau->libelle : 'niveau';
                 return "paiements_niveau_{$nom}_{$date}.xlsx";
             
             case 'filiere':

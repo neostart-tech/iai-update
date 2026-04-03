@@ -7,6 +7,7 @@ use App\Http\Requests\EvenementRequest;
 use App\Http\Resources\EvenementResource;
 use App\Models\Evenement;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class EventController extends Controller
@@ -40,12 +41,17 @@ class EventController extends Controller
 
 	public function store(EvenementRequest $request)
 	{
+		$data = $request->validated();
+		
+		if ($request->hasFile('image')) {
+			$data['image'] = $request->file('image')->store('events/images', 'public');
+		}
+
 		$event =	Evenement::create([
-			...$request->validated(),
+			...$data,
 			...injectAnneeScolaireId()
 		]);
 		return new EvenementResource($event);
-		// return to_route('admin.events.index')->with(successMsg('Événement créé avec succès.'));
 	}
 
 	public function show(Evenement $event)
@@ -61,10 +67,19 @@ class EventController extends Controller
 
 	public function update(EvenementRequest $request, Evenement $event)
 	{
-		$event->update($request->validated());
+		$data = $request->validated();
+		
+		if ($request->hasFile('image')) {
+			// Delete old image if exists
+			if ($event->image) {
+				Storage::disk('public')->delete($event->image);
+			}
+			$data['image'] = $request->file('image')->store('events/images', 'public');
+		}
+
+		$event->update($data);
 
 		return new EvenementResource($event);
-		// return to_route('admin.events.index')->with(successMsg('Événement mis à jour avec succès.'));
 	}
 
 	public function delete(Evenement $event)

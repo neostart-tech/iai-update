@@ -16,10 +16,19 @@ class UrgentInfo extends Model
         'summary',
         'file_url',
         'file_path',
+        'image',
+        'attachments',
+        'target_audience',
+        'target_group_id',
         'is_published',
         'published_at',
         'created_by',
     ];
+
+    public function group()
+    {
+        return $this->belongsTo(Group::class, 'target_group_id');
+    }
 
     public function getFullPath(){
         return asset(Storage::url($this->file_path));
@@ -28,5 +37,6 @@ class UrgentInfo extends Model
     protected $casts = [
         'is_published' => 'boolean',
         'published_at' => 'datetime',
+        'attachments' => 'array',
     ];
 }

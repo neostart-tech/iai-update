@@ -16,9 +16,12 @@ class EvenementRequest extends FormRequest
 	{
 		return [
 			'nom' => ['required', 'max:255'],
-			'start_date' => ['required', 'date', 'after_or_equal:today'],
-			'end_date' => ['nullable', 'date', 'after_or_equal:end_date'],
-			'details' => ['required']
+			'start_date' => ['required', 'date'],
+			'end_date' => ['nullable', 'date'],
+			'details' => ['required'],
+			'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'],
+			'type' => ['required', 'string', 'in:internal,public'],
+			'destination' => ['required', 'string', 'in:intranet,website,all'],
 		];
 	}
 

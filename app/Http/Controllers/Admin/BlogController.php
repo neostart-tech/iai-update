@@ -11,6 +11,10 @@ use Exception;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Illuminate\Support\Facades\Notification;
+use App\Notifications\PublicationNotification;
+use App\Models\User;
+use App\Models\Etudiant;
 
 class BlogController extends Controller
 {
@@ -91,6 +95,11 @@ public function publishedBlog(Blog $blog)
             ? 'draft'
             : 'published'
     ]);
+
+    if ($blog->status === 'published') {
+        Notification::send(User::all(), new PublicationNotification($blog));
+        Notification::send(Etudiant::all(), new PublicationNotification($blog));
+    }
 
     return new BlogResource($blog);
 }

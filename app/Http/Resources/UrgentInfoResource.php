@@ -21,9 +21,22 @@ class UrgentInfoResource extends JsonResource
             'summary' => $this->resource->summary,
             'file_url' => $this->resource->file_url,
             'file_path' => $this->resource->getFullPath(),
+            'image' => $this->resource->image ? asset(\Illuminate\Support\Facades\Storage::url($this->resource->image)) : null,
+            'attachments' => collect($this->resource->attachments)->map(function($attachment) {
+                return [
+                    'name' => $attachment['name'],
+                    'size' => $attachment['size'],
+                    'url' => asset(\Illuminate\Support\Facades\Storage::url($attachment['path'])),
+                ];
+            }),
+            'target_audience' => $this->resource->target_audience,
+            'target_group' => $this->resource->group ? [
+                'id' => $this->resource->group->id,
+                'nom' => $this->resource->group->nom,
+            ] : null,
             'is_published' => $this->resource->is_published,
             'published_at' => $this->resource->published_at,
-            'published_at_detail' =>date_format(date_create($this->resource->published_at),'d F Y'),
+            'published_at_detail' => $this->resource->published_at ? date_format(date_create($this->resource->published_at), 'd F Y') : null,
             'created_by' => $this->resource->created_by,
             'created_at' => $this->resource->created_at,
         ];

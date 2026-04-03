@@ -91,7 +91,10 @@ class PaiementController extends Controller
         $validator = Validator::make($request->all(), [
             'etudiant_id' => 'required|exists:etudiants,id',
             'montant' => 'required|numeric|min:1',
-            'mode_paiement' => 'required|string|in:especes,banque,semoa,caisse,carte,virement,cheque',
+            'mode_paiement' => 'required|string|in:especes,banque,semoa,caisse,carte,virement,cheque,mobile_money,autre',
+            'nature_paiement' => 'nullable|string|in:scolarite,inscription',
+            'frais_retrait_mm' => 'nullable|numeric|min:0',
+            'commentaire' => 'nullable|string|max:1000',
             'reference' => 'nullable|string|max:255',
             'payable_id' => 'nullable|integer',
             'payable_type' => 'nullable|string|in:echeance,tranche',
@@ -103,7 +106,6 @@ class PaiementController extends Controller
                 'errors' => $validator->errors()
             ], 422);
         }
-        
         try {
             $result = $this->paiementService->traiterPaiement(
                 $request->etudiant_id,
@@ -111,11 +113,13 @@ class PaiementController extends Controller
                 $request->mode_paiement,
                 $request->reference,
                 $request->payable_id,
-                $request->payable_type
+                $request->payable_type,
+                $request->get('nature_paiement', 'scolarite'),
+                $request->get('frais_retrait_mm', 0),
+                $request->commentaire
             );
             
             return response()->json($result);
-            Notification::send(new PaiementNotification($result));
             
         } catch (Exception $e) {
             return response()->json([
