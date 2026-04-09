@@ -17,6 +17,7 @@ use App\Http\Controllers\{
     ReclamationController,
     ReleveController,
     ReleveNoteController,
+    ReinscriptionController,
     StatistiquesController,
 };
 use App\Http\Controllers\Admin\{
@@ -271,6 +272,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('{etudiant}/details', 'show')->name('show');
         Route::put('{etudiant}/changer-de-groupe', 'changeGroup')->name('change-group');
+        Route::post('{etudiant}/reinscrire', [ReinscriptionController::class, 'store'])->name('reinscrire');
     });
 
 

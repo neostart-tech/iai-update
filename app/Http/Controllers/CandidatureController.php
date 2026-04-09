@@ -44,9 +44,13 @@ class CandidatureController extends Controller
 
 	public function show(Candidature $candidature)
 	{
-		$candidature->load(['documents', 'album']);
+		$candidature->load(['documents', 'album', 'tuteur', 'responsable', 'niveau', 'filiere', 'advertiser']);
 
-		// return new  CandidatureResource($candidature);
+		if (request()->ajax() || request()->wantsJson()) {
+			return response()->json([
+				'data' => $candidature
+			]);
+		}
 
 		return view('admin.candidatures.show', compact('candidature'))->with([
 			'album' => $candidature->album,
@@ -69,7 +73,23 @@ class CandidatureController extends Controller
 
 	public function store(Request $request): RedirectResponse
 	{
-		// 1. Création du candidat
+		$anneeScolaireId = getAnneeScolaireId();
+
+		// 1. Vérification d'unicité de candidature par année scolaire
+		$exists = Candidature::where('email', $request->email)
+			->where('annee_scolaire_id', $anneeScolaireId)
+			->exists();
+
+		if ($exists) {
+			return back()->with('error', "Vous avez déjà déposé une candidature pour cette année scolaire.");
+		}
+
+		// 2. Vérification si l'étudiant est déjà inscrit (optionnel mais recommandé)
+		if (Etudiant::where('email', $request->email)->exists()) {
+			return back()->with('error', "Un compte étudiant existe déjà avec cet email. Veuillez passer par la procédure de réinscription.");
+		}
+
+		// 3. Création du candidat
 		$candidat = Candidature::create([
 			...$request->only([
 				'nom',
@@ -402,103 +422,117 @@ class CandidatureController extends Controller
 		return back();
 	}
 
-	public function insertStudent(Candidature $candidature)
+	public function insertStudent(Request $request, Candidature $candidature)
 	{
-
-		$fraisInscription = FraisInscription::latest()->first();
-		$anneId = AnneeScolaire::where('active', true)->pluck('id')->first();
-
-		// $group = Group::where('filiere_id', $candidature->filiere_id)->first();
-
-		$group = FiliereGroup::where('filiere_id', $candidature->filiere_id)->first();
-
 		if (!$candidature) {
-			return;
+			return back()->with('error', "Candidature introuvable");
 		}
 
+		$activeAnnee = AnneeScolaire::where('active', true)->first();
+		if (!$activeAnnee) {
+			return back()->with('error', "Aucune année scolaire active configurée");
+		}
 
-		// dump("Etudiant: " . $candidature->getAttribute('nom') . ' ' . $candidature->getAttribute('prenom'));
+		$fraisInscription = FraisInscription::where('active', true)->first() ?: FraisInscription::latest()->first();
+
+		// Gestion du groupe : priorité au choix admin, sinon automatique si unique
+		$groupId = $request->input('group_id');
+		if (!$groupId) {
+			$availableGroups = FiliereGroup::where('filiere_id', $candidature->filiere_id)
+				->join('groups', 'filiere_group.group_id', '=', 'groups.id')
+				->where('groups.niveau_id', $candidature->niveau_id)
+				->select('groups.*')
+				->get();
+
+			if ($availableGroups->count() === 1) {
+				$groupId = $availableGroups->first()->id;
+			} else if ($availableGroups->count() > 1) {
+				return back()->with('error', "Plusieurs groupes disponibles. Veuillez en sélectionner un.");
+			} else {
+				return back()->with('error', "Aucun groupe disponible pour cette filière et ce niveau.");
+			}
+		}
+
+		// Préparation des données académiques
+		$year = $activeAnnee->date_debut ? \Carbon\Carbon::parse($activeAnnee->date_debut)->year : today()->year;
+		$nextYear = $year + 1;
+		$promotion = "{$year}-{$nextYear}";
+
 		if ($candidature->etudiant_id) {
 			$etudiant = Etudiant::findOrFail($candidature->etudiant_id);
+			$etudiant->update([
+				'advertiser_id' => $request->input('advertiser_id', $candidature->advertiser_id),
+				'promotion' => $promotion,
+				'annee_admission' => $year,
+			]);
 		} else {
 			$etudiant = Etudiant::create([
-				'nom' => $candidature->getAttribute('nom'),
-				'nom_jeune_fille' => $candidature->getAttribute('nom_jeune_fille'),
-				'prenom' => $candidature->getAttribute('prenom'),
-				'genre' => $candidature->getAttribute('genre'),
-				'date_naissance' => $candidature->getAttribute('date_naissance'),
-				'lieu_naissance' => $candidature->getAttribute('lieu_naissance'),
-				'nationalite' => $candidature->getAttribute('nationalite'),
-				'tel' => $candidature->getAttribute('tel'),
-				'email' => $candidature->getAttribute('email'),
-				'password' => $candidature->getAttribute('password'),
+				'nom' => $candidature->nom,
+				'nom_jeune_fille' => $candidature->nom_jeune_fille,
+				'prenom' => $candidature->prenom,
+				'genre' => $candidature->genre,
+				'date_naissance' => $candidature->date_naissance,
+				'lieu_naissance' => $candidature->lieu_naissance,
+				'nationalite' => $candidature->nationalite,
+				'tel' => $candidature->tel,
+				'email' => $candidature->email,
+				'password' => $candidature->password,
 				'image' => config('images.etudiants.woman'),
-				'annee_admission' => $year = today()->year,
+				'annee_admission' => $year,
+				'promotion' => $promotion,
+				'advertiser_id' => $request->input('advertiser_id', $candidature->advertiser_id),
 				'matricule' => Str::upper($year . '_' . fake()->unique()->randomNumber(6, true)),
 			]);
 		}
 
-
-
-		$etudiant->groups()->attach(
-			$group->group_id,
-			[
-				"annee_scolaire_id" => $anneId,
-				"niveau_id" => $candidature->niveau_id
+		// Affectation au groupe
+		$etudiant->groups()->syncWithoutDetaching([
+			$groupId => [
+				"annee_scolaire_id" => $activeAnnee->id,
+				"niveau_id" => $candidature->niveau_id,
+				"filiere_id" => $candidature->filiere_id
 			]
-		);
-
-
-		Paiement::create([
-			"etudiant_id" => $etudiant->id,
-			"montant" => $fraisInscription->montant,
-			"mode_paiement" => "caisse",
-			"reference" => random_int(1000000, 99999999),
-			"status" => "valide",
-			"date_paiement" => now(),
-			"payable_type" => FraisInscription::class,
-			"payable_id" => $fraisInscription->id
 		]);
 
+		// Enregistrement du paiement des frais d'inscription
+		if ($fraisInscription) {
+			Paiement::updateOrCreate(
+				[
+					"etudiant_id" => $etudiant->id,
+					"payable_id" => $fraisInscription->id,
+					"payable_type" => FraisInscription::class,
+					"annee_scolaire_id" => $activeAnnee->id,
+				],
+				[
+					"montant" => $fraisInscription->montant,
+					"mode_paiement" => "caisse",
+					"reference" => "REG-" . strtoupper(Str::random(8)),
+					"status" => "valide",
+					"date_paiement" => now(),
+				]
+			);
+		}
 
-
+		// Transfert des données polymorphiques
 		$updatedData = [
-			'owner_id' => $etudiant->getAttribute('id'),
+			'owner_id' => $etudiant->id,
 			'owner_type' => Etudiant::class,
 		];
 
-		if ($candidature->album) {
-			$candidature->album->update($updatedData);
-		}
+		if ($candidature->album) $candidature->album->update($updatedData);
+		if ($candidature->responsable) $candidature->responsable->update($updatedData);
+		if ($candidature->tuteur) $candidature->tuteur->update($updatedData);
 
-		if ($candidature->responsable) {
-			$candidature->responsable->update($updatedData);
-		}
-
-		if ($candidature->tuteur) {
-			$candidature->tuteur->update($updatedData);
-		}
-
-
-		if ($candidature) {
-			$candidature->update([
-				'etudiant_id' => $etudiant->getAttribute('id'),
-				'acceptation_date' => $now = now(),
-				'end_accessibility_date' => $endAccessibilityDate = $now->addDays(3)
-			]);
-		}
-
+		// Mise à jour de la candidature
+		$candidature->update([
+			'etudiant_id' => $etudiant->id,
+			'acceptation_date' => now(),
+			'end_accessibility_date' => now()->addDays(3)
+		]);
 
 		$etudiant->notify(new CandidatToEtudiantWelcomeNotification($etudiant->greeting()));
-		// $message = $candidature->greeting();
-		// $message .= '. Suite à votre admission à ' . ' ' . AppGetters::getAppName() ? AppGetters::getAppName() : "Laravel"  . ', vous avez désormais un compte étudiant. 
-		// 		Ce espace candidat vous sera accessible jusqu\'au ' . $endAccessibilityDate->translatedFormat('d F Y')
-		// 	. '. L\'accès à votre espace étudiant se fait avec les identifiants du présent compte candidat.';
 
-		// $candidature->notify(new CandidatAccountLockNotification($message));
-		// Msg("Operations  effectué avec succees pour:  " . $candidature->getAttribute('nom') . ' ' . $candidature->getAttribute('prenom'));
-
-		return back()->with('success', "Etudiant inscript avec succes");
+		return back()->with('success', "Étudiant inscrit avec succès dans le groupe sélectionné.");
 	}
 
 

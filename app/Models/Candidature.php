@@ -18,7 +18,7 @@ use Illuminate\Support\Str;
 
 /**
  * @method static self create(array $attributes)
- * @property Album album
+ * @property Album $album
  * @property Tuteur $tuteur
  * @property ResponsableFrais $responsable
  */
@@ -124,5 +124,10 @@ class Candidature extends Authenticatable
 			'niveau_id',
 			'id'
 		);
+	}
+
+	public function advertiser(): BelongsTo
+	{
+		return $this->belongsTo(Advertiser::class);
 	}
 }

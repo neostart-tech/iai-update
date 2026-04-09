@@ -52,6 +52,8 @@ class Etudiant extends Authenticatable
 		'matricule',
 		'slug',
 		'cv',
+		'advertiser_id',
+		'promotion',
 		//		'email_verified_at'
 	];
 
@@ -400,13 +402,18 @@ public function echeances()
 
 
 	public function presences(): HasMany
-{
-    return $this->hasMany(CoursPresence::class, 'etudiant_id');
-}
+	{
+		return $this->hasMany(CoursPresence::class, 'etudiant_id');
+	}
 
-/**
- * Les comportements de l'étudiant
- */
+	public function advertiser()
+	{
+		return $this->belongsTo(Advertiser::class);
+	}
+
+	/**
+	 * Les comportements de l'étudiant
+	 */
 public function comportements(): HasMany
 {
     return $this->hasMany(Comportement::class, 'etudiant_id');

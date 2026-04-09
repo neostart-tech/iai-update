@@ -55,6 +55,9 @@ class CandidatureResource extends JsonResource
             'acceptation_date' => $this->acceptation_date,
             'end_accessibility_date' => $this->end_accessibility_date,
             'album' => new AlbumResource($this->resource->album),
+            'promotion' => $this->promotion,
+            'advertiser_id' => $this->advertiser_id,
+            'advertiser' => new AdvertiserResource($this->advertiser),
         ];
     }
 }

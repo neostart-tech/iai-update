@@ -347,6 +347,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/historique/{etudiantId}', 'getHistorique');
 
         // Effectuer un paiement
+        Route::post('/store', 'store');
         Route::post('/', 'store');
     });
     // Route::controller(PaiementGlobalController::class)->prefix('paiements')->group(function () {
