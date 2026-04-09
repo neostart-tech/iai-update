@@ -8,7 +8,7 @@ use App\Http\Resources\CandidatureResource;
 use App\Notifications\Candidatures\CandidatAbsentNotification;
 use App\Notifications\Candidatures\CandidatPresentNotification;
 use App\Jobs\{CandidatureFraisPayementJob, ConcoursResultJob, SmsSendingProcess};
-use App\Models\{AnneeScolaire, Candidature, CandidatureDocument, Etudiant, FiliereGroup, FraisInscription, Group, Inscription, Paiement, Reorientation};
+use App\Models\{AnneeScolaire, Candidature, CandidatureDocument, Etudiant, FiliereGroup, FraisInscription, Group, Inscription, Paiement, Reorientation, Role};
 use App\Notifications\Candidatures\CandidatWelcomeNotification;
 use App\Traits\ActionsTraits\{IndexTrait, CandidatureFirstValidationTrait};
 use App\Traits\FileManagementTrait;
@@ -483,6 +483,12 @@ class CandidatureController extends Controller
 				'advertiser_id' => $request->input('advertiser_id', $candidature->advertiser_id),
 				'matricule' => Str::upper($year . '_' . fake()->unique()->randomNumber(6, true)),
 			]);
+
+			// Assigner le rôle Étudiant
+			$roleEtudiant = Role::where('nom', 'Etudiant')->first();
+			if ($roleEtudiant) {
+				$etudiant->roles()->attach($roleEtudiant->id);
+			}
 		}
 
 		// Affectation au groupe

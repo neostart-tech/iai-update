@@ -278,10 +278,33 @@ class EvaluationController extends Controller
 
     public function getListEvaluationForStudent()
     {
+        /** @var \App\Models\Etudiant $user */
         $user = auth()->user();
+
+        // Sécurité : Vérifier si l'utilisateur est bien un étudiant et s'il est autorisé à composer
+        if (!$user || !($user instanceof \App\Models\Etudiant)) {
+            return response()->json(['message' => 'Accès non autorisé'], 401);
+        }
+
+        if (!$user->peutComposer()) {
+            return response()->json([
+                'message' => 'Votre accès aux examens est restreint. Veuillez contacter l\'administration.',
+                'blocked' => true,
+                'data' => []
+            ], 403);
+        }
+
         $active = AnneeScolaire::where('active', true)->first()->getAttribute('id');
 
-        $groupIds = EtudiantGroup::where('etudiant_id', $user->id)->where('annee_scolaire_id', $active)->first()->getAttribute('group_id');
+        $activeGroup = EtudiantGroup::where('etudiant_id', $user->id)
+            ->where('annee_scolaire_id', $active)
+            ->first();
+
+        if (!$activeGroup) {
+            return EvaluationResource::collection([]);
+        }
+
+        $groupIds = $activeGroup->getAttribute('group_id');
         $evaluations = Evaluation::where('group_id', $groupIds)
             ->with(['salle', 'group'])
             ->where('is_online', true)
@@ -298,7 +321,6 @@ class EvaluationController extends Controller
 
         $evaluations = Evaluation::with(['salle', 'group', 'group.niveau'])
             ->where('is_online', true)
-            ->where('published', true)
             ->orderBy('date', 'asc')
             ->get();
 

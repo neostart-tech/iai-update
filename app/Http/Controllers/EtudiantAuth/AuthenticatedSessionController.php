@@ -45,7 +45,7 @@ class AuthenticatedSessionController extends Controller
 				], 422);
 			}
 
-			Auth::login($user);
+			Auth::guard('etudiants')->login($user);
 
 			$token = $user->createToken('auth_token')->plainTextToken;
 		} else {

@@ -39,7 +39,7 @@ use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
+    return $request->user()->load('roles');
 });
 
 
@@ -372,6 +372,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/situation/statistiques', [EtudiantSituationController::class, 'statistiques']);
         Route::get('/situation/{id}', [EtudiantSituationController::class, 'show']);
         Route::get('/situation/export/csv', [EtudiantSituationController::class, 'exportCSV']);
+        Route::put('/situation/{id}/statut', [EtudiantSituationController::class, 'updateStatut']);
     });
 
 

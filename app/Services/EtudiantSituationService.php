@@ -117,6 +117,7 @@ class EtudiantSituationService
         return [
             // Infos de base
             'id' => $etudiant->id,
+            'statut_global' => $etudiant->statut ?? 'actif',
             'matricule' => $etudiant->matricule,
             'nom' => $etudiant->nom,
             'prenom' => $etudiant->prenom,

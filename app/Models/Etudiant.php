@@ -50,6 +50,7 @@ class Etudiant extends Authenticatable
 		'image',
 		'annee_admission',
 		'matricule',
+		'statut',
 		'slug',
 		'cv',
 		'advertiser_id',
@@ -325,6 +326,26 @@ public function echeances()
 				return false;
 			}
 		}
+
+		return true;
+	}
+
+	/**
+	 * Vérifie si l'étudiant est autorisé à composer pour les examens en ligne
+	 */
+	public function peutComposer(): bool
+	{
+		// 1. Vérification du statut global (manuel)
+		if ($this->statut === 'bloque') {
+			return false;
+		}
+
+		// 2. Vérification financière (Désactivée pour le moment selon demande)
+		/*
+		if (!$this->estAjour()) {
+			return false;
+		}
+		*/
 
 		return true;
 	}
