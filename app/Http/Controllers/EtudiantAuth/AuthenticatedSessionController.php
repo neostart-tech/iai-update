@@ -16,68 +16,92 @@ use MercurySeries\Flashy\Flashy;
 
 class AuthenticatedSessionController extends Controller
 {
-	public function create(): View
-	{
-		return view('auth.etudiants.login');
-	}
+    public function create(): View
+    {
+        return view('auth.etudiants.login');
+    }
 
-	/**
-	 * @throws ValidationException
-	 */
-	public function store(EtudiantLoginRequest $request)
-	{
-		// //Code quaund on veut utliser le blade
-		// $request->authenticate();
+    /**
+     * @throws ValidationException
+     */
+    public function store(EtudiantLoginRequest $request)
+    {
+        // //Code quaund on veut utliser le blade
+        // $request->authenticate();
 
-		// $request->session()->regenerate();
-		// // Flashy::success($request->user('etudiants')->greeting(), icon: 'waving_hand');
-		// return redirect()->intended(route('etudiants.auth.login'));
+        // $request->session()->regenerate();
+        // // Flashy::success($request->user('etudiants')->greeting(), icon: 'waving_hand');
+        // return redirect()->intended(route('etudiants.auth.login'));
 
-		//Code quaund on veut utliser le nuxt
-		$request->validated();
-		$credentials = $request->only('email', 'password');
-		//Retouner une repsonse json vu que cette route sera comme uen api en nuxt 
-		$user = Etudiant::where('email', $credentials['email'])->first();
-		if ($user) {
-			if (!Hash::check($credentials['password'], $user->password)) {
-				return response()->json([
-					'message' => 'Les informations de connexion sont invalides.'
-				], 422);
-			}
+        //Code quaund on veut utliser le nuxt
+        $request->validated();
+        $credentials = $request->only('email', 'password');
+        //Retouner une repsonse json vu que cette route sera comme uen api en nuxt 
+        $user = Etudiant::where('email', $credentials['email'])->first();
+        if ($user) {
+            if (!Hash::check($credentials['password'], $user->password)) {
+                return response()->json([
+                    'message' => 'Les informations de connexion sont invalides.'
+                ], 422);
+            }
+            if (Auth::guard('etudiants')) {
+                Auth::guard('etudiants')->login($user);
+            } else {
+                Auth::login($user);
+            }
 
-			Auth::guard('etudiants')->login($user);
+            $token = $user->createToken('auth_token')->plainTextToken;
+        } else {
+            return response()->json([
+                'message' => 'Les informations de connexion sont invalides.'
+            ], 422);
+        }
 
-			$token = $user->createToken('auth_token')->plainTextToken;
-		} else {
-			return response()->json([
-				'message' => 'Les informations de connexion sont invalides.'
-			], 422);
-		}
+        // Forcer le rôle étudiant si les rôles sont vides (correction temporaire pour la prod)
+        if ($user->roles->isEmpty()) {
+            $studentRole = new \App\Models\Role([
+                'id' => 1,
+                'nom' => 'Etudiant',
+                'slug' => 'etudiant',
+                'active' => 1
+            ]);
+            $user->setRelation('roles', collect([$studentRole]));
+        } else {
 
-		return response()->json([
-			'message' => 'Connexion réussie.',
-			'user' => $user->load('roles'),
-			'token' => $token,
-		], 200);
-	}
+            $studentRole = new \App\Models\Role([
+                'id' => 1,
+                'nom' => 'Etudiant',
+                'slug' => 'etudiant',
+                'active' => 1
+            ]);
+            $user->setRelation('roles', collect([$studentRole]));
+        }
 
-	public function destroy(Request $request): RedirectResponse
-	{
-		Auth::guard('etudiants')->logout();
 
-		$request->session()->invalidate();
+        return response()->json([
+            'message' => 'Connexion réussie.',
+            'user' => $user,
+            'token' => $token,
+        ], 200);
+    }
 
-		$request->session()->regenerateToken();
+    public function destroy(Request $request): RedirectResponse
+    {
+        Auth::guard('etudiants')->logout();
 
-		return to_route('home');
-	}
+        $request->session()->invalidate();
 
-	public function update(Request $request)
+        $request->session()->regenerateToken();
+
+        return to_route('home');
+    }
+
+    public function update(Request $request)
     {
         $request->validate([
             'current_password' => ['required', 'string'],
             'new_password' => [
-                'required', 
+                'required',
                 'string',
                 'confirmed',
                 Password::min(8)
