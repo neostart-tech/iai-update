@@ -372,6 +372,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/situation/statistiques', [EtudiantSituationController::class, 'statistiques']);
         Route::get('/situation/{id}', [EtudiantSituationController::class, 'show']);
         Route::get('/situation/export/csv', [EtudiantSituationController::class, 'exportCSV']);
+        Route::post('/situation/bulk-status', [EtudiantSituationController::class, 'bulkUpdateStatut']);
         Route::put('/situation/{id}/statut', [EtudiantSituationController::class, 'updateStatut']);
     });
 
@@ -492,6 +493,9 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::get('/exam/{evaluationId}/submissions/all', [ExamSubmissionController::class, 'allSubmissions']);
+    Route::get('/exam/{evaluationId}/all-submissions', [ExamSubmissionController::class, 'allSubmissions']);
+    Route::get('/exam/{evaluationId}/submissions/submitted', [ExamSubmissionController::class, 'submittedOnlySubmissions']);
+    Route::post('/exam/{evaluationId}/finalize-grade/{etudiantId}', [ExamSubmissionController::class, 'finalizeEtudiantGrade']);
 
     // ==================== SESSIONS (GESTION) ====================
     Route::get('/evaluations/{evaluationId}/sessions', [ExamSessionController::class, 'examSessions']);
@@ -509,9 +513,7 @@ Route::get('/exam-submissions/{id}/details', [ExamSubmissionController::class, '
 
 
 Route::prefix('exam')->group(function () {
-    
     Route::post('/{evaluationId}/save-complex', [ExamComplexResponseController::class, 'saveComplex']);
-    Route::get('/{evaluationId}/student/{etudiantId}/submissions', [ExamComplexResponseController::class, 'getStudentSubmissions']);
 });
 
 Route::prefix('tickets')->group(function(){

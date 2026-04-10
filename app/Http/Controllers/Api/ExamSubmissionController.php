@@ -8,6 +8,7 @@ use App\Models\ExamSubmission;
 use App\Models\ExamQuestion;
 use App\Models\ExamSession;
 use App\Models\Evaluation;
+use App\Models\Note;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
@@ -292,8 +293,18 @@ class ExamSubmissionController extends Controller
     /**
      * POST /api/exam-submissions/{id}/grade
      */
-    public function grade(Request $request, ExamSubmission $examSubmission): JsonResponse
+    public function grade(Request $request, $id): JsonResponse
     {
+        $examSubmission = ExamSubmission::findOrFail($id);
+        
+        // Empêcher la modification si déjà noté
+        if ($examSubmission->points_obtenus !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette question a déjà été notée et ne peut plus être modifiée.'
+            ], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'points_obtenus' => 'required|numeric|min:0',
             'commentaire' => 'nullable|string'
@@ -308,14 +319,23 @@ class ExamSubmissionController extends Controller
         }
 
         try {
-            $examSubmission->update([
-                'points_obtenus' => $request->points_obtenus,
-                'metadata' => array_merge($examSubmission->metadata ?? [], [
-                    'commentaire_correction' => $request->commentaire,
-                    'corrige_par' => auth()->id(),
-                    'corrige_le' => now()->toDateTimeString()
-                ])
-            ]);
+            $reponse = $examSubmission->reponse;
+            if (!is_array($reponse)) {
+                $reponse = ['text' => (string)$reponse];
+            }
+            
+            $reponse['commentaire_correction'] = $request->commentaire;
+            $reponse['corrige_par'] = auth()->id() ?? 1; // Fallback to 1 if not auth
+            $reponse['corrige_le'] = now()->toDateTimeString();
+
+            // Affectation manuelle
+            $examSubmission->points_obtenus = $request->points_obtenus;
+            $examSubmission->reponse = $reponse;
+            $saved = $examSubmission->save();
+
+            if (!$saved) {
+                throw new \Exception("Échec de la sauvegarde Eloquent");
+            }
 
             return response()->json([
                 'success' => true,
@@ -430,39 +450,88 @@ class ExamSubmissionController extends Controller
         ];
     }
 
-public function allSubmissions(string $evaluationId): JsonResponse
-{
-    try {
-        // Trouver l'évaluation par son slug
-        $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
-        
-        // 🔴 CORRECTION - Utiliser etudiantGroups pour récupérer les étudiants du groupe
-        $etudiants = Etudiant::whereHas('etudiantGroups', function($q) use ($evaluation) {
-            $q->where('group_id', $evaluation->group_id)
-              ->where('annee_scolaire_id', injectAnneeScolaireId()); // Filtrer par année active
-        })->get();
-        
-        // Alternative si vous voulez charger les relations
-        $etudiants = Etudiant::with(['etudiantGroups' => function($q) use ($evaluation) {
-            $q->where('group_id', $evaluation->group_id)
-              ->where('annee_scolaire_id', injectAnneeScolaireId());
-        }])->whereHas('etudiantGroups', function($q) use ($evaluation) {
-            $q->where('group_id', $evaluation->group_id)
-              ->where('annee_scolaire_id', injectAnneeScolaireId());
-        })->get();
-        
-        // Récupérer toutes les questions avec leurs parties
-        $questions = ExamQuestion::whereHas('part', function($q) use ($evaluation) {
-            $q->where('evaluation_id', $evaluation->id);
-        })->with(['part', 'options'])->orderBy('order')->get();
-        
-        // Récupérer toutes les soumissions
-        $submissions = ExamSubmission::where('evaluation_id', $evaluation->id)
-                                    ->get()
-                                    ->groupBy('etudiant_id');
-        
+    public function allSubmissions(string $evaluationId): JsonResponse
+    {
+        try {
+            $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
+            
+            $etudiants = Etudiant::with(['etudiantGroups' => function($q) use ($evaluation) {
+                $q->where('group_id', $evaluation->group_id)
+                  ->where('annee_scolaire_id', injectAnneeScolaireId());
+            }])->whereHas('etudiantGroups', function($q) use ($evaluation) {
+                $q->where('group_id', $evaluation->group_id)
+                  ->where('annee_scolaire_id', injectAnneeScolaireId());
+            })->get();
+            
+            $questions = ExamQuestion::whereHas('part', function($q) use ($evaluation) {
+                $q->where('evaluation_id', $evaluation->id);
+            })->with(['part', 'options'])->orderBy('order')->get();
+            
+            $submissions = ExamSubmission::where('evaluation_id', $evaluation->id)
+                                        ->get()
+                                        ->groupBy('etudiant_id');
+            
+            $resultats = $this->formatResults($etudiants, $questions, $submissions);
+            
+            $stats = $this->calculateStats($resultats, $evaluation->id);
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'etudiants' => $resultats,
+                    'questions' => $questions,
+                    'stats' => $stats,
+                    'total_points' => $questions->sum('points')
+                ]
+            ], 200);
+            
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function submittedOnlySubmissions(string $evaluationId): JsonResponse
+    {
+        try {
+            $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
+            
+            // Uniquement ceux qui ont au moins une soumission
+            $etudiants = Etudiant::whereHas('examSubmissions', function($q) use ($evaluation) {
+                $q->where('evaluation_id', $evaluation->id);
+            })->with(['etudiantGroups' => function($q) use ($evaluation) {
+                $q->where('group_id', $evaluation->group_id)
+                  ->where('annee_scolaire_id', injectAnneeScolaireId());
+            }])->get();
+            
+            $questions = ExamQuestion::whereHas('part', function($q) use ($evaluation) {
+                $q->where('evaluation_id', $evaluation->id);
+            })->with(['part', 'options'])->orderBy('order')->get();
+            
+            $submissions = ExamSubmission::where('evaluation_id', $evaluation->id)
+                                        ->get()
+                                        ->groupBy('etudiant_id');
+            
+            $resultats = $this->formatResults($etudiants, $questions, $submissions);
+            $stats = $this->calculateStats($resultats, $evaluation->id);
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'etudiants' => $resultats,
+                    'questions' => $questions,
+                    'stats' => $stats,
+                    'total_points' => $questions->sum('points')
+                ]
+            ], 200);
+            
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    private function formatResults($etudiants, $questions, $submissions)
+    {
         $resultats = [];
-        
         foreach ($etudiants as $etudiant) {
             $etudiantSubmissions = $submissions[$etudiant->id] ?? collect();
             
@@ -486,10 +555,7 @@ public function allSubmissions(string $evaluationId): JsonResponse
                 $statut = $questionsCorrigees === $questionsRepondues ? 'Corrigé' : 'Partiellement corrigé';
             }
             
-            // Récupérer le groupe actuel de l'étudiant (pour information)
-            $groupeActuel = $etudiant->etudiantGroups()
-                ->where('annee_scolaire_id', injectAnneeScolaireId())
-                ->first();
+            $groupeActuel = $etudiant->etudiantGroups->first();
             
             $resultats[] = [
                 'id' => $etudiant->id,
@@ -509,129 +575,88 @@ public function allSubmissions(string $evaluationId): JsonResponse
                 'derniereActivite' => $etudiantSubmissions->max('submitted_at') ?? $etudiantSubmissions->max('auto_saved_at'),
             ];
         }
-        
-        // Calculer les statistiques
+        return $resultats;
+    }
+
+    private function calculateStats($resultats, $evaluationId)
+    {
         $totalEtudiants = count($resultats);
         $etudiantsAvecReponses = collect($resultats)->filter(fn($e) => $e['progression']['repondues'] > 0)->count();
         $sommeNotes = collect($resultats)->sum('note');
         
-        $stats = [
+        return [
             'total_etudiants' => $totalEtudiants,
             'participation' => $totalEtudiants > 0 ? round(($etudiantsAvecReponses / $totalEtudiants) * 100) : 0,
             'moyenne' => $totalEtudiants > 0 ? round($sommeNotes / $totalEtudiants, 1) : 0,
-            'a_corriger' => ExamSubmission::where('evaluation_id', $evaluation->id)
+            'a_corriger' => ExamSubmission::where('evaluation_id', $evaluationId)
                                          ->whereNull('points_obtenus')
                                          ->count()
         ];
-        
-        return response()->json([
-            'success' => true,
-            'message' => 'Soumissions récupérées avec succès',
-            'data' => [
-                'etudiants' => $resultats,
-                'questions' => $questions,
-                'stats' => $stats,
-                'total_points' => $questions->sum('points')
-            ]
-        ], 200);
-        
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Erreur lors de la récupération',
-            'error' => $e->getMessage()
-        ], 500);
     }
-}
 
+    public function finalizeEtudiantGrade(Request $request, string $evaluationId, int $etudiantId): JsonResponse
+    {
+        try {
+            DB::beginTransaction();
+            $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
+            $totalPoints = ExamSubmission::where('evaluation_id', $evaluation->id)
+                                         ->where('etudiant_id', $etudiantId)
+                                         ->sum('points_obtenus');
+            $note = Note::updateOrCreate(
+                ['evaluation_id' => $evaluation->id, 'etudiant_id' => $etudiantId],
+                [
+                    'note' => $totalPoints, 
+                    'unite_valeur_id' => $evaluation->unite_valeur_id, 
+                    'slug' => uniqid('note_'),
+                    'annee_scolaire_id' => $evaluation->annee_scolaire_id ?? injectAnneeScolaireId()
+                ]
+            );
+            DB::commit();
+            return response()->json(['success' => true, 'data' => ['final_grade' => $totalPoints, 'note_id' => $note->id]]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
 
- public function submitComplex(Request $request, string $evaluationId): JsonResponse
+    public function submitComplex(Request $request, string $evaluationId): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'question_id' => 'required|exists:exam_questions,id',
             'etudiant_id' => 'required|exists:etudiants,id',
-            'reponse' => 'required|array' // La réponse structurée
+            'reponse' => 'required|array'
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur de validation',
-                'errors' => $validator->errors()
-            ], 422);
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
         try {
             DB::beginTransaction();
-
-            // Trouver l'évaluation par son slug
             $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
-            
-            // Vérifier que la question existe
-            $question = ExamQuestion::find($request->question_id);
-
-            // Créer ou mettre à jour la soumission
             $submission = ExamSubmission::updateOrCreate(
-                [
-                    'evaluation_id' => $evaluation->id,
-                    'etudiant_id' => $request->etudiant_id,
-                    'question_id' => $request->question_id
-                ],
-                [
-                    'reponse' => $request->reponse,
-                    'submitted_at' => now(),
-                    'auto_saved_at' => now(),
-                    'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent()
-                ]
+                ['evaluation_id' => $evaluation->id, 'etudiant_id' => $request->etudiant_id, 'question_id' => $request->question_id],
+                ['reponse' => $request->reponse, 'submitted_at' => now(), 'auto_saved_at' => now(), 'ip_address' => $request->ip(), 'user_agent' => $request->userAgent()]
             );
-
             DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Réponse soumise avec succès',
-                'data' => $submission
-            ], 200);
-
+            return response()->json(['success' => true, 'data' => $submission], 200);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la soumission',
-                'error' => $e->getMessage()
-            ], 500);
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
 
-     public function details(ExamSubmission $examSubmission): JsonResponse
+    public function details(ExamSubmission $examSubmission): JsonResponse
     {
         try {
-            $examSubmission->load(['question', 'etudiant', 'evaluation']);
-            
-            // Charger les données supplémentaires selon le type
-            if ($examSubmission->question->type === 'complex_data') {
-                $examSubmission->question->load('complexData');
-            } elseif ($examSubmission->question->type === 'structured_data') {
-                $examSubmission->question->load('structuredData');
-            } elseif ($examSubmission->question->type === 'multi_parts') {
-                $examSubmission->question->load('multiParts');
-            } elseif ($examSubmission->question->type === 'guided_writing') {
-                $examSubmission->question->load('guidedWriting');
+            $examSubmission->load(['question.part', 'etudiant', 'evaluation']);
+            $question = $examSubmission->question;
+            if (in_array($question->type, ['complex_data', 'structured_data', 'multi_parts', 'guided_writing'])) {
+                $question->load($question->type === 'complex_data' ? 'complexData' : ($question->type === 'structured_data' ? 'structuredData' : ($question->type === 'multi_parts' ? 'multiParts' : 'guidedWriting')));
             }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Détails récupérés',
-                'data' => $examSubmission
-            ], 200);
-
+            return response()->json(['success' => true, 'data' => $examSubmission], 200);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur',
-                'error' => $e->getMessage()
-            ], 500);
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
 }

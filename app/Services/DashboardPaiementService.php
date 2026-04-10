@@ -38,6 +38,7 @@ class DashboardPaiementService
             'statistiques_filieres' => $this->getStatistiquesParFiliere(),
             'statistiques_niveaux' => $this->getStatistiquesParNiveau(),
             'previsions' => $this->getPrevisions(),
+            'historique_6_mois' => $this->getHistorique6Mois(),
         ];
     }
 
@@ -264,9 +265,8 @@ protected function getRepartitionStatuts()
 
     $stats = [
         'solde' => 0,
-        'en_cours' => 0,
+        'a_jour' => 0,
         'en_retard' => 0,
-        'aucun_frais' => 0,
     ];
 
     // Récupérer tous les étudiants avec leurs relations
@@ -281,8 +281,13 @@ protected function getRepartitionStatuts()
 
     foreach ($etudiants as $etudiant) {
         $statut = $this->determinerStatutEtudiant($etudiant);
-        if (isset($stats[$statut])) {
-            $stats[$statut]++;
+        if ($statut === 'aucun_frais') continue;
+        
+        // Mapper 'en_cours' vers 'a_jour' pour le dashboard
+        $key = ($statut === 'en_cours') ? 'a_jour' : $statut;
+        
+        if (isset($stats[$key])) {
+            $stats[$key]++;
         }
     }
 
@@ -742,6 +747,32 @@ protected function getMontantAPayerEtudiant($etudiant)
         }
 
         return $previsions;
+    }
+
+    /**
+     * Historique des 6 derniers mois
+     */
+    protected function getHistorique6Mois()
+    {
+        $historique = [];
+        $aujourdhui = Carbon::now();
+
+        for ($i = 5; $i >= 0; $i--) {
+            $moisDate = $aujourdhui->copy()->subMonths($i)->startOfMonth();
+            $moisFin = $moisDate->copy()->endOfMonth();
+
+            $collecte = Paiement::whereBetween('created_at', [$moisDate, $moisFin])
+                ->where('status', 'valide')
+                ->sum('montant');
+
+            $historique[] = [
+                'mois' => $moisDate->format('Y-m'),
+                'label' => $moisDate->translatedFormat('F Y'),
+                'montant' => $collecte,
+            ];
+        }
+
+        return $historique;
     }
 
     /**

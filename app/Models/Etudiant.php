@@ -478,5 +478,11 @@ public function getStatistiquesPresencesAttribute()
 
 
 
-	
+    /**
+     * Relation avec les soumissions d'examens en ligne
+     */
+    public function examSubmissions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ExamSubmission::class, 'etudiant_id');
+    }
 }

@@ -19,7 +19,8 @@ class ExamSubmission extends Model
         'submitted_at',
         'auto_saved_at',
         'ip_address',
-        'user_agent'
+        'user_agent',
+        'metadata'
     ];
 
     protected $casts = [
@@ -29,7 +30,8 @@ class ExamSubmission extends Model
         'submitted_at' => 'datetime',
         'auto_saved_at' => 'datetime',
         'created_at' => 'datetime',
-        'updated_at' => 'datetime'
+        'updated_at' => 'datetime',
+        'metadata' => 'array'
     ];
 
     /**
