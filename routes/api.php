@@ -39,7 +39,23 @@ use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user()->load('roles');
+    $user = $request->user();
+    
+    // Charger les rôles normalement
+    $user->load('roles');
+    
+    // Si c'est un étudiant et qu'il n'a pas de rôles, on force le rôle 'etudiant'
+    if ($user instanceof \App\Models\Etudiant && $user->roles->isEmpty()) {
+        $studentRole = new \App\Models\Role([
+            'id' => 1,
+            'nom' => 'Etudiant',
+            'slug' => 'etudiant',
+            'active' => 1
+        ]);
+        $user->setRelation('roles', collect([$studentRole]));
+    }
+    
+    return $user;
 });
 
 
