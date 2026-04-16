@@ -25,6 +25,7 @@ use Maatwebsite\Excel\Concerns\Importable;
 use Carbon\Carbon;
 use Str;
 use Illuminate\Support\Facades\Log;
+use App\Services\FraisEtudiantService;
 
 class EtudiantsImport implements
     ToCollection,
@@ -50,6 +51,8 @@ class EtudiantsImport implements
 
     private int $anneeScolaireId;
     private int $roleEtudiantId;
+    private FraisEtudiantService $fraisService;
+
 
 
 
@@ -63,6 +66,7 @@ class EtudiantsImport implements
         $this->roleEtudiantId = DB::table('roles')
             ->where('slug', 'etudiant')
             ->value('id');
+        $this->fraisService = new FraisEtudiantService();
     }
     /**
      * Traitement par collection (plus rapide que ToModel)
@@ -103,11 +107,7 @@ class EtudiantsImport implements
                 //     continue;
                 // }
 
-                if (in_array($matricule, $this->existingMatricules)) {
-                    $this->skippedCount++;
-                    $this->addError($index + 2, 'Matricule déjà existant', $matricule);
-                    continue;
-                }
+                // Le matricule existe peut-être déjà, mais on continue pour permettre l'UPSERT et la mise à jour des frais
 
                 // Gérer la filière (avec cache)
                 $filiereId = $this->getFiliereId($filiereNom);
@@ -338,7 +338,7 @@ class EtudiantsImport implements
             // 2. Récupérer les IDs des étudiants
             $matricules = array_column($etudiantsBatch, 'matricule');
             $etudiants = Etudiant::whereIn('matricule', $matricules)
-                ->get(['id', 'matricule'])
+                ->get(['id', 'matricule', 'genre'])
                 ->keyBy('matricule');
 
             // 3. Compter les mises à jour
@@ -412,6 +412,22 @@ class EtudiantsImport implements
 
                 if (!empty($rolesUsersBatch)) {
                     DB::table('role_user')->insert($rolesUsersBatch);
+                }
+            }
+
+            // 6. Assigner les FRAIS par défaut (avec rechargement complet pour éviter les champs manquants)
+            foreach ($etudiants as $etudiant) {
+                try {
+                    // Recharger l'étudiant avec toutes ses relations pour garantir que le genre et les groupes sont disponibles
+                    $etudiantComplet = Etudiant::with(['etudiantGroups' => function($q) {
+                        $q->where('annee_scolaire_id', $this->anneeScolaireId);
+                    }])->find($etudiant->id);
+
+                    if ($etudiantComplet) {
+                        $this->fraisService->assignDefaultFrais($etudiantComplet, $this->anneeScolaireId);
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("Import: Impossible d'assigner les frais à l'étudiant ID={$etudiant->id}: " . $e->getMessage());
                 }
             }
 

@@ -44,11 +44,11 @@ class AuthenticatedSessionController extends Controller
                     'message' => 'Les informations de connexion sont invalides.'
                 ], 422);
             }
-            if (Auth::guard('etudiants')) {
+       
                 Auth::guard('etudiants')->login($user);
-            } else {
-                Auth::login($user);
-            }
+
+                \Log::info($user->load('roles'));
+         
 
             $token = $user->createToken('auth_token')->plainTextToken;
         } else {
@@ -57,30 +57,10 @@ class AuthenticatedSessionController extends Controller
             ], 422);
         }
 
-        // Forcer le rôle étudiant si les rôles sont vides (correction temporaire pour la prod)
-        if ($user->roles->isEmpty()) {
-            $studentRole = new \App\Models\Role([
-                'id' => 1,
-                'nom' => 'Etudiant',
-                'slug' => 'etudiant',
-                'active' => 1
-            ]);
-            $user->setRelation('roles', collect([$studentRole]));
-        } else {
-
-            $studentRole = new \App\Models\Role([
-                'id' => 1,
-                'nom' => 'Etudiant',
-                'slug' => 'etudiant',
-                'active' => 1
-            ]);
-            $user->setRelation('roles', collect([$studentRole]));
-        }
-
 
         return response()->json([
             'message' => 'Connexion réussie.',
-            'user' => $user,
+            'user' => $user->load('roles'),
             'token' => $token,
         ], 200);
     }

@@ -34,6 +34,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use App\Services\GeminiService;
 use Throwable;
 
 class EvaluationController extends Controller
@@ -325,5 +326,57 @@ class EvaluationController extends Controller
             ->get();
 
         return EvaluationResource::collection($evaluations);
+    }
+
+    /**
+     * Suggérer des questions via l'IA
+     */
+    public function aiSuggestQuestions(Request $request, GeminiService $geminiService)
+    {
+        $request->validate([
+            'topic' => 'required|string',
+            'part_id' => 'required'
+        ]);
+
+        try {
+            $result = $geminiService->generateQuestions(
+                $request->topic, 
+                4, // On propose 4 questions pour commencer
+                'intermédiaire'
+            );
+
+            return response()->json($result);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération : ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Raffiner une question via l'IA
+     */
+    public function aiRefineQuestion(Request $request, GeminiService $geminiService)
+    {
+        $request->validate([
+            'content' => 'required|string',
+            'type' => 'required|string'
+        ]);
+
+        try {
+            $result = $geminiService->getQuestionAssistance(
+                $request->content,
+                $request->type,
+                $request->options ?? null
+            );
+
+            return response()->json($result);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'optimisation : ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

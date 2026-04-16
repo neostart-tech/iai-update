@@ -21,6 +21,7 @@ class FraisScolariteResource extends JsonResource
             "montant" => $this->resource->montant,
             "genre" => $this->resource->genre,
             "description" => $this->resource->description,
+            "frequence" => $this->resource->frequence,
             "filiere" => new FiliereResource($this->resource->filiere),
             'tranches' => TranchePaiementResource::collection(
                 $this->whenLoaded('tranchepaiement')

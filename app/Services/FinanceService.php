@@ -18,7 +18,7 @@ class FinanceService
 
     public function __construct($anneeId = null)
     {
-        $this->anneeId = $anneeId ?? injectAnneeScolaireId();
+        $this->anneeId = $anneeId ?? getAnneeScolaireId();
     }
 
     /**
@@ -82,6 +82,7 @@ class FinanceService
 
     private function getPrevisionsTotales()
     {
+        // On récupère la somme réelle attendue (après bourses) pour tous les dossiers actifs
         return FraisEtudiant::where('annee_scolaire_id', $this->anneeId)
             ->where('est_en_abandon', false)
             ->sum('montant_apres_bourse');
@@ -104,32 +105,44 @@ class FinanceService
 
     private function getRepartitionStatuts()
     {
-        $counts = FraisEtudiant::where('annee_scolaire_id', $this->anneeId)
-            ->select('statut', DB::raw('count(*) as total'))
-            ->groupBy('statut')
-            ->pluck('total', 'statut');
-
-        $totalAvecFrais = $counts->sum();
-        $totalEtudiants = Etudiant::whereHas('etudiantGroups', fn($q) => $q->where('annee_scolaire_id', $this->anneeId))->count();
-
-        return [
-            'solde' => $counts['solde'] ?? 0,
-            'en_cours' => $counts['en_cours'] ?? 0,
-            'en_retard' => $counts['en_retard'] ?? 0,
-            'abandon' => $counts['abandon'] ?? 0,
-            'aucun_frais' => max(0, $totalEtudiants - $totalAvecFrais)
+        // 1. On récupère TOUS les dossiers de l'année pour être sûr de ne rien rater
+        $dossiers = FraisEtudiant::where('annee_scolaire_id', $this->anneeId)->get();
+        
+        // 2. Initialisation des compteurs avec des clés techniques (slugs)
+        $stats = [
+            'solde' => 0,
+            'a_jour' => 0,
+            'retard' => 0,
+            'abandon' => 0
         ];
+
+        foreach ($dossiers as $d) {
+            if ($d->est_en_abandon || $d->statut === 'abandon') {
+                $stats['abandon']++;
+            } elseif ($d->statut === 'solde' || $d->reste_a_payer <= 0) {
+                $stats['solde']++;
+            } elseif ($d->statut === 'en_retard' || (method_exists($d, 'getEstEnRetardAttribute') && $d->est_en_retard)) {
+                $stats['retard']++;
+            } else {
+                // Tout dossier actif non en retard et non soldé est considéré comme "À jour"
+                $stats['a_jour']++;
+            }
+        }
+
+        return $stats;
     }
 
     private function getStatsFilieres()
     {
         return Filiere::all()->map(function($filiere) {
+            // Prévisions réelles basées sur les dossiers FraisEtudiant
             $prev = FraisEtudiant::where('annee_scolaire_id', $this->anneeId)
+                ->where('est_en_abandon', false)
                 ->whereHas('fraisScolarite', fn($q) => $q->where('filiere_id', $filiere->id))
                 ->sum('montant_apres_bourse');
             
             $paye = Paiement::where('status', 'valide')
-                ->whereHas('etudiant.etudiantGroups', fn($q) => $q->where('filiere_id', $filiere->id))
+                ->whereHas('etudiant.etudiantGroups', fn($q) => $q->where('filiere_id', $filiere->id)->where('annee_scolaire_id', $this->anneeId))
                 ->sum('montant');
 
             return [
@@ -147,7 +160,9 @@ class FinanceService
     public function getIndicateursParNiveau()
     {
         return Niveau::all()->map(function($niveau) {
+            // Prévisions réelles basées sur les dossiers FraisEtudiant
             $prev = FraisEtudiant::where('annee_scolaire_id', $this->anneeId)
+                ->where('est_en_abandon', false)
                 ->whereHas('fraisScolarite', fn($q) => $q->where('niveau_id', $niveau->id))
                 ->sum('montant_apres_bourse');
             
@@ -182,9 +197,10 @@ class FinanceService
             $inscription    = (clone $queryBase)->where('nature_paiement', 'inscription')->sum('montant');
             $scolarite      = $totalEncaisse - $inscription;
 
+            // Prévisions réelles basées sur les dossiers FraisEtudiant
             $previsions = FraisEtudiant::where('annee_scolaire_id', $this->anneeId)
-                ->whereHas('fraisScolarite', fn($q) => $q->where('niveau_id', $niveau->id))
                 ->where('est_en_abandon', false)
+                ->whereHas('fraisScolarite', fn($q) => $q->where('niveau_id', $niveau->id))
                 ->sum('montant_apres_bourse');
 
             return [
@@ -491,14 +507,18 @@ class FinanceService
             // Table absente ou vide
         }
 
-        // Courbe 3 : Dépenses (table non encore créée → zéros)
-        // TODO: connecter à la table depenses quand le module sera disponible
+        // Courbe 3 : Dépenses
+        $depenses = Depense::where('annee_scolaire_id', $this->anneeId)
+            ->select(DB::raw('MONTH(date_depense) as mois'), DB::raw('SUM(montant) as total'))
+            ->whereYear('date_depense', Carbon::now()->year)
+            ->groupBy('mois')
+            ->pluck('total', 'mois');
 
         return [
             'labels'        => ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'],
             'encaissements' => $this->formatMonthlyData($encaissements),
             'previsions'    => $this->formatMonthlyData($previsions),
-            'depenses'      => array_fill(0, 12, 0),
+            'depenses'      => $this->formatMonthlyData($depenses),
         ];
     }
 

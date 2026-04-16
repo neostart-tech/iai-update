@@ -36,17 +36,24 @@ class NoteController extends Controller
 
 	private function generateFicheDeNote(Evaluation $evaluation): void
 	{
-		$notes = collect();
-		$evaluation->group->etudiants->each(function (Etudiant $etudiant) use ($notes, $evaluation) {
-			$notes->add([
-				'unite_valeur_id' => $evaluation->getAttribute('unite_valeur_id'),
-				'etudiant_id' => $etudiant->getAttribute('id'),
-				...injectAnneeScolaireId(),
-				'anonymat' => $this->generateAnonymat()
-			]);
+		$evaluation->group->etudiants->each(function (Etudiant $etudiant) use ($evaluation) {
+			$note = Note::where('evaluation_id', $evaluation->id)
+				->where('etudiant_id', $etudiant->id)
+				->first();
+
+			if (!$note) {
+				Note::create([
+					'evaluation_id' => $evaluation->id,
+					'etudiant_id' => $etudiant->id,
+					'unite_valeur_id' => $evaluation->unite_valeur_id,
+					...injectAnneeScolaireId(),
+					'anonymat' => $this->generateAnonymat()
+				]);
+			} elseif (!$note->anonymat) {
+				$note->update(['anonymat' => $this->generateAnonymat()]);
+			}
 		});
 		$evaluation->update(['has_anonymat' => true]);
-		$evaluation->notes()->createMany($notes);
 	}
 
 	private function generateAnonymat(): string

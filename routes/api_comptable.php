@@ -60,6 +60,7 @@ Route::group([],function () {
 		Route::get('index', 'index')->name('index');
 		Route::get('/{id}/tranche', 'show')->name('show');
 		Route::post('store', 'store')->name('store');
+		Route::post('duplicate', 'duplicate')->name('duplicate');
 		Route::put('update/{id}', 'update')->name('update');
 		Route::delete('destroy/{id}', 'destroy')->name('destroy');
 	});

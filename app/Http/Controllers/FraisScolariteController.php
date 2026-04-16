@@ -12,6 +12,7 @@ use App\Http\Resources\FraisScolariteResource;
 use App\Http\Resources\NiveauResource;
 use Illuminate\Http\Request;
 use App\Models\TranchePaiement;
+use Carbon\Carbon;
 
 
 class FraisScolariteController extends Controller
@@ -66,6 +67,37 @@ class FraisScolariteController extends Controller
     //     // return new FraisScolariteResource($frais);
     //     return redirect()->route('comptable.frais.index')->with('success', 'Frais enregistré avec succès');
     // }
+    /**
+     * Dupliquer les frais d'une année vers une autre
+     */
+    public function duplicate(Request $request)
+    {
+        $request->validate([
+            'source_year_id' => 'required|exists:annee_scolaires,id',
+            'target_year_id' => 'required|exists:annee_scolaires,id'
+        ]);
+
+        $sourceFrais = FraisScolarite::where('annee_scolaire_id', $request->source_year_id)->get();
+        $count = 0;
+
+        foreach ($sourceFrais as $item) {
+            // Créer le nouveau frais
+            $newFrais = $item->replicate();
+            $newFrais->annee_scolaire_id = $request->target_year_id;
+            $newFrais->save();
+
+            // Dupliquer aussi les tranches si elles existent
+            foreach ($item->tranchepaiement as $tranche) {
+                $newTranche = $tranche->replicate();
+                $newTranche->frais_scolarite_id = $newFrais->id;
+                $newTranche->save();
+            }
+            $count++;
+        }
+
+        return response()->json(['message' => "$count frais dupliqués avec succès"]);
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -73,62 +105,87 @@ class FraisScolariteController extends Controller
             'filiere_id' => "nullable",
             'montant' => 'required|numeric|min:1000',
             'genre' => 'nullable',
-            "description" => 'nullable'
+            "description" => 'nullable',
+            "frequence" => "nullable|in:annuel,trimestriel,bimestriel" // Nouvelle option
         ]);
 
-
-        $data = FraisScolarite::create([
+        $frais = FraisScolarite::create([
             ...$request->all(),
             "annee_scolaire_id" => AnneeScolaire::courante()->id
         ]);
 
-        return new FraisScolariteResource($data);
+        // Génération automatique des tranches si demandé
+        if ($request->frequence) {
+            $this->generateAutoTranches($frais, $request->frequence);
+        }
+
+        return new FraisScolariteResource($frais->load('tranchepaiement'));
     }
 
-    // public function update(Request $request, $id)
-    // {
-    //     $request->validate([
-    //         'niveau_id' => 'required|exists:niveaux,id',
-    //         'montant' => 'required|integer|min:0',
-    //         'genre' => 'required|in:Masculin,Féminin,Tous',
-    //         'description' => 'nullable|string|max:255',
-    //     ]);
-
-    //     $frais = FraisScolarite::findOrFail($id);
-
-    //     $frais->update($request->all());
-    //     // return new FraisScolariteResource($frais);
-
-    //     return redirect()->route('comptable.frais.index')->with('success', 'Frais modifié avec succès');
-    // }
-    public function update(Request $request,$frais)
+    public function update(Request $request, $frais)
     {
+        $frais = FraisScolarite::findOrFail($frais);
+        $frais->update($request->except(['existingTranches']));
 
-    $frais=FraisScolarite::find($frais);
+        if ($request->frequence) {
+            // Supprimer les anciennes tranches avant de régénérer
+            $frais->tranchepaiement()->delete();
+            $this->generateAutoTranches($frais, $request->frequence);
+        }
 
-        $frais->update($request->all());
-
-        return new FraisScolariteResource($frais);
+        return new FraisScolariteResource($frais->load('tranchepaiement'));
     }
 
+    /**
+     * Génère les tranches de paiement automatiquement
+     */
+    private function generateAutoTranches($frais, $frequency)
+    {
+        $anneeActive = AnneeScolaire::where('active', true)->first();
+        $dateDebut = $anneeActive && $anneeActive->date_debut ? Carbon::parse($anneeActive->date_debut) : Carbon::now();
+        
+        $nbTranches = match($frequency) {
+            'annuel' => 1,
+            'trimestriel' => 3,
+            'bimestriel' => 6,
+            default => 1
+        };
+
+        $intervalle = match($frequency) {
+            'annuel' => 12,
+            'trimestriel' => 3,
+            'bimestriel' => 2,
+            default => 3
+        };
+
+        $totalMontant = $frais->montant;
+        $montantTranche = floor($totalMontant / $nbTranches);
+        $reliquat = $totalMontant % $nbTranches;
+
+        for ($i = 0; $i < $nbTranches; $i++) {
+            $echeance = (clone $dateDebut)->addMonths($i * $intervalle);
+            
+            \App\Models\TranchePaiement::create([
+                'frais_scolarite_id' => $frais->id,
+                'annee_scolaire_id' => $frais->annee_scolaire_id,
+                'libelle' => 'Tranche ' . ($i + 1),
+                'montant' => ($i === 0) ? ($montantTranche + $reliquat) : $montantTranche,
+                'date_limite' => $echeance->format('Y-m-d'),
+                'status' => true
+            ]);
+        }
+    }
 
     public function destroy($id)
     {
         $frais = FraisScolarite::findOrFail($id);
         $frais->delete();
-
         return new FraisScolariteResource($frais);
-
-
-        // return redirect()->route('comptable.frais.index')->with('success', 'Frais supprimé avec succès');
     }
 
     public function show($id)
     {
-        $frais = FraisScolarite::find($id);
-        // $tranches = TranchePaiement::where('frais_scolarite_id', $id)->latest()->get();
+        $frais = FraisScolarite::with('tranchepaiement')->find($id);
         return new FraisScolariteResource($frais);
-
-        // return view('comptabilite.Tranche._index', compact('tranches', 'frais'));
     }
 }

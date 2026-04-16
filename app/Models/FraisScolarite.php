@@ -52,17 +52,46 @@ class FraisScolarite extends Model
     /**
      * Récupérer les frais appropriés selon le genre de l'étudiant
      */
-    public static function getFraisForEtudiant($niveauId, $genre, $anneeScolaireId = null)
+    public static function getFraisForEtudiant($niveauId, $genre = 'Tous', $filiereId = null, $anneeScolaireId = null)
     {
-        $anneeScolaireId = $anneeScolaireId ?? getAnneeScolaireId();
+        // On récupère l'année passée ou l'année active par défaut
+        $anneeTargetId = $anneeScolaireId ?? (\DB::table('annee_scolaires')->where('active', 1)->value('id') ?? 1);
 
-        return self::where('niveau_id', $niveauId)
-            ->where('annee_scolaire_id', $anneeScolaireId)
-            ->where(function ($query) use ($genre) {
-                $query->where('genre', $genre)
-                    ->orWhere('genre', 'Tous');
+        $query = self::withoutGlobalScopes()
+            ->where('annee_scolaire_id', $anneeTargetId)
+            ->where('niveau_id', $niveauId);
+
+        // 1. Recherche précise : Filière + Genre
+        $result = (clone $query);
+        if ($filiereId) {
+            $result->where('filiere_id', $filiereId);
+        } else {
+            $result->whereNull('filiere_id');
+        }
+        $res = $result->where('genre', $genre)->first();
+        if ($res) return $res;
+
+        // 2. Fallback : Filière + Genre "Tous"
+        $result = (clone $query);
+        if ($filiereId) {
+            $result->where('filiere_id', $filiereId);
+        } else {
+            $result->whereNull('filiere_id');
+        }
+        $res = $result->where('genre', 'Tous')->first();
+        if ($res) return $res;
+
+        // 3. Fallback : Pas de filière + Genre "Tous" ou spécifique ou NULL
+        $res = self::withoutGlobalScopes()
+            ->where('annee_scolaire_id', $anneeTargetId)
+            ->where('niveau_id', $niveauId)
+            ->whereNull('filiere_id')
+            ->where(function($q) use ($genre) {
+                $q->whereIn('genre', [$genre, 'Tous'])
+                  ->orWhereNull('genre');
             })
-            ->orderBy('genre', 'desc') // Priorité aux frais spécifiques au genre
             ->first();
+
+        return $res;
     }
 }

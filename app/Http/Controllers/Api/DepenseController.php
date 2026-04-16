@@ -16,7 +16,7 @@ class DepenseController extends Controller
     public function index(Request $request)
     {
         try {
-            $anneeId = $request->get('annee_id') ?? injectAnneeScolaireId();
+            $anneeId = $request->get('annee_id') ?? getAnneeScolaireId();
             $query = Depense::with('user')->where('annee_scolaire_id', $anneeId);
 
             if ($request->has('categorie')) {
@@ -65,7 +65,7 @@ class DepenseController extends Controller
         }
 
         try {
-            $anneeId = injectAnneeScolaireId();
+            $anneeId = getAnneeScolaireId();
             
             $depense = Depense::create([
                 'titre' => $request->titre,
@@ -119,7 +119,7 @@ class DepenseController extends Controller
     public function stats(Request $request)
     {
         try {
-            $anneeId = $request->get('annee_id') ?? injectAnneeScolaireId();
+            $anneeId = $request->get('annee_id') ?? getAnneeScolaireId();
             
             $stats = Depense::where('annee_scolaire_id', $anneeId)
                 ->selectRaw('categorie, SUM(montant) as total')

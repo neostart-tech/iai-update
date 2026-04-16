@@ -697,4 +697,55 @@ class ExamQuestionController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * AI: Générer des questions
+     * POST /api/exam-questions/generate-ai
+     */
+    public function aiGenerate(Request $request, \App\Services\GeminiService $geminiService): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'topic' => 'required|string',
+            'count' => 'nullable|integer|min:1|max:10',
+            'difficulty' => 'nullable|string',
+            'part_id' => 'required|exists:exam_parts,id'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $result = $geminiService->generateQuestions(
+            $request->topic,
+            $request->count ?? 5,
+            $request->difficulty ?? 'intermédiaire'
+        );
+
+        return response()->json($result);
+    }
+
+    /**
+     * AI: Aide sur une question
+     * POST /api/exam-questions/refine-ai
+     */
+    public function aiRefine(Request $request, \App\Services\GeminiService $geminiService): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'content' => 'required|string',
+            'type' => 'required|string',
+            'options' => 'nullable|array'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $result = $geminiService->getQuestionAssistance(
+            $request->content,
+            $request->type,
+            $request->options
+        );
+
+        return response()->json($result);
+    }
 }

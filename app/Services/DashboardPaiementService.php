@@ -126,37 +126,16 @@ class DashboardPaiementService
     protected function calculerMontantTotalAPayer()
     {
         $total = 0;
-
-        // Montant des frais négociés
-        $total += FraisEtudiant::where('annee_scolaire_id', $this->anneeScolaireId)
-            ->sum('montant_apres_bourse');
-
-        // Montant des frais standard (via tranches)
         $etudiants = Etudiant::whereHas('etudiantGroups', function($q) {
             $q->where('annee_scolaire_id', $this->anneeScolaireId);
-        })->get();
+        })->with(['etudiantGroups' => function($q) {
+            $q->where('annee_scolaire_id', $this->anneeScolaireId);
+        }, 'fraisEtudiant' => function($q) {
+            $q->where('annee_scolaire_id', $this->anneeScolaireId);
+        }])->get();
 
         foreach ($etudiants as $etudiant) {
-            // Vérifier si l'étudiant n'a pas déjà un frais négocié
-            $aFraisNegocie = FraisEtudiant::where('etudiant_id', $etudiant->id)
-                ->where('annee_scolaire_id', $this->anneeScolaireId)
-                ->exists();
-
-            if (!$aFraisNegocie) {
-                $dernierGroupe = $etudiant->etudiantGroups()
-                    ->where('annee_scolaire_id', $this->anneeScolaireId)
-                    ->first();
-
-                if ($dernierGroupe && $dernierGroupe->niveau_id) {
-                    $fraisScolarite = FraisScolarite::where('niveau_id', $dernierGroupe->niveau_id)
-                        ->where('annee_scolaire_id', $this->anneeScolaireId)
-                        ->first();
-
-                    if ($fraisScolarite) {
-                        $total += $fraisScolarite->tranchepaiement->sum('montant');
-                    }
-                }
-            }
+            $total += $this->getMontantAPayerEtudiant($etudiant);
         }
 
         return $total;
@@ -298,28 +277,25 @@ protected function getRepartitionStatuts()
 
     return $stats;
 }
+
     /**
-     * Détermine le statut d'un étudiant
-     */
-   /**
  * Détermine le statut d'un étudiant
  */
 protected function determinerStatutEtudiant($etudiant)
 {
     // Vérifier si l'étudiant a un frais négocié
-    // Utiliser la relation que nous venons d'ajouter
-    $fraisEtudiant = $etudiant->fraisEtudiant()
-        ->where('annee_scolaire_id', $this->anneeScolaireId)
-        ->first();
+    $fraisEtudiant = $etudiant->fraisEtudiant instanceof \Illuminate\Database\Eloquent\Collection ? 
+        $etudiant->fraisEtudiant->first() : 
+        $etudiant->fraisEtudiant()->where('annee_scolaire_id', $this->anneeScolaireId)->first();
 
     if ($fraisEtudiant) {
         return $fraisEtudiant->statut;
     }
 
     // Vérifier via les tranches standard
-    $dernierGroupe = $etudiant->etudiantGroups()
-        ->where('annee_scolaire_id', $this->anneeScolaireId)
-        ->first();
+    $dernierGroupe = $etudiant->etudiantGroups instanceof \Illuminate\Database\Eloquent\Collection ? 
+        $etudiant->etudiantGroups->first() : 
+        $etudiant->etudiantGroups()->where('annee_scolaire_id', $this->anneeScolaireId)->first();
 
     if (!$dernierGroupe || !$dernierGroupe->niveau_id) {
         return 'aucun_frais';
@@ -464,9 +440,6 @@ protected function determinerStatutEtudiant($etudiant)
         return $montantTotal - $totalPaye;
     }
 
-    /**
-     * Récupère la prochaine échéance pour un étudiant
-     */
  /**
  * Récupère la prochaine échéance pour un étudiant
  */
@@ -655,33 +628,35 @@ protected function getProchaineEcheance($etudiant)
     /**
      * Récupère le montant à payer pour un étudiant
      */
-    /**
- * Récupère le montant à payer pour un étudiant
- */
-protected function getMontantAPayerEtudiant($etudiant)
-{
-    $fraisEtudiant = $etudiant->fraisEtudiant()
-        ->where('annee_scolaire_id', $this->anneeScolaireId)
-        ->first();
+    public function getMontantAPayerEtudiant($etudiant)
+    {
+        // 1. Priorité au dossier individuel de l'étudiant (Source de vérité)
+        $fraisEtudiant = ($etudiant->fraisEtudiant instanceof \Illuminate\Database\Eloquent\Collection) ? 
+            $etudiant->fraisEtudiant->first() : 
+            $etudiant->fraisEtudiant()->where('annee_scolaire_id', $this->anneeScolaireId)->first();
 
-    if ($fraisEtudiant) {
-        return $fraisEtudiant->montant_apres_bourse;
+        if ($fraisEtudiant) {
+            return (float) $fraisEtudiant->montant_apres_bourse;
+        }
+
+        // 2. Fallback au tarif global (Sécurité)
+        $groupe = ($etudiant->etudiantGroups instanceof \Illuminate\Database\Eloquent\Collection) ? 
+            $etudiant->etudiantGroups->first() : 
+            $etudiant->etudiantGroups()->where('annee_scolaire_id', $this->anneeScolaireId)->first();
+
+        if (!$groupe || !$groupe->niveau_id) return 0;
+
+        $genreValue = ($etudiant->genre instanceof \UnitEnum) ? $etudiant->genre->value : ($etudiant->genre ?? 'Tous');
+        
+        $fraisBase = \App\Models\FraisScolarite::getFraisForEtudiant(
+            $groupe->niveau_id, 
+            $genreValue, 
+            $groupe->filiere_id,
+            $this->anneeScolaireId
+        );
+
+        return $fraisBase ? (float) $fraisBase->montant : 0;
     }
-
-    $dernierGroupe = $etudiant->etudiantGroups()
-        ->where('annee_scolaire_id', $this->anneeScolaireId)
-        ->first();
-
-    if (!$dernierGroupe || !$dernierGroupe->niveau_id) {
-        return 0;
-    }
-
-    $fraisScolarite = FraisScolarite::where('niveau_id', $dernierGroupe->niveau_id)
-        ->where('annee_scolaire_id', $this->anneeScolaireId)
-        ->first();
-
-    return $fraisScolarite ? $fraisScolarite->tranchepaiement->sum('montant') : 0;
-}
 
     /**
      * Récupère le montant payé pour un étudiant

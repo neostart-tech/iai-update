@@ -44,15 +44,26 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     // Charger les rôles normalement
     $user->load('roles');
     
-    // Si c'est un étudiant et qu'il n'a pas de rôles, on force le rôle 'etudiant'
-    if ($user instanceof \App\Models\Etudiant && $user->roles->isEmpty()) {
-        $studentRole = new \App\Models\Role([
-            'id' => 1,
-            'nom' => 'Etudiant',
-            'slug' => 'etudiant',
-            'active' => 1
-        ]);
-        $user->setRelation('roles', collect([$studentRole]));
+    // Si c'est un étudiant et qu'il n'a pas de rôles (cas de la prod), on force le rôle 'etudiant'
+    if ($user instanceof \App\Models\Etudiant) {
+        if ($user->roles->isEmpty()) {
+            $studentRole = new \App\Models\Role([
+                'id' => 1,
+                'nom' => 'Etudiant',
+                'slug' => 'etudiant',
+                'active' => 1
+            ]);
+            $user->setRelation('roles', collect([$studentRole]));
+        } else {
+            // Toujours s'assurer que le rôle etudiant est présent pour les etudiants
+            $studentRole = new \App\Models\Role([
+                'id' => 1,
+                'nom' => 'Etudiant',
+                'slug' => 'etudiant',
+                'active' => 1
+            ]);
+            $user->setRelation('roles', collect([$studentRole]));
+        }
     }
     
     return $user;
@@ -490,6 +501,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('exam-question-options/reorder', [ExamQuestionOptionController::class, 'reorder']);
     Route::patch('exam-question-options/{id}/mark-correct', [ExamQuestionOptionController::class, 'markCorrect']);
 
+    // ==================== IA QUESTIONS ====================
+    Route::post('exam-questions/generate-ai', [ExamQuestionController::class, 'aiGenerate']);
+    Route::post('exam-questions/refine-ai', [ExamQuestionController::class, 'aiRefine']);
+
     // ==================== SESSIONS & SOUMISSIONS (ÉTUDIANTS) ====================
     Route::prefix('exam/{evaluationId}')->group(function () {
         // Sessions
@@ -523,6 +538,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/exam-sessions/clean-duplicates', [ExamSessionController::class, 'cleanDuplicates']);
 
     Route::post('/exam-submissions/{id}/grade', [ExamSubmissionController::class, 'grade']);
+    Route::post('/exam-submissions/{id}/suggest-grade', [ExamSubmissionController::class, 'suggestGrade']);
 
 Route::post('/exam/{evaluationId}/submit-complex', [ExamSubmissionController::class, 'submitComplex']);
 Route::get('/exam-submissions/{id}/details', [ExamSubmissionController::class, 'details']);

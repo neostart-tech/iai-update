@@ -26,7 +26,10 @@ class EtudiantSituationService
      */
     public function getSituationEtudiants($filtres = [])
     {
-        $query = Etudiant::with([
+        // IMPORTANT: on filtre sur les étudiants de l'année active (cohérence avec le Dashboard)
+        $query = Etudiant::whereHas('etudiantGroups', function($q) {
+            $q->where('annee_scolaire_id', $this->anneeScolaireId);
+        })->with([
             'etudiantGroups' => function($q) {
                 $q->where('annee_scolaire_id', $this->anneeScolaireId)
                   ->with(['niveau', 'filiere']);
@@ -126,7 +129,7 @@ class EtudiantSituationService
             'adresse' => $etudiant->adresse,
             'date_naissance' =>  $etudiant->date_naissance ? $etudiant->date_naissance?->format('Y-m-d') : '--',
             'lieu_naissance' => $etudiant->lieu_naissance,
-            'sexe' => $etudiant->sexe,
+            'genre' => $etudiant->genre?->value,
             
             // Infos académiques
             'filiere' => $groupe?->filiere?->nom ?? 'Non assigné',
@@ -183,24 +186,25 @@ class EtudiantSituationService
      */
     protected function calculerMontantAPayer($etudiant, $fraisEtudiant = null)
     {
+        // Si l'étudiant a un dossier financier (contrat), c'est la source de vérité
         if ($fraisEtudiant) {
-            return $fraisEtudiant->montant_apres_bourse;
+            return (float) $fraisEtudiant->montant_apres_bourse;
         }
 
+        // Sinon (fallback de sécurité), on cherche le tarif global
         $groupe = $etudiant->etudiantGroups->first();
         if (!$groupe || !$groupe->niveau_id) {
             return 0;
         }
 
-        $fraisScolarite = FraisScolarite::where('niveau_id', $groupe->niveau_id)
-            ->where('annee_scolaire_id', $this->anneeScolaireId)
-            ->first();
+        $fraisScolarite = FraisScolarite::getFraisForEtudiant(
+            $groupe->niveau_id, 
+            $etudiant->genre?->value ?? 'Tous', 
+            $groupe->filiere_id,
+            $this->anneeScolaireId
+        );
 
-        if (!$fraisScolarite) {
-            return 0;
-        }
-
-        return $fraisScolarite->tranchepaiement->sum('montant');
+        return $fraisScolarite ? (float) $fraisScolarite->montant : 0;
     }
 
     /**

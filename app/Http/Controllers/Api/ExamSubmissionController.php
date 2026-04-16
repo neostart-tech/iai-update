@@ -13,9 +13,71 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use App\Services\GeminiService;
 
 class ExamSubmissionController extends Controller
 {
+    /**
+     * Suggérer une note via l'IA pour une soumission spécifique
+     */
+    public function suggestGrade(string $id, GeminiService $geminiService): JsonResponse
+    {
+        try {
+            $submission = ExamSubmission::with(['question.options', 'etudiant', 'evaluation'])->findOrFail($id);
+            $question = $submission->question;
+            
+            // Préparer la réponse de l'étudiant avec le texte des options si c'est un QCM
+            $studentReply = '';
+            $optionsContext = '';
+            
+            if ($question->options && $question->options->count() > 0) {
+                $optionsContext = "Options possibles :\n";
+                foreach ($question->options as $opt) {
+                    $optionsContext .= "- " . $opt->text . ($opt->is_correct ? " (CORRECTE)" : "") . "\n";
+                }
+            }
+
+            if (is_array($submission->reponse)) {
+                if (isset($submission->reponse['text'])) {
+                    $studentReply = $submission->reponse['text'];
+                } elseif (isset($submission->reponse['option_id'])) {
+                    $selectedOpt = $question->options->firstWhere('id', $submission->reponse['option_id']);
+                    $studentReply = "L'étudiant a choisi l'option : " . ($selectedOpt ? $selectedOpt->text : "ID " . $submission->reponse['option_id']);
+                } elseif (isset($submission->reponse['option_ids'])) {
+                    $selectedTexts = [];
+                    foreach ($submission->reponse['option_ids'] as $oid) {
+                        $opt = $question->options->firstWhere('id', $oid);
+                        if ($opt) $selectedTexts[] = $opt->text;
+                    }
+                    $studentReply = "L'étudiant a choisi les options : " . implode(', ', $selectedTexts);
+                }
+                
+                if (isset($submission->reponse['justification'])) {
+                    $studentReply .= "\nJustification de l'étudiant : " . $submission->reponse['justification'];
+                }
+            } else {
+                $studentReply = $submission->reponse ?? 'Pas de réponse';
+            }
+
+            $questionContext = $question->content . "\n" . $optionsContext;
+
+            $suggestion = $geminiService->suggestGrade(
+                $questionContext,
+                $studentReply,
+                (float) $question->points,
+                $question->config['correction_guide'] ?? null
+            );
+
+            return response()->json($suggestion, 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suggestion IA : ' . $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * GET /api/exam/{evaluationSlug}/student/{etudiantId}/submissions
      * Le paramètre s'appelle $evaluationId mais c'est en réalité le slug
@@ -135,7 +197,7 @@ class ExamSubmissionController extends Controller
     /**
      * POST /api/exam/{evaluationSlug}/submit-question
      */
-    public function submitQuestion(Request $request, string $evaluationId): JsonResponse
+    public function submitQuestion(Request $request, string $evaluationId, GeminiService $geminiService): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'question_id' => 'required|exists:exam_questions,id',
@@ -170,8 +232,8 @@ class ExamSubmissionController extends Controller
                 ], 400);
             }
 
-            // Correction automatique selon le type
-            $correction = $this->autoCorrect($question, $request->reponse);
+            // Correction automatique selon le type (avec support IA pour texte_court)
+            $correction = $this->autoCorrect($question, $request->reponse, $geminiService);
 
             // Créer ou mettre à jour la soumission
             $submission = ExamSubmission::updateOrCreate(
@@ -401,7 +463,7 @@ class ExamSubmissionController extends Controller
     /**
      * Correction automatique selon le type de question
      */
-    private function autoCorrect(ExamQuestion $question, $reponse): array
+    private function autoCorrect(ExamQuestion $question, $reponse, ?GeminiService $geminiService = null): array
     {
         $points = 0;
         $isCorrect = false;
@@ -431,15 +493,9 @@ class ExamSubmissionController extends Controller
                 break;
 
             case 'texte_court':
-                // Comparaison avec mots-clés
-                $expected = strtolower($question->config['expected_answer'] ?? '');
-                $userAnswer = strtolower($reponse['text'] ?? '');
-                $isCorrect = ($expected == $userAnswer);
-                $points = $isCorrect ? $question->points : 0;
-                break;
-
             default:
                 $points = null; // Correction manuelle
+                $isCorrect = false;
                 break;
         }
 
@@ -455,6 +511,11 @@ class ExamSubmissionController extends Controller
         try {
             $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
             
+            // S'assurer que les anonymats sont générés si nécessaire (ou pour les examens en ligne)
+            if ($evaluation->has_anonymat || $evaluation->is_online) {
+                $this->ensureAnonymatGenerated($evaluation);
+            }
+
             $etudiants = Etudiant::with(['etudiantGroups' => function($q) use ($evaluation) {
                 $q->where('group_id', $evaluation->group_id)
                   ->where('annee_scolaire_id', injectAnneeScolaireId());
@@ -470,8 +531,10 @@ class ExamSubmissionController extends Controller
             $submissions = ExamSubmission::where('evaluation_id', $evaluation->id)
                                         ->get()
                                         ->groupBy('etudiant_id');
+
+            $notes = Note::where('evaluation_id', $evaluation->id)->get()->keyBy('etudiant_id');
             
-            $resultats = $this->formatResults($etudiants, $questions, $submissions);
+            $resultats = $this->formatResults($etudiants, $questions, $submissions, $notes);
             
             $stats = $this->calculateStats($resultats, $evaluation->id);
             
@@ -481,7 +544,8 @@ class ExamSubmissionController extends Controller
                     'etudiants' => $resultats,
                     'questions' => $questions,
                     'stats' => $stats,
-                    'total_points' => $questions->sum('points')
+                    'total_points' => $questions->sum('points'),
+                    'has_anonymat' => (bool)($evaluation->has_anonymat || $evaluation->is_online)
                 ]
             ], 200);
             
@@ -495,6 +559,11 @@ class ExamSubmissionController extends Controller
         try {
             $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
             
+            // S'assurer que les anonymats sont générés si nécessaire (ou pour les examens en ligne)
+            if ($evaluation->has_anonymat || $evaluation->is_online) {
+                $this->ensureAnonymatGenerated($evaluation);
+            }
+
             // Uniquement ceux qui ont au moins une soumission
             $etudiants = Etudiant::whereHas('examSubmissions', function($q) use ($evaluation) {
                 $q->where('evaluation_id', $evaluation->id);
@@ -511,7 +580,9 @@ class ExamSubmissionController extends Controller
                                         ->get()
                                         ->groupBy('etudiant_id');
             
-            $resultats = $this->formatResults($etudiants, $questions, $submissions);
+            $notes = Note::where('evaluation_id', $evaluation->id)->get()->keyBy('etudiant_id');
+
+            $resultats = $this->formatResults($etudiants, $questions, $submissions, $notes);
             $stats = $this->calculateStats($resultats, $evaluation->id);
             
             return response()->json([
@@ -520,7 +591,8 @@ class ExamSubmissionController extends Controller
                     'etudiants' => $resultats,
                     'questions' => $questions,
                     'stats' => $stats,
-                    'total_points' => $questions->sum('points')
+                    'total_points' => $questions->sum('points'),
+                    'has_anonymat' => (bool)($evaluation->has_anonymat || $evaluation->is_online)
                 ]
             ], 200);
             
@@ -529,11 +601,60 @@ class ExamSubmissionController extends Controller
         }
     }
 
-    private function formatResults($etudiants, $questions, $submissions)
+    private function ensureAnonymatGenerated(Evaluation $evaluation)
+    {
+        $group = $evaluation->group;
+        $etudiants = $group->etudiants()
+            ->whereHas('etudiantGroups', function ($query) use ($group) {
+                $query->where('group_id', $group->id)
+                    ->where('annee_scolaire_id', injectAnneeScolaireId());
+            })->get();
+
+        $generated = false;
+        foreach ($etudiants as $etudiant) {
+            $note = Note::where('evaluation_id', $evaluation->id)
+                ->where('etudiant_id', $etudiant->id)
+                ->first();
+
+            if (!$note) {
+                Note::create([
+                    'evaluation_id' => $evaluation->id,
+                    'etudiant_id' => $etudiant->id,
+                    'note' => null,
+                    'unite_valeur_id' => $evaluation->unite_valeur_id,
+                    'anonymat' => $this->generateUniqueAnonymat($evaluation->id),
+                    'annee_scolaire_id' => $evaluation->annee_scolaire_id ?? injectAnneeScolaireId()
+                ]);
+                $generated = true;
+            } elseif (!$note->anonymat) {
+                $note->update(['anonymat' => $this->generateUniqueAnonymat($evaluation->id)]);
+                $generated = true;
+            }
+        }
+
+        if ($generated && !$evaluation->has_anonymat) {
+            $evaluation->update(['has_anonymat' => true]);
+        }
+    }
+
+    private function generateUniqueAnonymat($evaluationId)
+    {
+        do {
+            // Utiliser le format AB123 (2 lettres + 3 chiffres) pour cohérence avec NoteController
+            $letters = strtoupper(Str::random(2));
+            $digits = str_pad((string) random_int(0, 999), 3, '0', STR_PAD_LEFT);
+            $code = $letters . $digits;
+        } while (Note::where('evaluation_id', $evaluationId)->where('anonymat', $code)->exists());
+
+        return $code;
+    }
+
+    private function formatResults($etudiants, $questions, $submissions, $notes = null)
     {
         $resultats = [];
         foreach ($etudiants as $etudiant) {
             $etudiantSubmissions = $submissions[$etudiant->id] ?? collect();
+            $noteRecord = $notes ? ($notes[$etudiant->id] ?? null) : null;
             
             $totalPoints = 0;
             $questionsRepondues = 0;
@@ -561,6 +682,7 @@ class ExamSubmissionController extends Controller
                 'id' => $etudiant->id,
                 'nom' => $etudiant->nom,
                 'prenom' => $etudiant->prenom,
+                'anonymat' => $noteRecord ? $noteRecord->anonymat : null,
                 'email' => $etudiant->email,
                 'matricule' => $etudiant->matricule,
                 'groupe_actuel' => $groupeActuel ? $groupeActuel->group->nom : null,
@@ -607,7 +729,6 @@ class ExamSubmissionController extends Controller
                 [
                     'note' => $totalPoints, 
                     'unite_valeur_id' => $evaluation->unite_valeur_id, 
-                    'slug' => uniqid('note_'),
                     'annee_scolaire_id' => $evaluation->annee_scolaire_id ?? injectAnneeScolaireId()
                 ]
             );

@@ -1,7 +1,7 @@
 @extends('professeurs.base', [
 'title' => 'Créer/Éditer une évaluation',
-'page_name' => isset($evaluation['id']) ? 'Éditer une évaluation' : 'Créer une évaluation',
-'breadcrumbs' => ['Évaluations', isset($evaluation['id']) ? 'Éditer' : 'Créer'],
+'page_name' => (isset($evaluation) && (isset($evaluation->id) || isset($evaluation['id']))) ? 'Éditer une évaluation' : 'Créer une évaluation',
+'breadcrumbs' => ['Évaluations', (isset($evaluation) && (isset($evaluation->id) || isset($evaluation['id']))) ? 'Éditer' : 'Créer'],
 ])
 
 @section('bases')
@@ -106,8 +106,8 @@
                 <div class="card-header bg-white border-bottom-0">
                     <div class="d-flex justify-content-between align-items-center">
                         <h4 class="mb-0 text-primary">
-                            <i class="fas fa-{{ isset($evaluation['id']) ? 'edit' : 'plus-circle' }} me-2"></i>
-                            {{ isset($evaluation['id']) ? 'Modifier l\'évaluation' : 'Créer une nouvelle évaluation' }}
+                            <i class="fas fa-{{ (isset($evaluation) && (isset($evaluation->id) || isset($evaluation['id']))) ? 'edit' : 'plus-circle' }} me-2"></i>
+                            {{ (isset($evaluation) && (isset($evaluation->id) || isset($evaluation['id']))) ? 'Modifier l\'évaluation' : 'Créer une nouvelle évaluation' }}
                         </h4>
                         <div class="d-flex align-items-center">
                             <button type="button" class="btn btn-outline-secondary me-2" id="preview-btn">
@@ -115,7 +115,7 @@
                             </button>
                             <button type="submit" class="btn btn-success btn-lg px-4" id="submit-btn" form="evaluation-form">
                                 <i class="fas fa-save me-2"></i>
-                                {{ isset($evaluation['id']) ? 'Mettre à jour' : 'Enregistrer' }}
+                                {{ (isset($evaluation) && (isset($evaluation->id) || isset($evaluation['id']))) ? 'Mettre à jour' : 'Enregistrer' }}
                             </button>
                         </div>
                     </div>
@@ -156,7 +156,7 @@
                                 <div>
                                     <button type="submit" class="btn btn-success btn-lg px-4" id="submit-btn-bottom">
                                         <i class="fas fa-save me-2"></i>
-                                        {{ isset($evaluation['id']) ? 'Mettre à jour l\'évaluation' : 'Enregistrer l\'évaluation' }}
+                                        {{ (isset($evaluation) && (isset($evaluation->id) || isset($evaluation['id']))) ? 'Mettre à jour l\'évaluation' : 'Enregistrer l\'évaluation' }}
                                     </button>
                                 </div>
                             </div>
@@ -206,6 +206,9 @@
             <div>
                 <button type="button" class="btn btn-sm btn-outline-primary add-question-btn me-1">
                     <i class="fas fa-plus me-1"></i>Question
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-info ai-suggest-btn me-1" title="Suggérer des questions avec l'IA">
+                    <i class="fas fa-robot me-1"></i>IA
                 </button>
                 <button type="button" class="btn btn-sm btn-outline-warning toggle-context-btn me-1">
                     <i class="fas fa-file-alt me-1"></i>Contexte
@@ -322,6 +325,9 @@
                 <span class="badge bg-success ms-2 question-points-badge">0 pts</span>
             </div>
             <div>
+                <button type="button" class="btn btn-sm btn-outline-info ai-refine-question-btn me-1" title="Optimiser avec l'IA">
+                    <i class="fas fa-magic"></i>
+                </button>
                 <button type="button" class="btn btn-sm btn-outline-danger delete-question-btn">
                     <i class="fas fa-trash"></i>
                 </button>
@@ -555,6 +561,55 @@
         let nextPartId = 1;
         let nextQuestionId = 1;
         let nextOptionId = 1;
+        let hasUnsavedChanges = false;
+
+        // Marquer les changements pour l'alerte de départ
+        function markChanges() {
+            hasUnsavedChanges = true;
+            saveToLocalStorage();
+        }
+
+        // Sauvegarde locale (Brouillon)
+        function saveToLocalStorage() {
+            const draftData = {
+                parts: partsData,
+                evaluation_id: evaluationData?.id || 'new',
+                timestamp: new Date().getTime()
+            };
+            localStorage.setItem('evaluation_draft', JSON.stringify(draftData));
+        }
+
+        // Charger le brouillon
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem('evaluation_draft');
+            if (saved) {
+                const draft = JSON.parse(saved);
+                // Vérifier si c'est pour la même évaluation et si c'est récent (moins de 24h)
+                const isSameEval = draft.evaluation_id == (evaluationData?.id || 'new');
+                const isRecent = (new Date().getTime() - draft.timestamp) < 86400000;
+
+                if (isSameEval && isRecent && draft.parts.length > 0) {
+                    Swal.fire({
+                        title: 'Brouillon trouvé',
+                        text: "Voulez-vous restaurer votre travail non enregistré ?",
+                        icon: 'info',
+                        showCancelButton: true,
+                        confirmButtonText: 'Oui, restaurer',
+                        cancelButtonText: 'Non, ignorer'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            loadPartsData(draft.parts);
+                        }
+                    });
+                }
+            }
+        }
+
+        window.onbeforeunload = function() {
+            if (hasUnsavedChanges) {
+                return "Vous avez des modifications non enregistrées. Voulez-vous vraiment quitter ?";
+            }
+        };
 
         // ============ FONCTIONS UTILITAIRES ============
 
@@ -771,6 +826,14 @@
                     const container = partElement.querySelector('.questions-container');
                     const noMsg = partElement.querySelector('.no-questions-message');
                     addQuestionToPart(partId, container, noMsg);
+                });
+            }
+
+            // Bouton IA pour suggérer des questions
+            const aiSuggestBtn = partElement.querySelector('.ai-suggest-btn');
+            if (aiSuggestBtn) {
+                aiSuggestBtn.addEventListener('click', function() {
+                    suggestAIQuestions(partId);
                 });
             }
 
@@ -1063,6 +1126,14 @@
             if (deleteBtn) {
                 deleteBtn.addEventListener('click', function() {
                     deleteQuestion(partId, questionId);
+                });
+            }
+
+            // Événement pour raffiner la question avec l'IA
+            const aiRefineBtn = questionElement.querySelector('.ai-refine-question-btn');
+            if (aiRefineBtn) {
+                aiRefineBtn.addEventListener('click', function() {
+                    refineAIQuestion(partId, questionId);
                 });
             }
 
@@ -1648,7 +1719,10 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
+                    hasUnsavedChanges = false;
+                    localStorage.removeItem('evaluation_draft');
                     Swal.fire({
+...
                         title: 'Succès !',
                         text: data.message,
                         icon: 'success',
@@ -1676,31 +1750,201 @@
         });
 
         // Fonction de validation
-        function validateForm() {
+        function validateForm(showSuccess = false) {
             if (partsData.length === 0) {
                 Swal.fire('Erreur', 'Veuillez ajouter au moins une partie.', 'error');
                 return false;
             }
 
-            const totalPoints = partsData.reduce((total, part) => {
-                return total + (part.questions || []).reduce((partTotal, question) => {
-                    return partTotal + (parseFloat(question.points) || 0);
-                }, 0);
-            }, 0);
+            let errors = [];
+            let totalPoints = 0;
+
+            partsData.forEach((part, pIdx) => {
+                if (!part.title || part.title.trim() === '') {
+                    errors.push(`La partie ${part.identifier} n'a pas de titre.`);
+                }
+
+                if (part.questions.length === 0) {
+                    errors.push(`La partie ${part.identifier} n'a aucune question.`);
+                }
+
+                part.questions.forEach((q, qIdx) => {
+                    totalPoints += parseFloat(q.points) || 0;
+                    const qRef = `Partie ${part.identifier}, Question ${qIdx + 1}`;
+
+                    if (!q.statement || q.statement.trim() === '') {
+                        errors.push(`L'énoncé est vide pour : ${qRef}`);
+                    }
+
+                    if (parseFloat(q.points) <= 0) {
+                        errors.push(`Le barème doit être supérieur à 0 pour : ${qRef}`);
+                    }
+
+                    if (q.type === 'choice_single' || q.type === 'choice_multiple') {
+                        if (!q.options_text || q.options_text.length < 2) {
+                            errors.push(`Au moins 2 options sont requises pour : ${qRef}`);
+                        } else {
+                            const hasCorrect = q.options_text.some(opt => opt.correct);
+                            if (!hasCorrect) {
+                                errors.push(`Veuillez cocher au moins une réponse correcte pour : ${qRef}`);
+                            }
+                            
+                            if (q.type === 'choice_single') {
+                                const correctCount = q.options_text.filter(opt => opt.correct).length;
+                                if (correctCount > 1) {
+                                    errors.push(`Une seule réponse correcte autorisée pour : ${qRef}`);
+                                }
+                            }
+
+                            const emptyOptions = q.options_text.some(opt => !opt.label || opt.label.trim() === '');
+                            if (emptyOptions) {
+                                errors.push(`Certaines options de réponse sont vides pour : ${qRef}`);
+                            }
+                        }
+                    }
+                });
+            });
 
             if (totalPoints > MAX_POINTS) {
-                Swal.fire('Erreur', `Le total des points (${totalPoints.toFixed(1)}) dépasse la limite de ${MAX_POINTS} points.`, 'error');
+                errors.push(`Le total des points (${totalPoints.toFixed(1)}) dépasse la limite de ${MAX_POINTS} points.`);
+            }
+
+            if (errors.length > 0) {
+                Swal.fire({
+                    title: 'Erreurs de validation',
+                    html: `<div class="text-start"><ul class="small mb-0">${errors.map(e => `<li>${e}</li>`).join('')}</ul></div>`,
+                    icon: 'error'
+                });
                 return false;
             }
 
+            if (showSuccess) {
+                Swal.fire('Validation', 'Le formulaire est parfaitement cohérent !', 'success');
+            }
             return true;
+        }
+
+        // Fonction pour l'IA
+        async function suggestAIQuestions(partId) {
+            const partIndex = partsData.findIndex(p => p.id == partId);
+            const part = partsData[partIndex];
+            
+            let topic = part.title;
+            if (part.has_case_study_context && part.case_study_context?.problematic) {
+                topic += " - Contexte: " + part.case_study_context.problematic;
+            }
+
+            Swal.fire({
+                title: 'Génération IA en cours...',
+                text: 'Gemini prépare des questions adaptées à votre contexte.',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            try {
+                const response = await fetch("{{ route('enseignants.evaluation.ai-suggest-questions') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    },
+                    body: JSON.stringify({ topic: topic, part_id: partId })
+                });
+
+                const data = await response.json();
+                Swal.close();
+
+                if (data.success && data.questions) {
+                    const container = document.querySelector(`[data-part-id="${partId}"] .questions-container`);
+                    const noMsg = document.querySelector(`[data-part-id="${partId}"] .no-questions-message`);
+                    
+                    data.questions.forEach(q => {
+                        addQuestionToPart(partId, container, noMsg, {
+                            title: q.title || "Question IA",
+                            statement: q.content || q.statement,
+                            type: q.type === 'qcm_unique' ? 'choice_single' : (q.type === 'qcm_multiple' ? 'choice_multiple' : 'text'),
+                            points: q.points || 2,
+                            options_text: q.options ? q.options.map(o => ({ label: o.text, correct: o.is_correct })) : []
+                        });
+                    });
+                    
+                    markChanges();
+                    Swal.fire('Succès', `${data.questions.length} questions ont été ajoutées.`, 'success');
+                } else {
+                    Swal.fire('Erreur', data.message || 'L\'IA n\'a pas pu générer de questions.', 'error');
+                }
+            } catch (error) {
+                Swal.close();
+                Swal.fire('Erreur', 'Impossible de contacter le service IA.', 'error');
+            }
+        }
+        
+        // Fonction pour raffiner une question spécifique
+        async function refineAIQuestion(partId, questionId) {
+            const partIndex = partsData.findIndex(p => p.id == partId);
+            const questionIndex = partsData[partIndex].questions.findIndex(q => q.id == questionId);
+            const question = partsData[partIndex].questions[questionIndex];
+
+            if (!question.statement || question.statement.trim() === '') {
+                Swal.fire('Info', 'Veuillez d\'abord saisir un énoncé à améliorer.', 'info');
+                return;
+            }
+
+            Swal.fire({
+                title: 'Optimisation...',
+                text: 'Gemini analyse et améliore votre question.',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            try {
+                const response = await fetch("{{ route('enseignants.evaluation.ai-refine-questions') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    },
+                    body: JSON.stringify({ 
+                        content: question.statement,
+                        type: question.type,
+                        options: question.options_text
+                    })
+                });
+
+                const data = await response.json();
+                Swal.close();
+
+                if (data.success && data.refined_content) {
+                    Swal.fire({
+                        title: 'Suggestion de l\'IA',
+                        html: `<div class="text-start mb-3"><strong>Ancien :</strong><br><small>${question.statement}</small></div>
+                               <div class="text-start p-2 bg-light border-start border-primary"><strong>Nouveau :</strong><br>${data.refined_content}</div>`,
+                        showCancelButton: true,
+                        confirmButtonText: 'Appliquer',
+                        cancelButtonText: 'Garder l\'original'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            const qElem = document.querySelector(`[data-question-id="${questionId}"]`);
+                            const statementInput = qElem.querySelector('.question-statement');
+                            if (statementInput) {
+                                statementInput.value = data.refined_content;
+                                updateQuestionData(partId, questionId);
+                                markChanges();
+                            }
+                        }
+                    });
+                } else {
+                    Swal.fire('Erreur', data.message || 'L\'IA n\'a pas pu optimiser cette question.', 'error');
+                }
+            } catch (error) {
+                Swal.close();
+                Swal.fire('Erreur', 'Impossible de contacter le service IA.', 'error');
+            }
         }
 
         // Bouton de validation
         document.getElementById('validate-btn').addEventListener('click', function() {
-            if (validateForm()) {
-                Swal.fire('Validation', 'Le formulaire est valide !', 'success');
-            }
+            validateForm(true);
         });
 
         // ============ INITIALISATION ============
@@ -1708,6 +1952,14 @@
         // Initialiser les parties existantes
         setTimeout(() => {
             initializeExistingParts();
+            loadFromLocalStorage();
         }, 100);
+
+        // Ajouter des écouteurs de changements globaux après l'init
+        setTimeout(() => {
+            document.querySelectorAll('input, select, textarea').forEach(el => {
+                el.addEventListener('change', markChanges);
+            });
+        }, 500);
     });
 </script>
