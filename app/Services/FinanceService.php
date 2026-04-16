@@ -29,16 +29,37 @@ class FinanceService
         $ca = $this->getAnalyseCA($periode, $dateDebut, $dateFin);
         $previsionsTotal = $this->getPrevisionsTotales();
 
+        $fraisInscriptionActif = \App\Models\FraisInscription::where('active', true)
+            ->where('annee_scolaire_id', $this->anneeId)
+            ->first();
+        $totalEtudiants = Etudiant::whereHas('etudiantGroups', fn($q) => $q->where('annee_scolaire_id', $this->anneeId))->count();
+        $previsionsInscriptions = $fraisInscriptionActif ? $totalEtudiants * $fraisInscriptionActif->montant : 0;
+
         return [
             'resume' => [
+                // Anciennes clés maintenues uniquement pour SCD (fixées à SCOLARITÉ seule)
                 'montant_total_a_payer' => $previsionsTotal,
-                'montant_collecte' => $ca['total_global'],
-                'montant_restant' => max(0, $previsionsTotal - $ca['total_global']),
-                'taux_collecte' => $previsionsTotal > 0 ? round(($ca['total_global'] / $previsionsTotal) * 100, 2) : 0,
+                'montant_collecte' => $ca['scolarite'], // Correction : Scolarité uniquement
+                'montant_restant' => max(0, $previsionsTotal - $ca['scolarite']),
+                'taux_collecte' => $previsionsTotal > 0 ? round(($ca['scolarite'] / $previsionsTotal) * 100, 2) : 0,
+                
+                // Nouvelles clés explicites séparées
+                'scolarite_a_payer' => $previsionsTotal,
+                'scolarite_collecte' => $ca['scolarite'],
+                'scolarite_restant' => max(0, $previsionsTotal - $ca['scolarite']),
+                'scolarite_taux' => $previsionsTotal > 0 ? round(($ca['scolarite'] / $previsionsTotal) * 100, 2) : 0,
+
+                'inscription_a_payer' => $previsionsInscriptions,
+                'inscription_collecte' => $ca['inscription'],
+                'inscription_restant' => max(0, $previsionsInscriptions - $ca['inscription']),
+                'inscription_taux' => $previsionsInscriptions > 0 ? round(($ca['inscription'] / $previsionsInscriptions) * 100, 2) : 0,
+
+                // Informations globales
+                'grand_total_collecte' => $ca['total_global'],
                 'ca_inscription' => $ca['inscription'],
                 'ca_scolarite' => $ca['scolarite'],
                 'ca_abandons' => $ca['abandons'],
-                'total_etudiants' => Etudiant::whereHas('etudiantGroups', fn($q) => $q->where('annee_scolaire_id', $this->anneeId))->count(),
+                'total_etudiants' => $totalEtudiants,
                 'periode' => $this->formatPeriodeLabel($periode, $dateDebut, $dateFin)
             ],
             'evolution_paiements' => $this->getEvolutionPaiements($periode, $dateDebut, $dateFin),
@@ -105,10 +126,10 @@ class FinanceService
 
     private function getRepartitionStatuts()
     {
-        // 1. On récupère TOUS les dossiers de l'année pour être sûr de ne rien rater
-        $dossiers = FraisEtudiant::where('annee_scolaire_id', $this->anneeId)->get();
+        $dossiers = FraisEtudiant::where('annee_scolaire_id', $this->anneeId)
+            ->with(['echeances'])
+            ->get();
         
-        // 2. Initialisation des compteurs avec des clés techniques (slugs)
         $stats = [
             'solde' => 0,
             'a_jour' => 0,
@@ -119,12 +140,36 @@ class FinanceService
         foreach ($dossiers as $d) {
             if ($d->est_en_abandon || $d->statut === 'abandon') {
                 $stats['abandon']++;
-            } elseif ($d->statut === 'solde' || $d->reste_a_payer <= 0) {
+                continue;
+            }
+
+            // Calcul asynchrone du total payé pour la scolarité
+            $paye = Paiement::where('etudiant_id', $d->etudiant_id)
+                ->where('status', 'valide')
+                ->where(function($q){
+                    $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement');
+                })->sum('montant');
+
+            if ($paye >= $d->montant_apres_bourse) {
                 $stats['solde']++;
-            } elseif ($d->statut === 'en_retard' || (method_exists($d, 'getEstEnRetardAttribute') && $d->est_en_retard)) {
+                continue;
+            }
+
+            // Vérifier s'il y a une échéance passée non couverte par le montant payé
+            $expectedToDate = 0;
+            $estEnRetard = false;
+            foreach ($d->echeances->sortBy('date_limite') as $ech) {
+                if ($ech->date_limite < now()) {
+                    $expectedToDate += $ech->montant;
+                }
+            }
+            if ($paye < $expectedToDate) {
+                $estEnRetard = true;
+            }
+
+            if ($estEnRetard || $d->statut === 'en_retard') {
                 $stats['retard']++;
             } else {
-                // Tout dossier actif non en retard et non soldé est considéré comme "À jour"
                 $stats['a_jour']++;
             }
         }
@@ -135,20 +180,24 @@ class FinanceService
     private function getStatsFilieres()
     {
         return Filiere::all()->map(function($filiere) {
-            // Prévisions réelles basées sur les dossiers FraisEtudiant
+            // Prévisions réelles SC uniquement
             $prev = FraisEtudiant::where('annee_scolaire_id', $this->anneeId)
                 ->where('est_en_abandon', false)
-                ->whereHas('fraisScolarite', fn($q) => $q->where('filiere_id', $filiere->id))
+                ->whereHas('etudiant.etudiantGroups', fn($q) => $q->where('filiere_id', $filiere->id)->where('annee_scolaire_id', $this->anneeId))
                 ->sum('montant_apres_bourse');
             
+            // Paiements scolarité
             $paye = Paiement::where('status', 'valide')
+                ->where(function($q){
+                    $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement');
+                })
                 ->whereHas('etudiant.etudiantGroups', fn($q) => $q->where('filiere_id', $filiere->id)->where('annee_scolaire_id', $this->anneeId))
                 ->sum('montant');
 
             return [
                 'filiere_nom' => $filiere->nom,
                 'filiere_code' => $filiere->code,
-                'nombre_etudiants' => Etudiant::whereHas('etudiantGroups', fn($q) => $q->where('filiere_id', $filiere->id))->count(),
+                'nombre_etudiants' => Etudiant::whereHas('etudiantGroups', fn($q) => $q->where('filiere_id', $filiere->id)->where('annee_scolaire_id', $this->anneeId))->count(),
                 'total_a_payer' => $prev,
                 'total_paye' => $paye,
                 'total_restant' => max(0, $prev - $paye),
@@ -217,7 +266,12 @@ class FinanceService
 
     private function getTopPerformers()
     {
-        return Etudiant::withSum(['paiements' => fn($q) => $q->where('status', 'valide')], 'montant')
+        return Etudiant::withSum(['paiements' => function($q) {
+                $q->where('status', 'valide')
+                  ->where(function($sub){
+                      $sub->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement');
+                  });
+            }], 'montant')
             ->orderByDesc('paiements_sum_montant')
             ->take(5)
             ->get()
@@ -226,7 +280,8 @@ class FinanceService
                 'prenom' => $e->prenom,
                 'matricule' => $e->matricule,
                 'total_paye' => $e->paiements_sum_montant ?? 0,
-                'nombre_paiements' => $e->paiements()->count()
+                'nombre_paiements' => \App\Models\Paiement::where('etudiant_id', $e->id)->where('status','valide')
+                                    ->where(function($sq){ $sq->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement'); })->count()
             ]);
     }
 
@@ -292,6 +347,7 @@ class FinanceService
 
             foreach ($dates as $date) {
                 $montantJour = Paiement::where('status', 'valide')
+                    ->where(function($q) { $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement'); })
                     ->whereDate('date_paiement', $date)
                     ->whereHas('etudiant.etudiantGroups', fn($q) => 
                         $q->where('niveau_id', $niveau->id)->where('annee_scolaire_id', $this->anneeId)
@@ -312,20 +368,39 @@ class FinanceService
     public function getRetardsParNiveau()
     {
         return Niveau::all()->map(function($niveau) {
-            $retards = FraisEtudiant::where('annee_scolaire_id', $this->anneeId)
-                ->where('statut', 'en_retard')
+            $dossiers = FraisEtudiant::with(['echeances'])
+                ->where('annee_scolaire_id', $this->anneeId)
+                ->where('est_en_abandon', false)
                 ->whereHas('fraisScolarite', fn($q) => $q->where('niveau_id', $niveau->id))
                 ->get();
 
-            $montant = $retards->sum(function($f) {
-                $paye = \App\Models\Paiement::where('etudiant_id', $f->etudiant_id)->where('status', 'valide')->sum('montant');
-                return max(0, $f->montant_apres_bourse - $paye);
-            });
+            $montantRetardsTotal = 0;
+            $nombreEtudiants = 0;
+
+            foreach ($dossiers as $f) {
+                $expectedToDate = 0;
+                foreach ($f->echeances as $ech) {
+                    if ($ech->date_limite < now()) {
+                        $expectedToDate += $ech->montant;
+                    }
+                }
+
+                if ($expectedToDate > 0) {
+                    $paye = \App\Models\Paiement::where('etudiant_id', $f->etudiant_id)->where('status', 'valide')
+                        ->where(function($q) { $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement'); })
+                        ->sum('montant');
+                        
+                    if ($paye < $expectedToDate) {
+                        $montantRetardsTotal += max(0, $f->montant_apres_bourse - $paye);
+                        $nombreEtudiants++;
+                    }
+                }
+            }
 
             return [
                 'nom' => $niveau->libelle,
-                'montant_retard' => $montant,
-                'nombre_etudiants' => $retards->count()
+                'montant_retard' => $montantRetardsTotal,
+                'nombre_etudiants' => $nombreEtudiants
             ];
         });
     }
@@ -380,57 +455,80 @@ class FinanceService
 
     private function getOneMonthSuivi($mois, $annee)
     {
-        $startDate = Carbon::createFromDate($annee, $mois, 1)->startOfMonth();
+        $startDate = \Carbon\Carbon::createFromDate($annee, $mois, 1)->startOfMonth();
         $endDate = (clone $startDate)->endOfMonth();
 
         // M-1
         $endPrevMonth = (clone $startDate)->subDay()->endOfMonth();
 
-        $niveaux = Niveau::all();
+        $niveaux = \App\Models\Niveau::all();
         $results = [];
 
         foreach ($niveaux as $niveau) {
-            // Prevision
-            $prevision = (float) FraisEtudiant::where('annee_scolaire_id', $this->anneeId)
-                ->whereHas('fraisScolarite', fn($q) => $q->where('niveau_id', $niveau->id))
-                ->sum('montant_apres_bourse');
+            // Prevision = Echeances of this specific month
+            $previsionMois = (float) \Illuminate\Support\Facades\DB::table('echeances')
+                ->join('frais_etudiants', 'frais_etudiants.id', '=', 'echeances.frais_etudiant_id')
+                ->join('etudiants', 'etudiants.id', '=', 'frais_etudiants.etudiant_id')
+                ->join('etudiant_group', 'etudiants.id', '=', 'etudiant_group.etudiant_id')
+                ->where('etudiant_group.annee_scolaire_id', $this->anneeId)
+                ->where('etudiant_group.niveau_id', $niveau->id)
+                ->where('frais_etudiants.est_en_abandon', false)
+                ->whereBetween('echeances.date_limite', [$startDate, $endDate])
+                ->sum('echeances.montant');
+
+            // Cumulative Expected before strictly this month (up to M-1)
+            $previsionM1 = (float) \Illuminate\Support\Facades\DB::table('echeances')
+                ->join('frais_etudiants', 'frais_etudiants.id', '=', 'echeances.frais_etudiant_id')
+                ->join('etudiants', 'etudiants.id', '=', 'frais_etudiants.etudiant_id')
+                ->join('etudiant_group', 'etudiants.id', '=', 'etudiant_group.etudiant_id')
+                ->where('etudiant_group.annee_scolaire_id', $this->anneeId)
+                ->where('etudiant_group.niveau_id', $niveau->id)
+                ->where('frais_etudiants.est_en_abandon', false)
+                ->where('echeances.date_limite', '<=', $endPrevMonth)
+                ->sum('echeances.montant');
+            
+            // Expected completely until End of Month (YTD logic)
+            $previsionYTD = $previsionM1 + $previsionMois;
 
             // Montant recouvré sur le mois
-            $recouvreMois = (float) Paiement::where('status', 'valide')
+            $recouvreMois = (float) \App\Models\Paiement::where('status', 'valide')
+                ->where(function($q) { $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement'); })
                 ->whereBetween('date_paiement', [$startDate, $endDate])
                 ->whereHas('etudiant.etudiantGroups', fn($q) => 
                     $q->where('niveau_id', $niveau->id)->where('annee_scolaire_id', $this->anneeId)
                 )->sum('montant');
 
-            // Recouvré jusqu'à la fin de ce mois (YTD progress)
-            $recouvreTotalCurrent = (float) Paiement::where('status', 'valide')
-                ->where('date_paiement', '<=', $endDate)
-                ->whereHas('etudiant.etudiantGroups', fn($q) => 
-                    $q->where('niveau_id', $niveau->id)->where('annee_scolaire_id', $this->anneeId)
-                )->sum('montant');
-
             // Recouvré jusqu'à M-1
-            $recouvreTotalPrev = (float) Paiement::where('status', 'valide')
+            $recouvreTotalPrev = (float) \App\Models\Paiement::where('status', 'valide')
+                ->where(function($q) { $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement'); })
                 ->where('date_paiement', '<=', $endPrevMonth)
                 ->whereHas('etudiant.etudiantGroups', fn($q) => 
                     $q->where('niveau_id', $niveau->id)->where('annee_scolaire_id', $this->anneeId)
                 )->sum('montant');
 
-            // Reste à recouvrer
-            $resteARecouvrer = $prevision - $recouvreTotalCurrent;
+            // Recouvré jusqu'à la fin de ce mois (YTD progress)
+            $recouvreTotalCurrent = $recouvreTotalPrev + $recouvreMois;
 
-            // Cumul RAR M-1
-            $cumulRarM1 = $prevision - $recouvreTotalPrev;
+            // Reste à recouvrer du mois pur (floor at 0 - you can't officially have 'negative' debt on a table)
+            // L'utilisateur indique M-1 est ce qui restait non payé avant, et Reste est juste Prevision - Recouvre.
+            $resteMois = max(0, $previsionMois - $recouvreMois);
+
+            // Excédent du mois : l'argent collecté au-delà de la prévision du mois (sert à éponger le M-1)
+            $excedentMois = max(0, $recouvreMois - $previsionMois);
+
+            // Cumul RAR M-1 (Total Arrears up to End of Previous Month)
+            $cumulRarM1 = max(0, $previsionM1 - $recouvreTotalPrev);
             
-            // Cumul RAR YTD
-            $cumulRarYTD = $resteARecouvrer;
+            // Cumul RAR YTD (Total Arrears up to End of Current Month)
+            $cumulRarYTD = max(0, $previsionYTD - $recouvreTotalCurrent);
 
             $results[] = [
                 'niveau_nom' => $niveau->libelle,
-                'prevision' => $prevision,
+                'prevision' => $previsionMois,
                 'montant_recouvre' => $recouvreMois,
-                'taux_recouvre' => $prevision > 0 ? (float) round(($recouvreMois / $prevision) * 100, 1) : 0,
-                'reste_a_recouvrer' => $resteARecouvrer,
+                'taux_recouvre' => $previsionMois > 0 ? (float) round(($recouvreMois / $previsionMois) * 100, 1) : 0,
+                'reste_a_recouvrer' => $resteMois,
+                'excedent' => $excedentMois,
                 'cumul_rar_m1' => $cumulRarM1,
                 'cumul_rar_ytd' => $cumulRarYTD
             ];
@@ -441,18 +539,45 @@ class FinanceService
 
     private function getEtudiantsEnRetard($limit)
     {
-        return FraisEtudiant::with('etudiant')
+        $dossiers = FraisEtudiant::with(['etudiant', 'echeances'])
             ->where('annee_scolaire_id', $this->anneeId)
-            ->where('statut', 'en_retard')
-            ->take($limit)
-            ->get()
-            ->map(fn($f) => [
-                'nom' => $f->etudiant->nom,
-                'prenom' => $f->etudiant->prenom,
-                'matricule' => $f->etudiant->matricule,
-                'montant_restant' => $f->reste_a_payer,
-                'jours_retard' => 5 // Mock pour l'instant
-            ]);
+            ->where('est_en_abandon', false)
+            ->get();
+            
+        $enRetard = collect();
+        
+        foreach ($dossiers as $f) {
+            $expectedToDate = 0;
+            $echeanceRetard = null;
+            
+            foreach ($f->echeances->sortBy('date_limite') as $ech) {
+                if ($ech->date_limite < now()) {
+                    $expectedToDate += $ech->montant;
+                    $echeanceRetard = $ech;
+                }
+            }
+            
+            if ($expectedToDate > 0) {
+                $paye = \App\Models\Paiement::where('etudiant_id', $f->etudiant_id)->where('status', 'valide')
+                    ->where(function($q) { $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement'); })
+                    ->sum('montant');
+                    
+                if ($paye < $expectedToDate) {
+                    $reste = max(0, $f->montant_apres_bourse - $paye);
+                    $joursRetard = $echeanceRetard ? (int) round(now()->diffInDays($echeanceRetard->date_limite)) : 0;
+                    
+                    $enRetard->push([
+                        'nom' => $f->etudiant->nom,
+                        'prenom' => $f->etudiant->prenom,
+                        'matricule' => $f->etudiant->matricule,
+                        'montant_restant' => $reste,
+                        'jours_retard' => max(1, $joursRetard) // au moins 1 jour
+                    ]);
+                }
+            }
+        }
+        
+        return $enRetard->sortByDesc('jours_retard')->take($limit)->values();
     }
 
     private function getPaiementsRecents($limit)
@@ -552,11 +677,40 @@ class FinanceService
         return $query->get()->map(function($f) {
             $totalPaye = \App\Models\Paiement::where('etudiant_id', $f->etudiant_id)
                 ->where('status', 'valide')
+                ->where(function($q) { $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement'); })
                 ->sum('montant');
             
-            // Trouver le mois de destination (si dépassement -> mois suivant)
-            $prochaine = $f->prochaine_echeance;
+            // Trouver l'échéance non payée la plus pertinente
+            $prochaine = null;
+            $cumulPaye = $totalPaye;
+            $expectedToDate = 0;
             
+            foreach ($f->echeances->sortBy('date_limite') as $ech) {
+                if ($ech->date_limite < now()) {
+                    $expectedToDate += $ech->montant;
+                }
+                if ($prochaine === null && $cumulPaye < $ech->montant) {
+                    $prochaine = $ech;
+                }
+                if ($cumulPaye >= $ech->montant) {
+                    $cumulPaye -= $ech->montant;
+                } else {
+                    $cumulPaye = 0;
+                }
+            }
+            
+            $estEnRetard = ($totalPaye < $expectedToDate);
+            $statutReel = $f->statut;
+            if ($statutReel !== 'abandon') {
+                if ($totalPaye >= $f->montant_apres_bourse && $f->montant_apres_bourse > 0) {
+                    $statutReel = 'solde';
+                } elseif ($estEnRetard) {
+                    $statutReel = 'retard';
+                } else {
+                    $statutReel = 'en_cours';
+                }
+            }
+
             return [
                 'id' => $f->id,
                 'slug' => $f->slug,
@@ -565,10 +719,10 @@ class FinanceService
                 'montant_du' => $f->montant_apres_bourse,
                 'montant_paye' => $totalPaye,
                 'reste' => max(0, $f->montant_apres_bourse - $totalPaye),
-                'statut' => $f->statut,
-                'est_en_retard' => $f->est_en_retard,
-                'prochaine_echeance_date' => $prochaine ? Carbon::parse($prochaine->date_limite)->format('d/m/Y') : '--',
-                'prochaine_echeance_montant' => $prochaine ? $prochaine->montant : 0,
+                'statut' => $statutReel,
+                'est_en_retard' => $estEnRetard,
+                'prochaine_echeance_date' => $prochaine ? \Carbon\Carbon::parse($prochaine->date_limite)->format('d/m/Y') : '--',
+                'prochaine_echeance_montant' => $prochaine ? ($prochaine->montant - $cumulPaye) : 0,
             ];
         });
     }

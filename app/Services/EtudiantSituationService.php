@@ -202,6 +202,7 @@ class EtudiantSituationService
     {
         return Paiement::where('etudiant_id', $etudiant->id)
             ->where('status', 'valide')
+            ->where('payable_type', '!=', \App\Models\FraisInscription::class)
             ->sum('montant');
     }
 

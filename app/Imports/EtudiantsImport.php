@@ -431,6 +431,49 @@ class EtudiantsImport implements
                 }
             }
 
+            // 7. Enregistrer le paiement des frais d'inscription
+            // On récupère le frais d'inscription dont le statut est actif et qui correspond à l'année active
+            $fraisInscriptionActif = \App\Models\FraisInscription::where('active', true)
+                ->where('annee_scolaire_id', $this->anneeScolaireId)
+                ->first();
+            
+            if ($fraisInscriptionActif) {
+                $paiementsBatch = [];
+                $now = now();
+                
+                foreach ($etudiants as $etudiant) {
+                    // Vérification de sécurité contre les doublons
+                    // On vérifie que l'étudiant n'a pas déjà payé ce frais d'inscription spécifique (qui inclut l'année)
+                    $paiementExiste = \Illuminate\Support\Facades\DB::table('paiements')
+                        ->where('etudiant_id', $etudiant->id)
+                        ->where('payable_type', 'App\\Models\\FraisInscription')
+                        ->where('payable_id', $fraisInscriptionActif->id)
+                        ->exists();
+
+                    if (!$paiementExiste) {
+                        $paiementsBatch[] = [
+                            'etudiant_id'   => $etudiant->id,
+                            'montant'       => $fraisInscriptionActif->montant,
+                            'mode_paiement' => 'especes', // Mode par défaut
+                            'nature_paiement' => 'inscription',
+                            'reference'     => 'INS-' . $etudiant->matricule . '-' . time(),
+                            'status'        => 'valide', // Statut validé demandé
+                            'payable_type'  => 'App\\Models\\FraisInscription',
+                            'payable_id'    => $fraisInscriptionActif->id,
+                            'date_paiement' => $now,      // Champ obligatoirement requis par la base de données
+                            'created_at'    => $now,
+                            'updated_at'    => $now,
+                        ];
+                    }
+                }
+
+                if (!empty($paiementsBatch)) {
+                    foreach (array_chunk($paiementsBatch, 50) as $chunk) {
+                        \Illuminate\Support\Facades\DB::table('paiements')->insert($chunk);
+                    }
+                }
+            }
+
             // Mettre à jour les caches
             foreach ($matricules as $matricule) {
                 if (!in_array($matricule, $this->existingMatricules)) {

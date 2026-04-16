@@ -60,6 +60,7 @@ class FinanceController extends Controller
         
         $paiements = \App\Models\Paiement::where('etudiant_id', $frais->etudiant_id)
             ->where('status', 'valide')
+            ->where(function($q) { $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement'); })
             ->orderBy('date_paiement', 'desc')
             ->get();
             
