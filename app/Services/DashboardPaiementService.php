@@ -630,7 +630,7 @@ protected function getProchaineEcheance($etudiant)
      */
     public function getMontantAPayerEtudiant($etudiant)
     {
-        // 1. Priorité au dossier individuel de l'étudiant (Source de vérité)
+        // 1. Priorité au dossier individuel de l'étudiant (Source de vérité absolue)
         $fraisEtudiant = ($etudiant->fraisEtudiant instanceof \Illuminate\Database\Eloquent\Collection) ? 
             $etudiant->fraisEtudiant->first() : 
             $etudiant->fraisEtudiant()->where('annee_scolaire_id', $this->anneeScolaireId)->first();
@@ -639,23 +639,8 @@ protected function getProchaineEcheance($etudiant)
             return (float) $fraisEtudiant->montant_apres_bourse;
         }
 
-        // 2. Fallback au tarif global (Sécurité)
-        $groupe = ($etudiant->etudiantGroups instanceof \Illuminate\Database\Eloquent\Collection) ? 
-            $etudiant->etudiantGroups->first() : 
-            $etudiant->etudiantGroups()->where('annee_scolaire_id', $this->anneeScolaireId)->first();
-
-        if (!$groupe || !$groupe->niveau_id) return 0;
-
-        $genreValue = ($etudiant->genre instanceof \UnitEnum) ? $etudiant->genre->value : ($etudiant->genre ?? 'Tous');
-        
-        $fraisBase = \App\Models\FraisScolarite::getFraisForEtudiant(
-            $groupe->niveau_id, 
-            $genreValue, 
-            $groupe->filiere_id,
-            $this->anneeScolaireId
-        );
-
-        return $fraisBase ? (float) $fraisBase->montant : 0;
+        // Si aucun dossier n'existe, on retourne zéro pour afficher exactement le total des dossiers existants
+        return 0;
     }
 
     /**

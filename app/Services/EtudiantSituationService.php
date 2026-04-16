@@ -191,20 +191,8 @@ class EtudiantSituationService
             return (float) $fraisEtudiant->montant_apres_bourse;
         }
 
-        // Sinon (fallback de sécurité), on cherche le tarif global
-        $groupe = $etudiant->etudiantGroups->first();
-        if (!$groupe || !$groupe->niveau_id) {
-            return 0;
-        }
-
-        $fraisScolarite = FraisScolarite::getFraisForEtudiant(
-            $groupe->niveau_id, 
-            $etudiant->genre?->value ?? 'Tous', 
-            $groupe->filiere_id,
-            $this->anneeScolaireId
-        );
-
-        return $fraisScolarite ? (float) $fraisScolarite->montant : 0;
+        // Si aucun dossier n'existe, on retourne zéro pour forcer la régularisation
+        return 0;
     }
 
     /**
