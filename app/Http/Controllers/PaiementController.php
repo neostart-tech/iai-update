@@ -97,7 +97,7 @@ class PaiementController extends Controller
             'commentaire' => 'nullable|string|max:1000',
             'reference' => 'nullable|string|max:255',
             'payable_id' => 'nullable|integer',
-            'payable_type' => 'nullable|string|in:echeance,tranche',
+            'payable_type' => 'nullable|string|in:echeance,tranche,frais_inscription',
         ]);
         
         if ($validator->fails()) {

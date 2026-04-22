@@ -27,7 +27,7 @@ trait CandidatureFirstValidationTrait
 	// 	return to_route('admin.candidatures.index')->with(successMsg('Candidature validée avec succès'));
 	// }
 
-	public function validateCandidature(Candidature $candidature): RedirectResponse
+	public function valider(Candidature $candidature)
 	{
 		$candidature->update([
 			'dossier_valide' => true,
@@ -46,15 +46,17 @@ trait CandidatureFirstValidationTrait
 		// );
 
 		$message = $candidature->greeting(true);
-		$message .= '. Votre dossier de candidature a été validé avec succès. Connectez-vous  régulièrement à votre compte pour suivre les prochaines étapes de votre procédure.';
+		$message .= '. Nous avons le plaisir de vous informer que, suite à l\'étude approfondie de votre dossier par la commission d\'admission, votre candidature a été approuvée. Connectez-vous régulièrement à votre compte pour suivre les prochaines étapes de votre procédure.';
 
 		$candidature->notify(new CandidatValideNotification($message));
-
-		// return to_route('admin.candidatures.index')->with(successMsg('Candidature validée avec succès'));
-		return to_route('admin.candidatures.liste-des-admis')->with(successMsg('Candidature validée avec succès'));
+		
+		return response()->json([
+			'success' => true,
+			'message' => 'Candidature certifiée avec succès.'
+		]);
 	}
 
-	public function rejectCandidature(Request $request, Candidature $candidature): RedirectResponse
+	public function rejeter(Request $request, Candidature $candidature)
 	{
 		$request->validate([
 			'motif' => ['required'],
@@ -77,10 +79,13 @@ trait CandidatureFirstValidationTrait
 		// );
 
 		// Todo Notifier le candidat concerné de la validation de sa candidature
-		return to_route('admin.candidatures.index')->with(successMsg('Candidature rejetée avec succès'));
+		return response()->json([
+			'success' => true,
+			'message' => 'Candidature rejetée avec succès.'
+		]);
 	}
 
-	public function askForRectificationOnCandidature(Request $request, Candidature $candidature): RedirectResponse
+	public function rectifier(Request $request, Candidature $candidature)
 	{
 		$candidature->update([
 			'motif' => $request->get('motif'),
@@ -94,6 +99,9 @@ trait CandidatureFirstValidationTrait
 		// );
 
 		// Todo Notifier le candidat concerné de la validation de sa candidature
-		return to_route('admin.candidatures.index')->with(successMsg('Demande de rectification appliquée à la candidature avec succès'));
+		return response()->json([
+			'success' => true,
+			'message' => 'Demande de rectification envoyée avec succès.'
+		]);
 	}
 }

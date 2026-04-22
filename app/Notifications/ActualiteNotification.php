@@ -27,7 +27,7 @@ class ActualiteNotification extends Notification implements ShouldQueue
     public function toDatabase($notifiable)
     {
         $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
-        $detailUrl = "{$frontendUrl}/actualites/" . $this->actualite->id;
+        $detailUrl = "{$frontendUrl}/actualites/" . ($this->actualite->slug ?? $this->actualite->id);
 
         return [
             'title' => 'Nouvelle actualité : ' . $this->actualite->title,

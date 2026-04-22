@@ -29,6 +29,9 @@ class EtudiantSituationService
         // IMPORTANT: on filtre sur les étudiants de l'année active (cohérence avec le Dashboard)
         $query = Etudiant::whereHas('etudiantGroups', function($q) {
             $q->where('annee_scolaire_id', $this->anneeScolaireId);
+        })->whereDoesntHave('fraisEtudiant', function($q) {
+            $q->where('annee_scolaire_id', $this->anneeScolaireId)
+              ->where('est_en_abandon', true);
         })->with([
             'etudiantGroups' => function($q) {
                 $q->where('annee_scolaire_id', $this->anneeScolaireId)
@@ -72,8 +75,30 @@ class EtudiantSituationService
         $etudiants = $query->get();
         $resultats = [];
 
+        $ids = $etudiants->pluck('id')->toArray();
+        $etudiantPaiements = Paiement::whereIn('etudiant_id', $ids)
+            ->where('status', 'valide')
+            ->whereHas('etudiant.etudiantGroups', function($q) {
+                $q->where('annee_scolaire_id', $this->anneeScolaireId);
+            })
+            ->get()
+            ->groupBy('etudiant_id')
+            ->map(function ($group) {
+                $inscription = $group->filter(function($p) {
+                    return $p->nature_paiement === 'inscription' || 
+                           $p->payable_type === \App\Models\FraisInscription::class ||
+                           $p->montant == 50000;
+                })->sum('montant');
+                $total = $group->sum('montant');
+                
+                return [
+                    'inscription' => $inscription,
+                    'scolarite' => max(0, $total - $inscription),
+                ];
+            });
+
         foreach ($etudiants as $etudiant) {
-            $situation = $this->calculerSituationEtudiant($etudiant);
+            $situation = $this->calculerSituationEtudiant($etudiant, $etudiantPaiements);
             
             // Appliquer le filtre par statut si nécessaire
             if (!empty($filtres['statut']) && $situation['statut'] !== $filtres['statut']) {
@@ -94,7 +119,7 @@ class EtudiantSituationService
     /**
      * Calcule la situation complète d'un étudiant
      */
-    protected function calculerSituationEtudiant($etudiant)
+    protected function calculerSituationEtudiant($etudiant, $etudiantPaiements = [])
     {
         // Informations de base
         $groupe = $etudiant->etudiantGroups->first();
@@ -142,6 +167,8 @@ class EtudiantSituationService
             'montant_total_a_payer_formatted' => $this->formatMontant($montantAPayer),
             'montant_paye' => $montantPaye,
             'montant_paye_formatted' => $this->formatMontant($montantPaye),
+            'montant_inscription_paye' => $etudiantPaiements[$etudiant->id]['inscription'] ?? 0,
+            'montant_scolarite_paye' => $etudiantPaiements[$etudiant->id]['scolarite'] ?? 0,
             'montant_restant' => $montantRestant,
             'montant_restant_formatted' => $this->formatMontant($montantRestant),
             'taux_progression' => $tauxProgression,
@@ -169,10 +196,12 @@ class EtudiantSituationService
             // Frais négociés
             'a_frais_negocies' => !is_null($fraisEtudiant),
             'frais_negocies' => $fraisEtudiant ? [
-                'montant_initial' => $fraisEtudiant->montant_initial,
-                'montant_apres_bourse' => $fraisEtudiant->montant_apres_bourse,
-                'bourse' => $fraisEtudiant->bourse,
-                'type_bourse' => $fraisEtudiant->type_bourse,
+                'montant_initial' => (float)$fraisEtudiant->montant_initial,
+                'montant_apres_bourse' => (float)$fraisEtudiant->montant_apres_bourse,
+                'bourse' => (float)($fraisEtudiant->bourse > 0 ? $fraisEtudiant->bourse : 
+                    ($fraisEtudiant->montant_initial > $fraisEtudiant->montant_apres_bourse ? 
+                        round((($fraisEtudiant->montant_initial - $fraisEtudiant->montant_apres_bourse) / $fraisEtudiant->montant_initial) * 100) : 0)),
+                'type_bourse' => $fraisEtudiant->type_bourse ?: ($fraisEtudiant->montant_initial > $fraisEtudiant->montant_apres_bourse ? 'Réduction' : 'Standard'),
             ] : null,
             
             // Date de dernière activité - CORRIGÉ
@@ -186,12 +215,11 @@ class EtudiantSituationService
      */
     protected function calculerMontantAPayer($etudiant, $fraisEtudiant = null)
     {
-        // Si l'étudiant a un dossier financier (contrat), c'est la source de vérité
+        // On ne retourne QUE la scolarité pour le montant dû principal
         if ($fraisEtudiant) {
             return (float) $fraisEtudiant->montant_apres_bourse;
         }
 
-        // Si aucun dossier n'existe, on retourne zéro pour forcer la régularisation
         return 0;
     }
 
@@ -200,9 +228,17 @@ class EtudiantSituationService
      */
     protected function calculerMontantPaye($etudiant)
     {
+        // On ne retourne QUE la scolarité payée
+        // On exclut uniquement ce qui est explicitement marqué comme inscription
         return Paiement::where('etudiant_id', $etudiant->id)
             ->where('status', 'valide')
-            ->where('payable_type', '!=', \App\Models\FraisInscription::class)
+            ->where(function($q) {
+                $q->where(function($sq) {
+                    $sq->whereNull('nature_paiement')
+                       ->orWhere('nature_paiement', '!=', 'inscription');
+                })
+                ->where('payable_type', '!=', \App\Models\FraisInscription::class);
+            })
             ->sum('montant');
     }
 
@@ -213,6 +249,13 @@ class EtudiantSituationService
     {
         return Paiement::where('etudiant_id', $etudiant->id)
             ->where('status', 'valide')
+            ->where(function($q) {
+                $q->where(function($sq) {
+                    $sq->whereNull('nature_paiement')
+                       ->orWhere('nature_paiement', '!=', 'inscription');
+                })
+                ->where('payable_type', '!=', \App\Models\FraisInscription::class);
+            })
             ->with(['payable', 'user'])
             ->orderByDesc('created_at')
             ->get()
@@ -234,75 +277,89 @@ class EtudiantSituationService
     }
 
     /**
-     * Récupère les détails des échéances d'un étudiant
+     * Récupère les détails des échéances d'un étudiant avec les informations de paiement réelles
      */
-   protected function getEcheancesDetails($etudiant, $fraisEtudiant = null)
-{
-    $echeances = collect();
+    protected function getEcheancesDetails($etudiant, $fraisEtudiant = null)
+    {
+        $echeances = collect();
+        
+        // Récupérer tous les paiements valides de l'étudiant pour filtrer en mémoire (évite N+1)
+        $paiementsValides = Paiement::where('etudiant_id', $etudiant->id)
+            ->where('status', 'valide')
+            ->orderByDesc('created_at')
+            ->get();
 
-    if ($fraisEtudiant) {
-        // Échéances négociées
-        $echeances = $fraisEtudiant->echeances->map(function($echeance) use ($etudiant) {
-            $paye = Paiement::where('etudiant_id', $etudiant->id)
-                ->where('payable_type', Echeance::class)
-                ->where('payable_id', $echeance->id)
-                ->where('status', 'valide')
-                ->sum('montant');
-
-            return [
-                'type' => 'echeance',
-                'libelle' => $echeance->libelle,
-                'date_limite' => $echeance->date_limite->format('Y-m-d'),
-                'date_limite_formatted' => $echeance->date_limite->format('d/m/Y'),
-                'montant' => $echeance->montant,
-                'montant_formatted' => $this->formatMontant($echeance->montant),
-                'paye' => $paye,
-                'paye_formatted' => $this->formatMontant($paye),
-                'reste' => $echeance->montant - $paye,
-                'reste_formatted' => $this->formatMontant($echeance->montant - $paye),
-                'statut' => $paye >= $echeance->montant ? 'paye' : ($echeance->date_limite->isPast() ? 'en_retard' : 'en_attente'),
-                'jours_retard' => $echeance->date_limite->isPast() && $paye < $echeance->montant ? 
-                    now()->diffInDays($echeance->date_limite) : 0,
-            ];
-        });
-    } else {
-        // Tranches standard
-        $groupe = $etudiant->etudiantGroups->first();
-        if ($groupe && $groupe->niveau_id) {
-            $fraisScolarite = FraisScolarite::where('niveau_id', $groupe->niveau_id)
-                ->where('annee_scolaire_id', $this->anneeScolaireId)
-                ->first();
-
-            if ($fraisScolarite) {
-                $echeances = $fraisScolarite->tranchepaiement->map(function($tranche) use ($etudiant) {
-                    $paye = Paiement::where('etudiant_id', $etudiant->id)
-                        ->where('payable_type', TranchePaiement::class)
-                        ->where('payable_id', $tranche->id)
-                        ->where('status', 'valide')
-                        ->sum('montant');
-
-                    return [
-                        'type' => 'tranche',
-                        'libelle' => $tranche->libelle,
-                        'date_limite' =>date_format(date_create($tranche->date_limite),"Y-m-d"),
-                        'date_limite_formatted' =>date_format(date_create($tranche->date_limite),'d/m/Y'),
-                        'montant' => $tranche->montant,
-                        'montant_formatted' => $this->formatMontant($tranche->montant),
-                        'paye' => $paye,
-                        'paye_formatted' => $this->formatMontant($paye),
-                        'reste' => $tranche->montant - $paye,
-                        'reste_formatted' => $this->formatMontant($tranche->montant - $paye),
-                        'statut' => $paye >= $tranche->montant ? 'paye' : (Carbon::parse($tranche->date_limite)->isPast() ? 'en_retard' : 'en_attente'),
-                        'jours_retard' => Carbon::parse($tranche->date_limite)->isPast() && $paye < $tranche->montant ? 
-                            now()->diffInDays(Carbon::parse($tranche->date_limite)) : 0,
-                    ];
+        if ($fraisEtudiant) {
+            // Échéances négociées
+            $echeances = $fraisEtudiant->echeances->map(function($echeance) use ($etudiant, $paiementsValides) {
+                // Filtrer les paiements pour cette échéance spécifique
+                $paiementsEch = $paiementsValides->filter(function($p) use ($echeance) {
+                    return $p->payable_type === Echeance::class && $p->payable_id === $echeance->id;
                 });
+
+                $paye = $paiementsEch->sum('montant');
+                $dernierPaiement = $paiementsEch->first();
+
+                return [
+                    'type' => 'echeance',
+                    'libelle' => $echeance->libelle,
+                    'date_limite' => $echeance->date_limite->format('Y-m-d'),
+                    'date_limite_formatted' => $echeance->date_limite->format('d/m/Y'),
+                    'montant' => $echeance->montant,
+                    'montant_formatted' => $this->formatMontant($echeance->montant),
+                    'paye' => $paye,
+                    'paye_formatted' => $this->formatMontant($paye),
+                    'reste' => $echeance->montant - $paye,
+                    'reste_formatted' => $this->formatMontant($echeance->montant - $paye),
+                    'statut' => $paye >= $echeance->montant ? 'paye' : ($echeance->date_limite->isPast() ? 'retard' : 'en_attente'),
+                    'jours_retard' => $echeance->date_limite->isPast() && $paye < $echeance->montant ? 
+                        now()->diffInDays($echeance->date_limite) : 0,
+                    'date_paiement' => $dernierPaiement ? $dernierPaiement->created_at->format('Y-m-d') : null,
+                    'mode_paiement' => $dernierPaiement ? (Paiement::MODES_PAIEMENT[$dernierPaiement->mode_paiement] ?? $dernierPaiement->mode_paiement) : null,
+                ];
+            });
+        } else {
+            // Tranches standard
+            $groupe = $etudiant->etudiantGroups->first();
+            if ($groupe && $groupe->niveau_id) {
+                $fraisScolarite = FraisScolarite::where('niveau_id', $groupe->niveau_id)
+                    ->where('annee_scolaire_id', $this->anneeScolaireId)
+                    ->first();
+
+                if ($fraisScolarite) {
+                    $echeances = $fraisScolarite->tranchepaiement->map(function($tranche) use ($etudiant, $paiementsValides) {
+                        // Filtrer les paiements pour cette tranche spécifique
+                        $paiementsTranche = $paiementsValides->filter(function($p) use ($tranche) {
+                            return $p->payable_type === TranchePaiement::class && $p->payable_id === $tranche->id;
+                        });
+
+                        $paye = $paiementsTranche->sum('montant');
+                        $dernierPaiement = $paiementsTranche->first();
+
+                        return [
+                            'type' => 'tranche',
+                            'libelle' => $tranche->libelle,
+                            'date_limite' => Carbon::parse($tranche->date_limite)->format('Y-m-d'),
+                            'date_limite_formatted' => Carbon::parse($tranche->date_limite)->format('d/m/Y'),
+                            'montant' => $tranche->montant,
+                            'montant_formatted' => $this->formatMontant($tranche->montant),
+                            'paye' => $paye,
+                            'paye_formatted' => $this->formatMontant($paye),
+                            'reste' => $tranche->montant - $paye,
+                            'reste_formatted' => $this->formatMontant($tranche->montant - $paye),
+                            'statut' => $paye >= $tranche->montant ? 'paye' : (Carbon::parse($tranche->date_limite)->isPast() ? 'retard' : 'en_attente'),
+                            'jours_retard' => Carbon::parse($tranche->date_limite)->isPast() && $paye < $tranche->montant ? 
+                                now()->diffInDays(Carbon::parse($tranche->date_limite)) : 0,
+                            'date_paiement' => $dernierPaiement ? $dernierPaiement->created_at->format('Y-m-d') : null,
+                            'mode_paiement' => $dernierPaiement ? (Paiement::MODES_PAIEMENT[$dernierPaiement->mode_paiement] ?? $dernierPaiement->mode_paiement) : null,
+                        ];
+                    });
+                }
             }
         }
-    }
 
-    return $echeances->sortBy('date_limite')->values();
-}
+        return $echeances->sortBy('date_limite')->values();
+    }
 
     /**
      * Détermine le statut détaillé d'un étudiant
@@ -412,10 +469,33 @@ class EtudiantSituationService
 
         $sommeJoursRetard = 0;
 
+        $caActifsDetail = [
+            'inscription' => 0,
+            'scolarite' => 0,
+            'total' => 0
+        ];
+
+        // On récupère TOUS les paiements valides de l'année scolaire (Comme le dashboard)
+        $tousPaiementsValides = Paiement::where('status', 'valide')
+            ->whereHas('etudiant.etudiantGroups', function($q) {
+                $q->where('annee_scolaire_id', $this->anneeScolaireId);
+            })
+            ->get();
+
+        foreach ($tousPaiementsValides as $p) {
+            $isInscr = ($p->nature_paiement === 'inscription' || $p->payable_type === \App\Models\FraisInscription::class || (float)$p->montant === 50000.0);
+            
+            if ($isInscr) {
+                $caActifsDetail['inscription'] += (float)$p->montant;
+            } else {
+                $caActifsDetail['scolarite'] += (float)$p->montant;
+            }
+        }
+        $caActifsDetail['total'] = $caActifsDetail['inscription'] + $caActifsDetail['scolarite'];
+
         foreach ($tous as $etudiant) {
             $stats['par_statut'][$etudiant['statut']]++;
             $stats['montants']['total_a_payer'] += $etudiant['montant_total_a_payer'];
-            $stats['montants']['total_paye'] += $etudiant['montant_paye'];
             $stats['montants']['total_restant'] += $etudiant['montant_restant'];
 
             if ($etudiant['en_retard']) {
@@ -424,6 +504,63 @@ class EtudiantSituationService
                 $sommeJoursRetard += $etudiant['jours_retard_max'];
             }
         }
+        // Le total payé global est synchronisé ici
+        $stats['montants']['total_paye'] = $caActifsDetail['total'];
+
+        // --- NOUVEAU: Statistiques des Abandons ---
+        $queryAbandons = FraisEtudiant::where('annee_scolaire_id', $this->anneeScolaireId)
+            ->where('est_en_abandon', true);
+        
+        // On pourrait appliquer les mêmes filtres que pour les actifs si besoin
+        // Mais restons sur le global pour l'instant ou selon les filtres passés
+        // Pour l'instant, on calcule le global abandon
+        
+        $abandons = $queryAbandons->get();
+        $caAbandons = [
+            'inscription' => 0,
+            'scolarite' => 0,
+            'total' => 0,
+            'nombre' => $abandons->count()
+        ];
+
+        foreach ($abandons as $f) {
+            $studentPayments = Paiement::where('etudiant_id', $f->etudiant_id)
+                ->where('status', 'valide')
+                ->get();
+
+            $inscriptionPayee = $studentPayments->filter(function($p) {
+                return $p->nature_paiement === 'inscription' || 
+                       $p->payable_type === \App\Models\FraisInscription::class ||
+                       $p->montant == 50000;
+            })->sum('montant');
+            
+            $totalPaye = $studentPayments->sum('montant');
+            $scolaritePayee = max(0, $totalPaye - $inscriptionPayee);
+
+            $caAbandons['inscription'] += $inscriptionPayee;
+            $caAbandons['scolarite'] += $scolaritePayee;
+            $caAbandons['total'] += ($inscriptionPayee + $scolaritePayee);
+            
+            // Calcul de la perte (ce qui restait à payer après bourse)
+            $perteScolarite = max(0, $f->montant_apres_bourse - $scolaritePayee);
+            $caAbandons['total_perdu'] = ($caAbandons['total_perdu'] ?? 0) + $perteScolarite;
+        }
+
+        $stats['ca_abandons'] = $caAbandons;
+        $stats['ca_abandons']['inscription_formatted'] = $this->formatMontant($caAbandons['inscription']);
+        $stats['ca_abandons']['scolarite_formatted'] = $this->formatMontant($caAbandons['scolarite']);
+        $stats['ca_abandons']['total_formatted'] = $this->formatMontant($caAbandons['total']);
+        $stats['ca_abandons']['total_perdu_formatted'] = $this->formatMontant($caAbandons['total_perdu'] ?? 0);
+        
+        // --- NOUVEAU: Détail CA Actifs (Utilise les sommes déjà calculées) ---
+        $stats['ca_actifs_detail'] = [
+            'inscription' => $caActifsDetail['inscription'],
+            'scolarite' => $caActifsDetail['scolarite'],
+            'total' => $caActifsDetail['total'],
+            'inscription_formatted' => $this->formatMontant($caActifsDetail['inscription']),
+            'scolarite_formatted' => $this->formatMontant($caActifsDetail['scolarite']),
+            'total_formatted' => $this->formatMontant($caActifsDetail['total'])
+        ];
 
         $stats['retards']['jours_retard_moyen'] = $stats['retards']['total_etudiants_retard'] > 0 ? 
             round($sommeJoursRetard / $stats['retards']['total_etudiants_retard'], 2) : 0;

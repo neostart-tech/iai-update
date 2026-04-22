@@ -343,21 +343,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
     // Routes pour l'admin
-
-    // Dashboard des négociations
     Route::controller(NegociationController::class)->prefix('admin')->group(function () {
-
         Route::get('negociations/dashboard', 'dashboard');
-
-        // Ressource complète pour les négociations
+        Route::get('negociations/etudiant/{etudiantId}', 'getByEtudiant');
         Route::resource('negociations', NegociationController::class);
-        Route::post('negociations/{id}/ajouter-paiement',  'ajouterPaiement')
-            ->name('negociations.ajouter-paiement');
-    });
-    Route::controller(NegociationController::class)->group(function () {
-        Route::get('negociations/dashboard',  'dashboard');
-        Route::get('negociations/{id}',  'show');
-        Route::post('negociations/{id}/ajouter-paiement',  'ajouterPaiement');
+        Route::post('negociations/{id}/ajouter-paiement', 'ajouterPaiement')->name('negociations.ajouter-paiement');
     });
 
     Route::controller(PaiementController::class)->prefix('paiements')->group(function () {

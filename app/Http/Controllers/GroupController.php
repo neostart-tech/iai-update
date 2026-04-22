@@ -30,24 +30,22 @@ use Illuminate\View\View;
 class GroupController extends Controller
 {
 
-	public function index()
+	public function index(Request $request)
 	{
-		// $anneeActive = AnneeScolaire::where('active', true)->first()->getAttribute('id');
-		// return view('admin.groups.index')->with([
-		// 	'groups' => Group::with(['filieres', 'niveau'])
-		// 		->withCount(['etudiants'=>function($query) use ($anneeActive){
-		// 			$query->where('etudiant_group.annee_scolaire_id',$anneeActive);
-		// 		}])
-		// 		->get(),
-		// 	'niveaux' => Niveau::all(),
-		// 	'filieres' => Filiere::all(),
-		// ]);
-		$anneeActive = injectAnneeScolaireId();
+		$anneeActiveId = getAnneeScolaireId();
 
 		$groups = Group::with(['filieres', 'niveau'])
+			->when($request->niveau_id, function ($query, $niveauId) {
+				$query->where('niveau_id', $niveauId);
+			})
+			->when($request->filiere_id, function ($query, $filiereId) {
+				$query->whereHas('filieres', function ($q) use ($filiereId) {
+					$q->where('filieres.id', $filiereId);
+				});
+			})
 			->withCount([
-				'etudiants' => function ($query) use ($anneeActive) {
-					$query->where('etudiant_group.annee_scolaire_id', $anneeActive);
+				'etudiants' => function ($query) use ($anneeActiveId) {
+					$query->where('etudiant_group.annee_scolaire_id', $anneeActiveId);
 				}
 			])
 			->get();

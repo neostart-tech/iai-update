@@ -8,7 +8,7 @@ use App\Http\Resources\CandidatureResource;
 use App\Notifications\Candidatures\CandidatAbsentNotification;
 use App\Notifications\Candidatures\CandidatPresentNotification;
 use App\Jobs\{CandidatureFraisPayementJob, ConcoursResultJob, SmsSendingProcess};
-use App\Models\{AnneeScolaire, Candidature, CandidatureDocument, Etudiant, FiliereGroup, FraisInscription, Group, Inscription, Paiement, Reorientation, Role};
+use App\Models\{AnneeScolaire, Bourse, BourseEtudiant, Candidature, CandidatureDocument, Echeance, Etudiant, FiliereGroup, FraisEtudiant, FraisInscription, FraisScolarite, Group, Inscription, Paiement, Reorientation, Role, TranchePaiement};
 use App\Notifications\Candidatures\CandidatWelcomeNotification;
 use App\Traits\ActionsTraits\{IndexTrait, CandidatureFirstValidationTrait};
 use App\Traits\FileManagementTrait;
@@ -16,8 +16,8 @@ use App\Models\Niveau;
 use App\Models\Filiere;
 use App\Notifications\Candidatures\CandidatAccountLockNotification;
 use App\Notifications\Candidatures\CandidatToEtudiantWelcomeNotification;
-use Illuminate\Http\{RedirectResponse, Request, Response};
-use Illuminate\Support\Facades\{Auth, Hash};
+use Illuminate\Http\{JsonResponse, RedirectResponse, Request, Response};
+use Illuminate\Support\Facades\{Auth, DB, Hash};
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Monarobase\CountryList\CountryListFacade;
@@ -71,7 +71,7 @@ class CandidatureController extends Controller
 		]);
 	}
 
-	public function store(Request $request): RedirectResponse
+	public function store(Request $request)
 	{
 		$anneeScolaireId = getAnneeScolaireId();
 
@@ -81,12 +81,18 @@ class CandidatureController extends Controller
 			->exists();
 
 		if ($exists) {
-			return back()->with('error', "Vous avez déjà déposé une candidature pour cette année scolaire.");
+			return response()->json([
+				'success' => false,
+				'message' => "Vous avez déjà déposé une candidature pour cette année scolaire."
+			], 422);
 		}
 
 		// 2. Vérification si l'étudiant est déjà inscrit (optionnel mais recommandé)
 		if (Etudiant::where('email', $request->email)->exists()) {
-			return back()->with('error', "Un compte étudiant existe déjà avec cet email. Veuillez passer par la procédure de réinscription.");
+			return response()->json([
+				'success' => false,
+				'message' => "Un compte étudiant existe déjà avec cet email. Veuillez passer par la procédure de réinscription."
+			], 422);
 		}
 
 		// 3. Création du candidat
@@ -119,31 +125,35 @@ class CandidatureController extends Controller
 		]);
 
 		// 2. Création du responsable
-		$candidat->responsable()->create([
-			'nom' => $request->get('nom_resp'),
-			'prenom' => $request->get('prenom_resp'),
-			'profession' => $request->get('profession_resp'),
-			'employeur' => $request->get('employeur_resp'),
-			'email' => $request->get('email_resp'),
-			'tel' => $request->get('tel_resp'),
-			'adresse' => $request->get('adresse_resp'),
-			'fax' => $request->get('fax_resp'),
-			'bp' => $request->get('bp_resp'),
-		]);
+		if ($request->filled('nom_resp')) {
+			$candidat->responsable()->create([
+				'nom' => $request->get('nom_resp'),
+				'prenom' => $request->get('prenom_resp'),
+				'profession' => $request->get('profession_resp'),
+				'employeur' => $request->get('employeur_resp'),
+				'email' => $request->get('email_resp'),
+				'tel' => $request->get('tel_resp'),
+				'adresse' => $request->get('adresse_resp'),
+				'fax' => $request->get('fax_resp'),
+				'bp' => $request->get('bp_resp'),
+			]);
+		}
 
 		// 3. Création du tuteur
-		$candidat->tuteur()->create([
-			'nom' => $request->get('nom_tuteur'),
-			'prenom' => $request->get('prenom_tuteur'),
-			'profession' => $request->get('profession_tuteur'),
-			'employeur' => $request->get('employeur_tuteur'),
-			'email' => $request->get('email_tuteur'),
-			'tel' => $request->get('tel_tuteur'),
-			'adresse' => $request->get('adresse_tuteur'),
-			'fax' => $request->get('fax_tuteur'),
-			'bp' => $request->get('bp_tuteur'),
-			'candidature_id' => $candidat->getAttribute('id')
-		]);
+		if ($request->filled('nom_tuteur')) {
+			$candidat->tuteur()->create([
+				'nom' => $request->get('nom_tuteur'),
+				'prenom' => $request->get('prenom_tuteur'),
+				'profession' => $request->get('profession_tuteur'),
+				'employeur' => $request->get('employeur_tuteur'),
+				'email' => $request->get('email_tuteur'),
+				'tel' => $request->get('tel_tuteur'),
+				'adresse' => $request->get('adresse_tuteur'),
+				'fax' => $request->get('fax_tuteur'),
+				'bp' => $request->get('bp_tuteur'),
+				'candidature_id' => $candidat->getAttribute('id')
+			]);
+		}
 
 		// 4. Création de l'album (utilise la version corrigée ci-dessus)
 		$this->createAlbum($request, $candidat);
@@ -155,10 +165,14 @@ class CandidatureController extends Controller
 		$message .= ", votre dossier de candidature a été déposé avec succès.";
 
 		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message));
-
-		return to_route('officiel.my-space.show')->with(successMsg('Le dossier a été déposé avec succès.'));
+		
+		return response()->json([
+			'success' => true,
+			'message' => 'Le dossier a été déposé avec succès.',
+			'candidat' => $candidat
+		], 201);
 	}
-	public function storeByAdmin(Request $request): RedirectResponse
+	public function storeByAdmin(Request $request)
 	{
 
 		$request->validate([
@@ -213,31 +227,35 @@ class CandidatureController extends Controller
 		]);
 
 		// 2. Création du responsable
-		$candidat->responsable()->create([
-			'nom' => $request->get('nom_resp'),
-			'prenom' => $request->get('prenom_resp'),
-			'profession' => $request->get('profession_resp'),
-			'employeur' => $request->get('employeur_resp'),
-			'email' => $request->get('email_resp'),
-			'tel' => $request->get('tel_resp'),
-			'adresse' => $request->get('adresse_resp'),
-			'fax' => $request->get('fax_resp'),
-			'bp' => $request->get('bp_resp'),
-		]);
+		if ($request->filled('nom_resp')) {
+			$candidat->responsable()->create([
+				'nom' => $request->get('nom_resp'),
+				'prenom' => $request->get('prenom_resp'),
+				'profession' => $request->get('profession_resp'),
+				'employeur' => $request->get('employeur_resp'),
+				'email' => $request->get('email_resp'),
+				'tel' => $request->get('tel_resp'),
+				'adresse' => $request->get('adresse_resp'),
+				'fax' => $request->get('fax_resp'),
+				'bp' => $request->get('bp_resp'),
+			]);
+		}
 
 		// 3. Création du tuteur
-		$candidat->tuteur()->create([
-			'nom' => $request->get('nom_tuteur'),
-			'prenom' => $request->get('prenom_tuteur'),
-			'profession' => $request->get('profession_tuteur'),
-			'employeur' => $request->get('employeur_tuteur'),
-			'email' => $request->get('email_tuteur'),
-			'tel' => $request->get('tel_tuteur'),
-			'adresse' => $request->get('adresse_tuteur'),
-			'fax' => $request->get('fax_tuteur'),
-			'bp' => $request->get('bp_tuteur'),
-			'candidature_id' => $candidat->getAttribute('id')
-		]);
+		if ($request->filled('nom_tuteur')) {
+			$candidat->tuteur()->create([
+				'nom' => $request->get('nom_tuteur'),
+				'prenom' => $request->get('prenom_tuteur'),
+				'profession' => $request->get('profession_tuteur'),
+				'employeur' => $request->get('employeur_tuteur'),
+				'email' => $request->get('email_tuteur'),
+				'tel' => $request->get('tel_tuteur'),
+				'adresse' => $request->get('adresse_tuteur'),
+				'fax' => $request->get('fax_tuteur'),
+				'bp' => $request->get('bp_tuteur'),
+				'candidature_id' => $candidat->getAttribute('id')
+			]);
+		}
 
 		// 4. Création de l'album (utilise la version corrigée ci-dessus)
 		$this->createAlbum($request, $candidat);
@@ -250,7 +268,11 @@ class CandidatureController extends Controller
 
 		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message));
 
-		return to_route('admin.candidatures.index')->with(successMsg('Le dossier a été déposé avec succès.'));
+		return response()->json([
+			'success' => true,
+			'message' => 'Le dossier a été déposé avec succès par l\'administration.',
+			'candidat' => $candidat
+		], 201);
 	}
 
 	private function createAlbum(Request $request, Candidature $candidat)
@@ -347,17 +369,21 @@ class CandidatureController extends Controller
 	}
 
 
-	public function payementCandidaturesStore(Request $request): RedirectResponse
+	public function payementCandidaturesStore(Request $request): JsonResponse
 	{
 		if (!$request->input('paye')) {
-			warningMsg('La liste d\'étudiants ne peut être vide');
-			return back();
+			return response()->json([
+				'success' => false,
+				'message' => 'La liste d\'étudiants ne peut être vide.'
+			], 422);
 		}
 
 		CandidatureFraisPayementJob::dispatch($request->collect('paye'));
 
-		successMsg('Liste d\'étudiants soumise avec succès');
-		return to_route('admin.candidatures.participation-au-concours');
+		return response()->json([
+			'success' => true,
+			'message' => 'Liste de paiements soumise pour traitement.'
+		]);
 	}
 
 	public function presenceControlStore(Request $request): Response
@@ -415,130 +441,205 @@ class CandidatureController extends Controller
 		$request->dd();
 	}
 
-	public function admissionControl(Request $request): RedirectResponse
+	public function admissionControl(Request $request): JsonResponse
 	{
 		ConcoursResultJob::dispatch($request->str('admis'), $request->str('recales'));
-		successMsg('Décisions appliquées avec succès. L\'envoie des messages peut prendre un peu de temps. veuillez rafraichir cette page dans quelques instants.');
-		return back();
+		return response()->json([
+			'success' => true,
+			'message' => 'Décisions appliquées avec succès. L\'envoi des messages est en cours.'
+		]);
 	}
 
 	public function insertStudent(Request $request, Candidature $candidature)
 	{
 		if (!$candidature) {
-			return back()->with('error', "Candidature introuvable");
+			return response()->json([
+				'success' => false,
+				'message' => "Candidature introuvable"
+			], 404);
 		}
 
 		$activeAnnee = AnneeScolaire::where('active', true)->first();
 		if (!$activeAnnee) {
-			return back()->with('error', "Aucune année scolaire active configurée");
+			return response()->json([
+				'success' => false,
+				'message' => "Aucune année scolaire active configurée"
+			], 422);
 		}
 
-		$fraisInscription = FraisInscription::where('active', true)->first() ?: FraisInscription::latest()->first();
+		return DB::transaction(function () use ($request, $candidature, $activeAnnee) {
+			// 1. Gestion du groupe
+			$groupId = $request->input('group_id');
+			if (!$groupId) {
+				$availableGroups = FiliereGroup::where('filiere_id', $candidature->filiere_id)
+					->join('groups', 'filiere_group.group_id', '=', 'groups.id')
+					->where('groups.niveau_id', $candidature->niveau_id)
+					->select('groups.*')
+					->get();
 
-		// Gestion du groupe : priorité au choix admin, sinon automatique si unique
-		$groupId = $request->input('group_id');
-		if (!$groupId) {
-			$availableGroups = FiliereGroup::where('filiere_id', $candidature->filiere_id)
-				->join('groups', 'filiere_group.group_id', '=', 'groups.id')
-				->where('groups.niveau_id', $candidature->niveau_id)
-				->select('groups.*')
-				->get();
+				if ($availableGroups->count() === 1) {
+					$groupId = $availableGroups->first()->id;
+				} else if ($availableGroups->count() > 1) {
+					throw new Exception("Plusieurs groupes disponibles. Veuillez en sélectionner un.");
+				} else {
+					throw new Exception("Aucun groupe disponible pour cette filière et ce niveau.");
+				}
+			}
 
-			if ($availableGroups->count() === 1) {
-				$groupId = $availableGroups->first()->id;
-			} else if ($availableGroups->count() > 1) {
-				return back()->with('error', "Plusieurs groupes disponibles. Veuillez en sélectionner un.");
+			// 2. Préparation Étudiant
+			$year = $activeAnnee->date_debut ? \Carbon\Carbon::parse($activeAnnee->date_debut)->year : today()->year;
+			$nextYear = $year + 1;
+			$promotion = "{$year}-{$nextYear}";
+
+			if ($candidature->etudiant_id) {
+				$etudiant = Etudiant::findOrFail($candidature->etudiant_id);
+				$etudiant->update([
+					'advertiser_id' => $request->input('advertiser_id', $candidature->advertiser_id),
+					'promotion' => $promotion,
+					'annee_admission' => $year,
+				]);
 			} else {
-				return back()->with('error', "Aucun groupe disponible pour cette filière et ce niveau.");
+				$etudiant = Etudiant::create([
+					'nom' => $candidature->nom,
+					'nom_jeune_fille' => $candidature->nom_jeune_fille,
+					'prenom' => $candidature->prenom,
+					'genre' => $candidature->genre,
+					'date_naissance' => $candidature->date_naissance,
+					'lieu_naissance' => $candidature->lieu_naissance,
+					'nationalite' => $candidature->nationalite,
+					'tel' => $candidature->tel,
+					'email' => $candidature->email,
+					'password' => $candidature->password,
+					'image' => config('images.etudiants.woman'),
+					'annee_admission' => $year,
+					'promotion' => $promotion,
+					'advertiser_id' => $request->input('advertiser_id', $candidature->advertiser_id),
+					'matricule' => Str::upper($year . '_' . fake()->unique()->randomNumber(6, true)),
+				]);
+
+				$roleEtudiant = Role::where('nom', 'Etudiant')->first();
+				if ($roleEtudiant) {
+					$etudiant->roles()->attach($roleEtudiant->id);
+				}
 			}
-		}
 
-		// Préparation des données académiques
-		$year = $activeAnnee->date_debut ? \Carbon\Carbon::parse($activeAnnee->date_debut)->year : today()->year;
-		$nextYear = $year + 1;
-		$promotion = "{$year}-{$nextYear}";
-
-		if ($candidature->etudiant_id) {
-			$etudiant = Etudiant::findOrFail($candidature->etudiant_id);
-			$etudiant->update([
-				'advertiser_id' => $request->input('advertiser_id', $candidature->advertiser_id),
-				'promotion' => $promotion,
-				'annee_admission' => $year,
-			]);
-		} else {
-			$etudiant = Etudiant::create([
-				'nom' => $candidature->nom,
-				'nom_jeune_fille' => $candidature->nom_jeune_fille,
-				'prenom' => $candidature->prenom,
-				'genre' => $candidature->genre,
-				'date_naissance' => $candidature->date_naissance,
-				'lieu_naissance' => $candidature->lieu_naissance,
-				'nationalite' => $candidature->nationalite,
-				'tel' => $candidature->tel,
-				'email' => $candidature->email,
-				'password' => $candidature->password,
-				'image' => config('images.etudiants.woman'),
-				'annee_admission' => $year,
-				'promotion' => $promotion,
-				'advertiser_id' => $request->input('advertiser_id', $candidature->advertiser_id),
-				'matricule' => Str::upper($year . '_' . fake()->unique()->randomNumber(6, true)),
-			]);
-
-			// Assigner le rôle Étudiant
-			$roleEtudiant = Role::where('nom', 'Etudiant')->first();
-			if ($roleEtudiant) {
-				$etudiant->roles()->attach($roleEtudiant->id);
-			}
-		}
-
-		// Affectation au groupe
-		$etudiant->groups()->syncWithoutDetaching([
-			$groupId => [
-				"annee_scolaire_id" => $activeAnnee->id,
-				"niveau_id" => $candidature->niveau_id,
-				"filiere_id" => $candidature->filiere_id
-			]
-		]);
-
-		// Enregistrement du paiement des frais d'inscription
-		if ($fraisInscription) {
-			Paiement::updateOrCreate(
-				[
-					"etudiant_id" => $etudiant->id,
-					"payable_id" => $fraisInscription->id,
-					"payable_type" => FraisInscription::class,
+			// 3. Affectation Groupe
+			$etudiant->groups()->syncWithoutDetaching([
+				$groupId => [
 					"annee_scolaire_id" => $activeAnnee->id,
-				],
-				[
-					"montant" => $fraisInscription->montant,
-					"mode_paiement" => "caisse",
-					"reference" => "REG-" . strtoupper(Str::random(8)),
-					"status" => "valide",
-					"date_paiement" => now(),
+					"niveau_id" => $candidature->niveau_id,
+					"filiere_id" => $candidature->filiere_id
 				]
+			]);
+
+			// 4. Gestion de la Bourse
+			$bourseId = $request->input('bourse_id');
+			$bourseEtudiant = null;
+			if ($bourseId) {
+				$bourseEtudiant = BourseEtudiant::updateOrCreate(
+					[
+						'etudiant_id' => $etudiant->id,
+						'annee_scolaire_id' => $activeAnnee->id
+					],
+					[
+						'bourse_id' => $bourseId,
+						'slug' => Str::uuid()
+					]
+				);
+			}
+
+			// 5. Gestion Financière (Frais d'Inscription)
+			if ($request->boolean('frais_inscription_paye')) {
+				$fraisInsc = FraisInscription::where('annee_scolaire_id', $activeAnnee->id)
+					->where('active', true)
+					->first() ?: FraisInscription::where('annee_scolaire_id', $activeAnnee->id)->latest()->first();
+				
+				if ($fraisInsc) {
+					Paiement::updateOrCreate(
+						[
+							"etudiant_id" => $etudiant->id,
+							"payable_id" => $fraisInsc->id,
+							"payable_type" => FraisInscription::class,
+						],
+						[
+							"montant" => $fraisInsc->montant,
+							"nature_paiement" => "inscription",
+							"mode_paiement" => $request->input('mode_paiement', 'espece'),
+							"frais_retrait_mm" => $request->input('frais_retrait', 0),
+							"reference" => "REG-" . strtoupper(Str::random(8)),
+							"status" => "valide",
+							"date_paiement" => now(),
+						]
+					);
+				}
+			}
+
+			// 6. Génération de la Scolarité et des Tranches
+			$fraisScolarite = FraisScolarite::getFraisForEtudiant(
+				$candidature->niveau_id,
+				$candidature->genre,
+				$candidature->filiere_id,
+				$activeAnnee->id
 			);
-		}
 
-		// Transfert des données polymorphiques
-		$updatedData = [
-			'owner_id' => $etudiant->id,
-			'owner_type' => Etudiant::class,
-		];
+			if ($fraisScolarite) {
+				$montantInitial = (float) $fraisScolarite->montant;
+				$montantApresBourse = $montantInitial;
 
-		if ($candidature->album) $candidature->album->update($updatedData);
-		if ($candidature->responsable) $candidature->responsable->update($updatedData);
-		if ($candidature->tuteur) $candidature->tuteur->update($updatedData);
+				if ($bourseEtudiant && $bourseEtudiant->bourse) {
+					$bourse = $bourseEtudiant->bourse;
+					if ($bourse->type === 'pourcentage') {
+						$montantApresBourse = round($montantInitial * (100 - $bourse->valeur) / 100);
+					} else {
+						$montantApresBourse = max(0, $montantInitial - $bourse->valeur);
+					}
+				}
 
-		// Mise à jour de la candidature
-		$candidature->update([
-			'etudiant_id' => $etudiant->id,
-			'acceptation_date' => now(),
-			'end_accessibility_date' => now()->addDays(3)
-		]);
+				$fEtudiant = FraisEtudiant::updateOrCreate(
+					[
+						'etudiant_id' => $etudiant->id,
+						'annee_scolaire_id' => $activeAnnee->id
+					],
+					[
+						'frais_scolarite_id' => $fraisScolarite->id,
+						'montant_initial' => $montantInitial,
+						'montant_apres_bourse' => $montantApresBourse,
+						'bourse_etudiant_id' => $bourseEtudiant ? $bourseEtudiant->id : null,
+						'type_paiement' => 'tranches_globales',
+						'frequence_paiement' => 'annuel',
+						'statut' => 'en_cours',
+						'slug' => Str::uuid()
+					]
+				);
 
-		$etudiant->notify(new CandidatToEtudiantWelcomeNotification($etudiant->greeting()));
+				// Supprimer les anciennes tranches pour régénérer proprement si nécessaire
+				$fEtudiant->echeances()->delete();
+				$fEtudiant->creerEcheancesDepuisTranchesGlobales();
+			}
 
-		return back()->with('success', "Étudiant inscrit avec succès dans le groupe sélectionné.");
+			// 7. Transfert des données polymorphiques
+			$updatedData = [
+				'owner_id' => $etudiant->id,
+				'owner_type' => Etudiant::class,
+			];
+			if ($candidature->album) $candidature->album->update($updatedData);
+			if ($candidature->responsable) $candidature->responsable->update($updatedData);
+			if ($candidature->tuteur) $candidature->tuteur->update($updatedData);
+
+			// 8. Mise à jour finalisation candidature
+			$candidature->update([
+				'etudiant_id' => $etudiant->id,
+				'acceptation_date' => now(),
+				'end_accessibility_date' => now()->addDays(3)
+			]);
+
+			$etudiant->notify(new CandidatToEtudiantWelcomeNotification($etudiant->greeting()));
+
+			return response()->json([
+				'success' => true,
+				'message' => 'L\'étudiant a été inscrit, son compte créé et son échéancier financier généré avec succès.'
+			]);
+		});
 	}
 
 

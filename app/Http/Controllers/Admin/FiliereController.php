@@ -23,35 +23,23 @@ class FiliereController extends Controller
 
 	private const FOLDER = 'filieres';
 
-	public function index()
+	public function index(Request $request)
 	{
-
-
-		// return FiliereResource::collection(Filiere::query()->withCount('etudiants')->get()->reverse());
 		$anneeActiveId = AnneeScolaire::where('active', true)->value('id');
+		$niveauId = $request->query('niveau_id');
 
-		// dd(Filiere::with(['anneesScolaires' => function ($q) use ($anneeActiveId) {
-		// 	$q->where('annee_filiere.annee_scolaire_id', $anneeActiveId)->first();
-		// }])->get());
+		$query = Filiere::query();
 
-		// return view('admin.filieres.index')->with([
-		// 	'filieres' => Filiere::with(['anneesScolaires' => function ($q) use ($anneeActiveId) {
-		// 		$q->where('annee_filiere.annee_scolaire_id', $anneeActiveId)->get();
-		// 	}])->withCount([
-		// 		'etudiants as etudiants_count' => function ($query) use ($anneeActiveId) {
-		// 			$query->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
-		// 				->distinct('etudiants.id');
-		// 		}
-		// 	])->get()->reverse()
-		// ]);
+		if ($niveauId) {
+			$query->whereHas('groups', function ($q) use ($niveauId, $anneeActiveId) {
+				$q->where('niveau_id', $niveauId);
+				if ($anneeActiveId) {
+					$q->where('annee_scolaire_id', $anneeActiveId);
+				}
+			});
+		}
 
-		// dd(Filiere::withCount([
-		// 	'etudiants as etudiants_count' => function ($query) use ($anneeActiveId) {
-		// 		$query->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
-		// 			->distinct('etudiants.id');
-		// 	}
-		// ])->get()->reverse());
-		return FiliereResource::collection(Filiere::with(['anneesScolaires' => function ($q) use ($anneeActiveId) {
+		return FiliereResource::collection($query->with(['anneesScolaires' => function ($q) use ($anneeActiveId) {
 			$q->where('annee_filiere.annee_scolaire_id', $anneeActiveId)->get();
 		}])->withCount([
 			'etudiants as etudiants_count' => function ($query) use ($anneeActiveId) {

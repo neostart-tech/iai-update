@@ -85,7 +85,7 @@ class Candidature extends Authenticatable
 	{
 		parent::boot();
 
-		static::saving(function ($model) {
+		static::creating(function ($model) {
 			$slug = $model->generateUniqueSlug(Str::slug($model->nom . '-' . $model->prenom));
 			if ($model->hasComplexSlug()) {
 				$slug = uniqid($slug . '-');

@@ -485,4 +485,13 @@ public function getStatistiquesPresencesAttribute()
     {
         return $this->hasMany(ExamSubmission::class, 'etudiant_id');
     }
+    /**
+     * Retourne l'URL complète de l'image de profil
+     */
+    public function ImagePath(): string
+    {
+        if (!$this->image) return "";
+        if (str_starts_with($this->image, 'http')) return $this->image;
+        return asset(\Illuminate\Support\Facades\Storage::url($this->image));
+    }
 }

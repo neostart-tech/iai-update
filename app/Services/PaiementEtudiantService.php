@@ -10,6 +10,7 @@ use App\Models\FraisScolarite;
 use App\Models\Paiement;
 use App\Models\TranchePaiement;
 use App\Models\BourseEtudiant;
+use App\Models\FraisInscription;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -213,6 +214,7 @@ class PaiementEtudiantService
                 'valeur' => (float) $bourseEtudiant->bourse->valeur,
             ] : null,
             'tranches' => $tranchesFormatted,
+            'frais_inscription' => $this->getFraisInscriptionInfos($etudiant->id, $anneeScolaireId),
             'total' => $totaux
         ];
     }
@@ -220,10 +222,7 @@ class PaiementEtudiantService
     /**
      * Récupère le frais de scolarité approprié pour un étudiant
      */
-  /**
- * Récupère le frais de scolarité approprié pour un étudiant
- */
-private function getFraisScolariteForEtudiant($niveauId, $filiereId, $genre, $anneeScolaireId)
+    private function getFraisScolariteForEtudiant($niveauId, $filiereId, $genre, $anneeScolaireId)
 {
     
 
@@ -333,12 +332,9 @@ private function getFraisScolariteForEtudiant($niveauId, $filiereId, $genre, $an
     /**
      * Formate les tranches avec les montants après bourse
      */
- /**
- * Formate les tranches avec les montants après bourse
- */
-private function formatTranches($tranches, $coefficient)
-{
-    return $tranches->map(function ($tranche) use ($coefficient) {
+    private function formatTranches($tranches, $coefficient)
+    {
+        return $tranches->map(function ($tranche) use ($coefficient) {
         $montantApresBourse = round($tranche->montant * $coefficient);
 
         // Déterminer le statut de la tranche
@@ -496,7 +492,9 @@ private function formatTranches($tranches, $coefficient)
                     'commentaire' => $paiement->commentaire,
                     'libelle' => $libelle,
                     'type_payable' => $typePayable,
+                    'nature_paiement' => $paiement->nature_paiement,
                     'payable_id' => $paiement->payable_id,
+                    'frais_retrait' => (float) ($paiement->frais_retrait_mm ?? 0),
                     'status' => $paiement->status,
                     'status_label' => Paiement::STATUTS[$paiement->status] ?? $paiement->status,
                 ];
@@ -522,6 +520,10 @@ private function formatTranches($tranches, $coefficient)
             return $payable->libelle;
         }
 
+        if ($payable instanceof \App\Models\FraisInscription) {
+            return $payable->libelle ?? "Frais d'inscription";
+        }
+
         return 'Paiement';
     }
 
@@ -538,6 +540,10 @@ private function formatTranches($tranches, $coefficient)
 
         if ($payable instanceof \App\Models\TranchePaiement) {
             return 'tranche';
+        }
+
+        if ($payable instanceof \App\Models\FraisInscription) {
+            return 'frais_inscription';
         }
 
         return 'autre';
@@ -557,17 +563,25 @@ private function formatTranches($tranches, $coefficient)
             $etudiant = Etudiant::findOrFail($etudiantId);
 
             // Déterminer le payable
-            $payable = $this->determinerPayable($etudiantId, $payableId, $payableType, $anneeScolaireId);
+            $payable = $this->determinerPayable($etudiantId, $payableId, $payableType, $anneeScolaireId, $naturePaiement);
 
             if (!$payable) {
-                throw new Exception("Impossible de déterminer l'élément à payer");
+                if ($naturePaiement === 'inscription') {
+                    throw new Exception("L'étudiant est déjà à jour pour ses frais d'inscription ou aucun frais d'inscription actif n'a été trouvé.");
+                }
+                throw new Exception("Impossible de déterminer l'élément à payer (tous les frais sont peut-être déjà soldés).");
             }
 
             // Vérifier que le montant ne dépasse pas le reste à payer
             $resteAPayer = $this->calculerResteAPayer($payable, $etudiantId);
 
+            if ($resteAPayer <= 0) {
+                $libelle = $this->getLibellePayable($payable);
+                throw new Exception("L'élément \"$libelle\" est déjà entièrement payé.");
+            }
+
             if ($montant > $resteAPayer) {
-                throw new Exception("Le montant saisi ($montant) dépasse le reste à payer ($resteAPayer FCFA)");
+                throw new Exception("Le montant saisi (" . number_format($montant, 0, ',', ' ') . ") dépasse le reste à payer (" . number_format($resteAPayer, 0, ',', ' ') . " FCFA)");
             }
 
             // Créer le paiement
@@ -614,8 +628,32 @@ private function formatTranches($tranches, $coefficient)
     /**
      * Détermine le payable concerné par le paiement
      */
-    private function determinerPayable($etudiantId, $payableId, $payableType, $anneeScolaireId)
+    private function determinerPayable($etudiantId, $payableId, $payableType, $anneeScolaireId, $naturePaiement = 'scolarite')
     {
+        // Si la nature est inscription, on cherche d'abord le frais d'inscription actif
+        if ($naturePaiement === 'inscription') {
+            // Si un payable est forcé mais que ce n'est pas un frais d'inscription, c'est une erreur de logique
+            if ($payableId && $payableType !== 'frais_inscription') {
+                return null; 
+            }
+
+            $fraisInsc = FraisInscription::where('annee_scolaire_id', $anneeScolaireId)
+                ->where('active', true)
+                ->first();
+            
+            if ($fraisInsc) {
+                // Si on a un ID spécifique, on vérifie que c'est bien celui-là
+                if ($payableId && $payableId != $fraisInsc->id) return null;
+
+                // Vérifier s'il est déjà payé
+                $reste = $this->calculerResteAPayer($fraisInsc, $etudiantId);
+                if ($reste > 0) return $fraisInsc;
+                
+                // Si le reste est 0, on retourne null pour déclencher l'erreur "Déjà à jour"
+                return null;
+            }
+        }
+
         // Si on a un payable spécifique
         if ($payableId && $payableType) {
             if ($payableType === 'echeance') {
@@ -624,13 +662,30 @@ private function formatTranches($tranches, $coefficient)
             if ($payableType === 'tranche') {
                 return \App\Models\TranchePaiement::find($payableId);
             }
+            if ($payableType === 'frais_inscription') {
+                return \App\Models\FraisInscription::find($payableId);
+            }
         }
 
         // Sinon, trouver la première échéance/tranche non payée
         $fraisEtudiant = $this->getFraisNegocie($etudiantId, $anneeScolaireId);
 
         if ($fraisEtudiant) {
-            // Cas négocié: première échéance non payée
+            // Cas négocié: privilégier l'échéance d'inscription si c'est la nature
+            if ($naturePaiement === 'inscription') {
+                $inscriptionEcheance = $fraisEtudiant->echeances()
+                    ->where('statut', '!=', 'paye')
+                    ->where(function($q) {
+                        $q->where('libelle', 'like', '%Inscrip%')
+                          ->orWhere('libelle', 'like', '%Admis%');
+                    })
+                    ->orderBy('date_limite')
+                    ->first();
+                
+                if ($inscriptionEcheance) return $inscriptionEcheance;
+            }
+
+            // Sinon première échéance non payée
             return $fraisEtudiant->echeances()
                 ->where('statut', '!=', 'paye')
                 ->orderBy('date_limite')
@@ -650,6 +705,18 @@ private function formatTranches($tranches, $coefficient)
             }
 
             $infos = $this->getInfosFraisParDefaut($etudiant, $anneeScolaireId);
+
+            if ($naturePaiement === 'inscription') {
+                $inscriptionTranche = collect($infos['tranches'])
+                    ->filter(function ($tranche) {
+                        return $tranche['statut'] !== 'paye' && 
+                               (stripos($tranche['libelle'], 'Inscrip') !== false || stripos($tranche['libelle'], 'Admis') !== false);
+                    })
+                    ->sortBy('date_limite')
+                    ->first();
+                
+                if ($inscriptionTranche) return TranchePaiement::find($inscriptionTranche['id']);
+            }
 
             $premiereTrancheNonPayee = collect($infos['tranches'])
                 ->filter(function ($tranche) {
@@ -691,6 +758,16 @@ private function formatTranches($tranches, $coefficient)
             return $montantApresBourse - $totalPaye;
         }
 
+        if ($payable instanceof \App\Models\FraisInscription) {
+            $totalPaye = Paiement::where('payable_type', FraisInscription::class)
+                ->where('payable_id', $payable->id)
+                ->where('etudiant_id', $etudiantId)
+                ->where('status', 'valide')
+                ->sum('montant');
+            
+            return (float)($payable->montant - $totalPaye);
+        }
+
         return 0;
     }
 
@@ -709,5 +786,32 @@ private function formatTranches($tranches, $coefficient)
         }
 
         // Pour les tranches, pas de statut à mettre à jour car c'est dynamique
+    }
+
+    /**
+     * Récupère les informations du frais d'inscription actif
+     */
+    private function getFraisInscriptionInfos($etudiantId, $anneeScolaireId)
+    {
+        $frais = FraisInscription::where('annee_scolaire_id', $anneeScolaireId)
+            ->where('active', true)
+            ->first();
+
+        if (!$frais) return null;
+
+        $totalPaye = Paiement::where('payable_type', FraisInscription::class)
+            ->where('payable_id', $frais->id)
+            ->where('etudiant_id', $etudiantId)
+            ->where('status', 'valide')
+            ->sum('montant');
+
+        return [
+            'id' => $frais->id,
+            'libelle' => $frais->libelle ?? "Frais d'inscription",
+            'montant' => (float) $frais->montant,
+            'total_paye' => (float) $totalPaye,
+            'reste' => (float) ($frais->montant - $totalPaye),
+            'statut' => $totalPaye >= $frais->montant ? 'paye' : ($totalPaye > 0 ? 'partiel' : 'en_attente'),
+        ];
     }
 }

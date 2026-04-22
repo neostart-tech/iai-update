@@ -11,6 +11,7 @@ use App\Models\Echeance;
 use App\Models\Etudiant;
 use App\Models\FraisScolarite;
 use App\Models\BourseEtudiant;
+use App\Models\Paiement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -20,65 +21,53 @@ class NegociationController extends Controller
     /**
      * Afficher la liste des frais étudiants
      */
-    public function index()
+    public function index(Request $request)
     {
+        $anneeId = $request->annee_scolaire_id ?? \App\Models\AnneeScolaire::where('active', true)->first()?->id;
+        
         $query = FraisEtudiant::with(['etudiant', 'fraisScolarite.niveau', 'anneeScolaire', 'bourseEtudiant.bourse', 'echeances.paiements'])
-            ->orderBy('created_at', 'desc')->get();
-        return response()->json($query);
+            ->where(function($q) {
+                $q->where('est_en_abandon', false)
+                  ->orWhereNull('est_en_abandon');
+            });
+            
+        if ($anneeId) {
+            $query->where('annee_scolaire_id', $anneeId);
+        }
+            
+        $results = $query->orderBy('created_at', 'desc')->get();
+            
+        return response()->json($results);
     }
-
 
     public function store(NegociationRequest $request)
     {
-
-
         $frais = FraisScolarite::findOrFail($request->frais_scolarite_id);
-
-        // Récupérer l'année scolaire en cours si non spécifiée
         $anneeScolaireId = $request->annee_scolaire_id ?? AnneeScolaire::courante()->id;
 
-        // Vérifier que l'étudiant n'a pas déjà un frais pour l'année en cours
         $fraisExistant = FraisEtudiant::where('etudiant_id', $request->etudiant_id)
             ->where('annee_scolaire_id', $anneeScolaireId)
             ->first();
 
         if ($fraisExistant) {
-            // Vérifier le type de frais existant
-            if ($fraisExistant->type_paiement === 'negociation') {
-                return response()->json([
-                    'error' => 'Cet étudiant a déjà une négociation en cours pour l\'année scolaire ' . $fraisExistant->anneeScolaire->libelle
-                ], 422);
-            } else {
-                return response()->json([
-                    'error' => 'Cet étudiant a déjà des frais de scolarité enregistrés pour l\'année ' . $fraisExistant->anneeScolaire->libelle
-                ], 422);
-            }
-        }
-
-        // Vérifier aussi dans les échéanciers si jamais il y a des négociations en cours sans frais_etudiant associé
-        $negociationExistante = Echeancier::whereHas('echeances', function ($query) use ($request, $anneeScolaireId) {
-            $query->whereHas('fraisEtudiant', function ($q) use ($request, $anneeScolaireId) {
-                $q->where('etudiant_id', $request->etudiant_id)
-                    ->where('annee_scolaire_id', $anneeScolaireId);
-            });
-        })->exists();
-
-        if ($negociationExistante) {
             return response()->json([
-                'error' => 'Une négociation existe déjà pour cet étudiant pour l\'année en cours'
+                'error' => 'Cet étudiant a déjà un dossier financier pour cette année.'
             ], 422);
         }
 
-        // Calculer le montant après bourse
         $montantApresBourse = $frais->montant;
-        $bourseEtudiant = null;
+        $bourseEtudiantId = null;
 
         if ($request->filled('bourse_etudiant_id')) {
-            $bourseEtudiant = BourseEtudiant::with('bourse')->where('bourse_id', $request->bourse_etudiant_id)->where('annee_scolaire_id', $request->annee_scolaire_id)->where('etudiant_id', $request->etudiant_id)->first();
+            $bourseEtudiant = BourseEtudiant::with('bourse')
+                ->where('bourse_id', $request->bourse_etudiant_id)
+                ->where('annee_scolaire_id', $anneeScolaireId)
+                ->where('etudiant_id', $request->etudiant_id)
+                ->first();
 
             if ($bourseEtudiant) {
                 $bourse = $bourseEtudiant->bourse;
-
+                $bourseEtudiantId = $bourseEtudiant->id;
                 if ($bourse->type === 'pourcentage') {
                     $montantApresBourse = $frais->montant * (1 - $bourse->valeur / 100);
                 } else {
@@ -88,267 +77,328 @@ class NegociationController extends Controller
         }
 
         DB::beginTransaction();
-
         try {
-            // Créer le frais étudiant
             $fraisEtudiant = FraisEtudiant::create([
                 'etudiant_id' => $request->etudiant_id,
                 'frais_scolarite_id' => $request->frais_scolarite_id,
                 'annee_scolaire_id' => $anneeScolaireId,
                 'montant_initial' => $frais->montant,
                 'montant_apres_bourse' => $montantApresBourse,
-                'bourse_etudiant_id' => $request->bourse_etudiant_id,
+                'bourse_etudiant_id' => $bourseEtudiantId,
                 'type_paiement' => $request->type_paiement,
                 'frequence_paiement' => $request->frequence_paiement ?? 'annuel',
                 'statut' => 'en_cours'
             ]);
 
-            // Gérer les échéances selon le type
             if ($request->type_paiement === 'negociation') {
-                // Créer un échéancier pour la négociation
                 $echeancier = Echeancier::create([
                     'frais_etudiant_id' => $fraisEtudiant->id,
                     'created_by' => Auth::id(),
                     'commentaire' => $request->commentaire
                 ]);
 
-                // Créer les échéances négociées
-                foreach ($request->echeances as $index => $echeanceData) {
+                foreach ($request->echeances as $index => $eData) {
                     Echeance::create([
                         'echeancier_id' => $echeancier->id,
                         'frais_etudiant_id' => $fraisEtudiant->id,
-                        'libelle' => $echeanceData['libelle'],
-                        'montant' => $echeanceData['montant'],
+                        'libelle' => $eData['libelle'],
+                        'montant' => $eData['montant'],
                         'montant_paye' => 0,
-                        'date_limite' => $echeanceData['date_limite'],
+                        'date_limite' => $eData['date_limite'],
                         'ordre' => $index + 1,
                         'statut' => 'en_attente'
                     ]);
                 }
             } else {
-                // Créer les échéances basées sur les tranches globales ou la fréquence
                 $fraisEtudiant->creerEcheancesDepuisTranchesGlobales();
             }
 
-
             DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Négociation créée avec succès',
-                'data' => $fraisEtudiant
-            ]);
+            return response()->json(['success' => true, 'data' => $fraisEtudiant]);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json([
-                'error' => 'Erreur lors de la création: ' . $e->getMessage()
-            ], 500);
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Afficher les détails d'une négociation
-     */
     public function show($id)
     {
         $fraisEtudiant = FraisEtudiant::with([
             'etudiant',
             'fraisScolarite.niveau',
-            'fraisScolarite.filiere',
             'anneeScolaire',
             'bourseEtudiant.bourse',
-            'echeances' => function ($q) {
-                $q->orderBy('ordre');
-            },
+            'echeances' => fn($q) => $q->orderBy('ordre'),
             'echeances.paiements'
         ])->findOrFail($id);
 
-        // Ajouter une collection de tous les paiements
-        $tousLesPaiements = collect();
-
-        foreach ($fraisEtudiant->echeances as $echeance) {
-            if ($echeance->paiements->isNotEmpty()) {
-                $tousLesPaiements = $tousLesPaiements->concat($echeance->paiements);
-            }
-        }
-
-        // Trier par date de paiement (du plus récent au plus ancien)
-        $tousLesPaiements = $tousLesPaiements->sortByDesc('date_paiement')->values();
-
-        // Ajouter au tableau de réponse
+        $tousLesPaiements = $fraisEtudiant->echeances->flatMap->paiements->sortByDesc('date_paiement')->values();
         $response = $fraisEtudiant->toArray();
         $response['paiements'] = $tousLesPaiements;
 
         return response()->json($response);
     }
 
-    /**
-     * Afficher le formulaire d'édition
-     */
-    // public function edit($id)
-    // {
-    //     $fraisEtudiant = FraisEtudiant::with([
-    //         'etudiant',
-    //         'echeances',
-    //         'bourseEtudiant.bourse'
-    //     ])->findOrFail($id);
-
-    //     // Ne permettre l'édition que si c'est une négociation et pas encore soldé
-    //     if ($fraisEtudiant->type_paiement !== 'negociation' || $fraisEtudiant->statut === 'solde') {
-    //         return redirect()->route('admin.negociations.show', $id)
-    //             ->with('error', 'Cette négociation ne peut pas être modifiée');
-    //     }
-
-    //     // return view('admin.negociations.edit', compact('fraisEtudiant'));
-    // }
-
-    // /**
-    //  * Mettre à jour une négociation
-    //  */
-    // public function update(Request $request, $id)
-    // {
-    //     $fraisEtudiant = FraisEtudiant::findOrFail($id);
-
-    //     if ($fraisEtudiant->type_paiement !== 'negociation' || $fraisEtudiant->statut === 'solde') {
-    //         return response()->json(['error' => 'Non modifiable'], 422);
-    //     }
-
-    //     $request->validate([
-    //         'echeances' => 'required|array|min:1',
-    //         'echeances.*.id' => 'nullable|exists:echeances,id',
-    //         'echeances.*.libelle' => 'required|string',
-    //         'echeances.*.montant' => 'required|numeric|min:1',
-    //         'echeances.*.date_limite' => 'required|date|after:today',
-    //         'commentaire' => 'nullable|string'
-    //     ]);
-
-    //     DB::beginTransaction();
-
-    //     try {
-    //         // Mettre à jour ou créer les échéances
-    //         $idsRecus = [];
-            
-    //         foreach ($request->echeances as $index => $echeanceData) {
-    //             if (isset($echeanceData['id'])) {
-    //                 $echeance = Echeance::find($echeanceData['id']);
-    //                 $echeance->update([
-    //                     'libelle' => $echeanceData['libelle'],
-    //                     'montant' => $echeanceData['montant'],
-    //                     'date_limite' => $echeanceData['date_limite'],
-    //                     'ordre' => $index + 1
-    //                 ]);
-    //                 $idsRecus[] = $echeance->id;
-    //             } else {
-    //                 $nouvelle = Echeance::create([
-    //                     'echeancier_id' => $fraisEtudiant->echeancier->id,
-    //                     'frais_etudiant_id' => $fraisEtudiant->id,
-    //                     'libelle' => $echeanceData['libelle'],
-    //                     'montant' => $echeanceData['montant'],
-    //                     'montant_paye' => 0,
-    //                     'date_limite' => $echeanceData['date_limite'],
-    //                     'ordre' => $index + 1,
-    //                     'statut' => 'en_attente'
-    //                 ]);
-    //                 $idsRecus[] = $nouvelle->id;
-    //             }
-    //         }
-
-    //         // Supprimer les échéances qui ne sont plus là
-    //         Echeance::where('echeancier_id', $fraisEtudiant->echeancier->id)
-    //             ->whereNotIn('id', $idsRecus)
-    //             ->delete();
-
-    //         // Mettre à jour le commentaire
-    //         if ($fraisEtudiant->echeancier) {
-    //             $fraisEtudiant->echeancier->update([
-    //                 'commentaire' => $request->commentaire
-    //             ]);
-    //         }
-
-    //         DB::commit();
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'message' => 'Négociation mise à jour avec succès'
-    //         ]);
-    //     } catch (\Exception $e) {
-    //         DB::rollBack();
-    //         return response()->json(['error' => $e->getMessage()], 500);
-    //     }
-    // }
-
-    /**
-     * Ajouter un paiement à une échéance
-     */
-    public function ajouterPaiement(Request $request, $id)
+    public function update(Request $request, $id)
     {
+        $fraisEtudiant = FraisEtudiant::with(['echeances', 'echeancier'])->findOrFail($id);
+
         $request->validate([
-            'echeance_id' => 'required|exists:echeances,id',
-            'montant' => 'required|numeric|min:1',
-            'mode_paiement' => 'required|string',
-            'reference' => 'nullable|string'
+            'type_paiement' => 'required|in:tranches_globales,negociation',
+            'echeances' => 'required_if:type_paiement,negociation|array',
+            'echeances.*.libelle' => 'required_if:type_paiement,negociation|string',
+            'echeances.*.montant' => 'required_if:type_paiement,negociation|numeric|min:0',
+            'echeances.*.date_limite' => 'required_if:type_paiement,negociation|date',
         ]);
 
-        $echeance = Echeance::findOrFail($request->echeance_id);
-
+        DB::beginTransaction();
         try {
-            $paiement = $echeance->ajouterPaiement($request->montant, [
-                'mode_paiement' => $request->mode_paiement,
-                'reference' => $request->reference
-            ]);
+            // Recalcul du montant après bourse si bourse ou frais fournis
+            $montantInitial = $fraisEtudiant->montant_initial;
+            $bourseEtudiantId = $fraisEtudiant->bourse_etudiant_id;
 
+            if ($request->has('bourse_etudiant_id')) {
+                $bourseEtudiant = BourseEtudiant::with('bourse')
+                    ->where('bourse_id', $request->bourse_etudiant_id)
+                    ->where('annee_scolaire_id', $fraisEtudiant->annee_scolaire_id)
+                    ->where('etudiant_id', $fraisEtudiant->etudiant_id)
+                    ->first();
+                
+                if ($bourseEtudiant) {
+                    $bourseEtudiantId = $bourseEtudiant->id;
+                    $bourse = $bourseEtudiant->bourse;
+                    if ($bourse->type === 'pourcentage') {
+                        $fraisEtudiant->montant_apres_bourse = $montantInitial * (1 - $bourse->valeur / 100);
+                    } else {
+                        $fraisEtudiant->montant_apres_bourse = max(0, $montantInitial - $bourse->valeur);
+                    }
+                } else {
+                    $bourseEtudiantId = null;
+                    $fraisEtudiant->montant_apres_bourse = $montantInitial;
+                }
+                $fraisEtudiant->bourse_etudiant_id = $bourseEtudiantId;
+            }
 
-            $fraisEtudiant = $echeance->fraisEtudiant;
-            $fraisEtudiant->mettreAJourStatut();
+            $fraisEtudiant->type_paiement = $request->type_paiement;
+            if ($request->has('frequence_paiement')) {
+                $fraisEtudiant->frequence_paiement = $request->frequence_paiement;
+            }
+            $fraisEtudiant->save();
 
+            $idsRecus = [];
+            $totalPayeGlobal = $fraisEtudiant->paiements()->where('status', 'valide')->sum('montant');
+            $resteGlobal = $totalPayeGlobal;
 
+            if ($request->type_paiement === 'negociation' && $request->has('echeances')) {
+                foreach ($request->echeances as $index => $eData) {
+                    $echeance = null;
+                    if (isset($eData['id'])) {
+                        $echeance = Echeance::find($eData['id']);
+                    }
 
+                    $payeDirect = $echeance ? $echeance->paiements()->where('status', 'valide')->sum('montant') : 0;
+                    $besoin = ($eData['montant'] ?? 0) - $payeDirect;
+                    $creditVirtuel = ($resteGlobal > 0) ? min($besoin, $resteGlobal) : 0;
+                    $resteGlobal -= $creditVirtuel;
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Paiement enregistré avec succès',
-                'paiement' => $paiement,
-                'echeance' => $echeance->fresh(),
-                'frais_etudiant' => $echeance->fraisEtudiant->fresh()
-            ]);
+                    if ($echeance) {
+                        $nouveauMontant = $eData['montant'];
+                        // Sécurité : on ne peut pas descendre en dessous de ce qui est déjà payé DIRECTEMENT
+                        if ($payeDirect > 0) {
+                            $nouveauMontant = max($nouveauMontant, $payeDirect);
+                        }
+
+                        $echeance->update([
+                            'libelle' => $eData['libelle'],
+                            'montant' => $nouveauMontant,
+                            'date_limite' => $eData['date_limite'],
+                            'ordre' => $index + 1
+                        ]);
+                        $echeance->updateMontantPaye(); // Force le recalcul du statut
+                        $idsRecus[] = $echeance->id;
+                    } else {
+                        $nouvelle = Echeance::create([
+                            'echeancier_id' => $fraisEtudiant->echeancier->id ?? null,
+                            'frais_etudiant_id' => $fraisEtudiant->id,
+                            'libelle' => $eData['libelle'],
+                            'montant' => $eData['montant'],
+                            'montant_paye' => 0,
+                            'date_limite' => $eData['date_limite'],
+                            'ordre' => $index + 1,
+                            'statut' => 'en_attente'
+                        ]);
+                        $nouvelle->updateMontantPaye(); // Force le recalcul du statut
+                        $idsRecus[] = $nouvelle->id;
+                    }
+                }
+            } elseif ($request->type_paiement === 'tranches_globales') {
+                // Si on bascule sur tranches globales, on peut soit recréer tout, 
+                // soit laisser le modèle le faire s'il n'y en a pas.
+                // Pour un update, on va supprimer les tranches non payées et appeler la méthode de création
+                $fraisEtudiant->creerEcheancesDepuisTranchesGlobales();
+                // On récupère les IDs créés pour éviter la suppression à l'étape suivante
+                $idsRecus = Echeance::where('frais_etudiant_id', $fraisEtudiant->id)->pluck('id')->toArray();
+            }
+
+            // Sécurité : ne pas supprimer ce qui est payé
+            $echeancesExistantes = Echeance::where('frais_etudiant_id', $fraisEtudiant->id)->get();
+            foreach ($echeancesExistantes as $ee) {
+                if (!in_array($ee->id, $idsRecus)) {
+                    $payeDirect = (float)$ee->paiements()->where('status', 'valide')->sum('montant');
+                    if ($payeDirect > 0 || (float)($ee->montant_paye ?? 0) > 0) {
+                         // On ne supprime JAMAIS une tranche qui a un paiement réel
+                        $idsRecus[] = $ee->id; 
+                    } else {
+                        $ee->delete();
+                    }
+                }
+            }
+
+            if ($fraisEtudiant->echeancier) {
+                $fraisEtudiant->echeancier->update(['commentaire' => $request->commentaire]);
+            }
+
+            $fraisEtudiant->updateStatut();
+            DB::commit();
+            return response()->json(['success' => true, 'message' => 'Mis à jour']);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Obtenir les données pour le tableau de bord
-     */
-    public function dashboard()
+    public function getByEtudiant($etudiantId, Request $request)
     {
-        $stats = [
-            'total_etudiants' => FraisEtudiant::distinct('etudiant_id')->count('etudiant_id'),
-            'en_cours' => FraisEtudiant::where('statut', 'en_cours')->count(),
-            'en_retard' => FraisEtudiant::where('statut', 'en_retard')->count(),
-            'solde' => FraisEtudiant::where('statut', 'solde')->count(),
-            'montant_total' => FraisEtudiant::sum('montant_apres_bourse'),
-            'montant_paye' => \App\Models\Paiement::where('status', 'valide')->sum('montant')
-        ];
+        $anneeId = $request->annee_scolaire_id ?? \App\Models\AnneeScolaire::where('active', true)->first()?->id;
 
-        $echeancesAVenir = Echeance::with(['fraisEtudiant.etudiant'])
-            ->where('date_limite', '>=', now())
-            ->where('date_limite', '<=', now()->addDays(7))
-            ->where('statut', '!=', 'paye')
-            ->orderBy('date_limite')
-            ->limit(10)
-            ->get();
+        $fraisEtudiant = FraisEtudiant::with([
+            'etudiant',
+            'fraisScolarite.tranchepaiement',
+            'anneeScolaire',
+            'echeances' => fn($q) => $q->orderBy('ordre'),
+            'echeances.paiements',
+            'paiements'
+        ])
+        ->where('etudiant_id', $etudiantId)
+        ->where('annee_scolaire_id', $anneeId)
+        ->first();
 
-        $echeancesEnRetard = Echeance::with(['fraisEtudiant.etudiant'])
-            ->where('date_limite', '<', now())
-            ->where('statut', '!=', 'paye')
-            ->orderBy('date_limite')
-            ->limit(10)
-            ->get();
+        if (!$fraisEtudiant) return response()->json(['error' => 'Frais non trouvés'], 404);
+
+        $totalPayeGlobal = (float)$fraisEtudiant->paiements()->where('status', 'valide')->sum('montant');
+        $resteGlobal = $totalPayeGlobal;
+
+        $dbEcheances = $fraisEtudiant->echeances;
+
+        if ($dbEcheances->isEmpty()) {
+            $tranches = $fraisEtudiant->fraisScolarite->tranchepaiement ?? collect();
+            $virtuelles = $tranches->map(function($t, $index) use (&$resteGlobal) {
+                $montant = (float)$t->montant;
+                $credit = min($montant, $resteGlobal);
+                $resteGlobal -= $credit;
+                return [
+                    'libelle' => $t->libelle,
+                    'montant' => $montant,
+                    'montant_paye' => $credit,
+                    'date_limite' => $t->date_limite,
+                    'ordre' => $t->ordre ?? ($index + 1),
+                    'statut' => $credit >= $montant ? 'paye' : ($credit > 0 ? 'partiel' : 'en_attente'),
+                    'est_virtuel' => true
+                ];
+            });
+        } else {
+            $virtuelles = $dbEcheances->map(function($e) use (&$resteGlobal) {
+                $payeDirect = (float)($e->paiements->where('status', 'valide')->sum('montant') ?? 0);
+                $besoin = max(0, (float)$e->montant - $payeDirect);
+                $credit = min($besoin, $resteGlobal);
+                $resteGlobal -= $credit;
+                $total = $payeDirect + $credit;
+                return [
+                    'id' => $e->id,
+                    'libelle' => $e->libelle,
+                    'montant' => (float)$e->montant,
+                    'montant_paye' => $total,
+                    'date_limite' => $e->date_limite,
+                    'ordre' => $e->ordre,
+                    'statut' => $total >= (float)$e->montant ? 'paye' : ($total > 0 ? 'partiel' : 'en_attente')
+                ];
+            });
+        }
+
+        // On injecte les tranches calculées (avec crédit virtuel) dans l'objet principal
+        $fraisEtudiant->setRelation('echeances', $virtuelles);
 
         return response()->json([
-            'stats' => $stats,
-            'echeances_a_venir' => $echeancesAVenir,
-            'echeances_en_retard' => $echeancesEnRetard
+            'success' => true, 
+            'data' => $fraisEtudiant,
+            'montant_apres_bourse' => (float)$fraisEtudiant->montant_apres_bourse
         ]);
+    }
+    public function dashboard(Request $request)
+    {
+        $anneeId = $request->annee_scolaire_id ?? \App\Models\AnneeScolaire::where('active', true)->first()?->id;
+
+        $stats = [
+            'total_negocie' => (float)FraisEtudiant::where('annee_scolaire_id', $anneeId)->sum('montant_apres_bourse'),
+            'total_paye' => (float)Paiement::whereHasMorph('payable', [\App\Models\Echeance::class], function($q) use ($anneeId) {
+                $q->whereHas('fraisEtudiant', function($sq) use ($anneeId) {
+                    $sq->where('annee_scolaire_id', $anneeId);
+                });
+            })->where('status', 'valide')->sum('montant'),
+            'nb_negociations' => FraisEtudiant::where('annee_scolaire_id', $anneeId)->count(),
+            'nb_etudiants_en_retard' => FraisEtudiant::where('annee_scolaire_id', $anneeId)->where('statut', 'en_retard')->count(),
+        ];
+
+        $stats['taux_recouvrement'] = $stats['total_negocie'] > 0 
+            ? round(($stats['total_paye'] / $stats['total_negocie']) * 100, 2) 
+            : 0;
+
+        return response()->json($stats);
+    }
+
+    public function ajouterPaiement(Request $request, $id)
+    {
+        $fraisEtudiant = FraisEtudiant::findOrFail($id);
+        
+        $request->validate([
+            'montant' => 'required|numeric|min:1',
+            'date_paiement' => 'required|date',
+            'mode_paiement' => 'required|string',
+            'reference' => 'nullable|string'
+        ]);
+
+        // On cherche l'échéance la plus ancienne non soldée
+        $echeance = Echeance::where('frais_etudiant_id', $fraisEtudiant->id)
+            ->where('statut', '!=', 'paye')
+            ->orderBy('ordre')
+            ->first();
+
+        if (!$echeance) {
+            return response()->json(['error' => 'Toutes les échéances sont déjà soldées.'], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            Paiement::create([
+                'etudiant_id' => $fraisEtudiant->etudiant_id,
+                'payable_id' => $echeance->id,
+                'payable_type' => \App\Models\Echeance::class,
+                'montant' => $request->montant,
+                'date_paiement' => $request->date_paiement,
+                'mode_paiement' => $request->mode_paiement,
+                'reference' => $request->reference,
+                'status' => 'valide',
+                'provenance' => 'manuel'
+            ]);
+
+            $echeance->updateMontantPaye();
+            $fraisEtudiant->updateStatut();
+            DB::commit();
+            
+            return response()->json(['success' => true, 'message' => 'Paiement ajouté']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 }

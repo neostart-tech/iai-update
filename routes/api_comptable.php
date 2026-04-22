@@ -37,6 +37,7 @@ Route::group([],function () {
 		Route::get('/suivi-mensuel', [\App\Http\Controllers\Api\FinanceController::class, 'suiviMensuel']);
 		Route::post('/{fraisEtudiantId}/abandon', [\App\Http\Controllers\Api\FinanceController::class, 'declarerAbandon']);
 		Route::get('/abandons', [\App\Http\Controllers\Api\FinanceController::class, 'listeAbandons']);
+		Route::get('/export/{format}', [\App\Http\Controllers\Api\FinanceController::class, 'exportRecouvrement'])->whereIn('format', ['xlsx', 'csv']);
 
 		// Gestion des dépenses
 		Route::prefix('depenses')->group(function () {

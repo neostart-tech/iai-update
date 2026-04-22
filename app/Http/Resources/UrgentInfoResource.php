@@ -17,6 +17,7 @@ class UrgentInfoResource extends JsonResource
 
         return [
             "id" => $this->resource->id,
+            "slug" => $this->resource->slug,
             'title' => $this->resource->title,
             'summary' => $this->resource->summary,
             'file_url' => $this->resource->file_url,

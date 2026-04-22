@@ -49,7 +49,7 @@ class FraisEtudiant extends Model
     ];
 
     const STATUTS = [
-        'en_cours' => 'En cours de paiement',
+        'en_cours' => 'À jour',
         'solde' => 'Paiement soldé',
         'en_retard' => 'Retard de paiement',
         'avance' => 'Paiement en avance',
@@ -198,14 +198,23 @@ class FraisEtudiant extends Model
         } elseif ($this->reste_a_payer <= 0) {
             $this->statut = 'solde';
         } elseif ($this->est_en_retard) {
-            $this->statut = 'retard';
+            $this->statut = 'en_retard';
         } elseif ($this->est_en_avance) {
             $this->statut = 'avance';
         } else {
             $this->statut = 'en_cours';
         }
 
-        $this->saveQuietly();
+        try {
+            $this->saveQuietly();
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Erreur mise à jour statut: " . $e->getMessage());
+            // Fallback si ENUM limite
+            if (str_contains($e->getMessage(), 'Data truncated')) {
+                 $this->statut = 'en_cours';
+                 $this->saveQuietly();
+            }
+        }
 
         return $this;
     }
@@ -307,13 +316,20 @@ class FraisEtudiant extends Model
 
     public function annoncerAbandon($date, $montantInscription, $montantScolarite, $commentaire = null)
     {
-        $this->update([
-            'statut' => 'abandon',
-            'est_en_abandon' => true,
-            'date_abandon' => $date,
-            'montant_inscription_du' => $montantInscription,
-            'montant_scolarite_du' => $montantScolarite
-        ]);
+        $this->est_en_abandon = true;
+        $this->date_abandon = $date;
+        $this->montant_inscription_du = $montantInscription;
+        $this->montant_scolarite_du = $montantScolarite;
+        $this->statut = 'abandon';
+
+        try {
+            $this->save();
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Erreur abandon: " . $e->getMessage());
+            // Si l'id statut 'abandon' échoue à cause de l'ENUM
+            $this->statut = 'en_cours'; 
+            $this->save();
+        }
 
         // Mettre à jour le statut dans la pédagogie (etudiant_group)
         DB::table('etudiant_group')

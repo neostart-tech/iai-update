@@ -9,8 +9,44 @@ use Illuminate\Database\Eloquent\Model;
 class Paiement extends Model
 {
     use GenerateUniqueSlugTrait, ModelsSlugKeyTrait;
-
+    
     protected $guarded = ['id'];
+
+    public function getSlugBaseKeyName(): string
+    {
+        return 'slug_base_source';
+    }
+
+    /**
+     * Fournit une base pour le slug si aucun nom n'est disponible
+     */
+    public function getSlugBaseSourceAttribute(): string
+    {
+        if ($this->reference) {
+            return $this->reference;
+        }
+
+        $etudiant = $this->etudiant()->first();
+        $prefix = "PAY";
+        $date = now()->format('Ymd-His');
+        $matricule = $etudiant ? $etudiant->matricule : ($this->etudiant_id ?? 'INV');
+        
+        return "{$prefix}-{$matricule}-{$date}";
+    }
+
+    /**
+     * Permet de résoudre la route par slug ou par ID
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        try {
+            return $this->where($field ?? 'slug', $value)
+                ->orWhere('id', $value)
+                ->first();
+        } catch (\Exception $e) {
+            return $this->where('id', $value)->first();
+        }
+    }
 
     public function etudiant()
     {

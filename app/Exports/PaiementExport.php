@@ -78,6 +78,11 @@ class PaiementExport implements FromCollection, WithHeadings, WithMapping, WithS
                 break;
         }
 
+        // Exclure les abandons
+        $query->whereDoesntHave('fraisEtudiant', function($q) {
+            $q->where('est_en_abandon', true);
+        });
+
         $this->etudiants = $query->get();
         
         return $this->etudiants;
@@ -105,7 +110,8 @@ class PaiementExport implements FromCollection, WithHeadings, WithMapping, WithS
                 'Reste à payer',
                 'Statut',
                 'Dernier paiement',
-                'Date limite prochaine'
+                'Date limite prochaine',
+                'Commentaire (Dernier)'
             ]
         ];
     }
@@ -123,18 +129,22 @@ class PaiementExport implements FromCollection, WithHeadings, WithMapping, WithS
         $this->totaux['total_paye'] += $infos['total_paye'];
         $this->totaux['reste_a_payer'] += $infos['reste_a_payer'];
 
+        // Formater les montants en texte (évite l'abréviation "K" dans Excel)
+        $fmt = fn($v) => number_format((float)$v, 0, ',', ' ') . ' F CFA';
+
         return [
             $etudiant->matricule,
             $etudiant->nom . ' ' . $etudiant->prenom,
             $infos['niveau'],
             $infos['filiere'],
-            number_format($infos['montant_initial'], 0, ',', ' '),
-            number_format($infos['montant_apres_bourse'], 0, ',', ' '),
-            number_format($infos['total_paye'], 0, ',', ' '),
-            number_format($infos['reste_a_payer'], 0, ',', ' '),
+            $fmt($infos['montant_initial']),
+            $fmt($infos['montant_apres_bourse']),
+            $fmt($infos['total_paye']),
+            $fmt($infos['reste_a_payer']),
             $infos['statut'],
             $infos['dernier_paiement'] ? Carbon::parse($infos['dernier_paiement'])->format('d/m/Y') : '-',
             $infos['prochaine_date_limite'] ? Carbon::parse($infos['prochaine_date_limite'])->format('d/m/Y') : '-',
+            $infos['dernier_commentaire'] ?: '-',
         ];
     }
 
@@ -144,21 +154,21 @@ class PaiementExport implements FromCollection, WithHeadings, WithMapping, WithS
     public function styles(Worksheet $sheet)
     {
         // Style pour le titre
-        $sheet->mergeCells('A1:K1');
+        $sheet->mergeCells('A1:L1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
 
         // Style pour la date
-        $sheet->mergeCells('A2:K2');
+        $sheet->mergeCells('A2:L2');
         $sheet->getStyle('A2')->getFont()->setItalic(true);
         $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
 
         // Style pour les en-têtes
-        $sheet->getStyle('A4:K4')->getFont()->setBold(true);
-        $sheet->getStyle('A4:K4')->getFill()
+        $sheet->getStyle('A4:L4')->getFont()->setBold(true);
+        $sheet->getStyle('A4:L4')->getFill()
             ->setFillType(Fill::FILL_SOLID)
             ->getStartColor()->setARGB('FF4F81BD');
-        $sheet->getStyle('A4:K4')->getFont()->getColor()->setARGB(Color::COLOR_WHITE);
+        $sheet->getStyle('A4:L4')->getFont()->getColor()->setARGB(Color::COLOR_WHITE);
 
         return [];
     }
@@ -170,16 +180,17 @@ class PaiementExport implements FromCollection, WithHeadings, WithMapping, WithS
     {
         return [
             'A' => 15, // Matricule
-            'B' => 30, // Nom complet
+            'B' => 45, // Nom complet
             'C' => 15, // Niveau
-            'D' => 20, // Filière
-            'E' => 18, // Montant initial
-            'F' => 20, // Montant après bourse
-            'G' => 15, // Total payé
-            'H' => 15, // Reste à payer
-            'I' => 12, // Statut
+            'D' => 35, // Filière
+            'E' => 22, // Montant initial
+            'F' => 24, // Montant après bourse
+            'G' => 20, // Total payé
+            'H' => 20, // Reste à payer
+            'I' => 14, // Statut
             'J' => 15, // Dernier paiement
-            'K' => 20, // Date limite prochaine
+            'K' => 22, // Date limite prochaine
+            'L' => 30, // Commentaire
         ];
     }
 
@@ -199,14 +210,16 @@ class PaiementExport implements FromCollection, WithHeadings, WithMapping, WithS
                 $sheet->mergeCells('A' . $totalRow . ':D' . $totalRow);
                 $sheet->getStyle('A' . $totalRow)->getFont()->setBold(true);
 
-                $sheet->setCellValue('E' . $totalRow, number_format($this->totaux['montant_initial'], 0, ',', ' '));
-                $sheet->setCellValue('F' . $totalRow, number_format($this->totaux['montant_apres_bourse'], 0, ',', ' '));
-                $sheet->setCellValue('G' . $totalRow, number_format($this->totaux['total_paye'], 0, ',', ' '));
-                $sheet->setCellValue('H' . $totalRow, number_format($this->totaux['reste_a_payer'], 0, ',', ' '));
+                $fmt = fn($v) => number_format((float)$v, 0, ',', ' ') . ' F CFA';
+
+                $sheet->setCellValue('E' . $totalRow, $fmt($this->totaux['montant_initial']));
+                $sheet->setCellValue('F' . $totalRow, $fmt($this->totaux['montant_apres_bourse']));
+                $sheet->setCellValue('G' . $totalRow, $fmt($this->totaux['total_paye']));
+                $sheet->setCellValue('H' . $totalRow, $fmt($this->totaux['reste_a_payer']));
 
                 // Style pour la ligne des totaux
-                $sheet->getStyle('A' . $totalRow . ':K' . $totalRow)->getFont()->setBold(true);
-                $sheet->getStyle('A' . $totalRow . ':K' . $totalRow)->getFill()
+                $sheet->getStyle('A' . $totalRow . ':L' . $totalRow)->getFont()->setBold(true);
+                $sheet->getStyle('A' . $totalRow . ':L' . $totalRow)->getFill()
                     ->setFillType(Fill::FILL_SOLID)
                     ->getStartColor()->setARGB('FFD9E1F2');
 
@@ -228,13 +241,13 @@ class PaiementExport implements FromCollection, WithHeadings, WithMapping, WithS
                             $color = 'FFE0E0E0';
                     }
 
-                    $sheet->getStyle('A' . $row . ':K' . $row)->getFill()
+                    $sheet->getStyle('A' . $row . ':L' . $row)->getFill()
                         ->setFillType(Fill::FILL_SOLID)
                         ->getStartColor()->setARGB($color);
                 }
 
                 // Ajouter des bordures
-                $sheet->getStyle('A4:K' . ($totalRow))
+                $sheet->getStyle('A4:L' . ($totalRow))
                     ->getBorders()->getAllBorders()
                     ->setBorderStyle(Border::BORDER_THIN);
             },

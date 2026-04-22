@@ -90,6 +90,11 @@ class PaiementExportService
                 break;
         }
 
+        // Exclure les abandons
+        $query->whereDoesntHave('fraisEtudiant', function($q) {
+            $q->where('est_en_abandon', true);
+        });
+
         $etudiants = $query->get();
         
         $etudiantsData = [];
