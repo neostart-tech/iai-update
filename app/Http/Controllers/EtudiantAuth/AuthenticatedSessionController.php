@@ -58,9 +58,20 @@ class AuthenticatedSessionController extends Controller
         }
 
 
+        // S'assurer que le rôle étudiant est présent (important pour le frontend)
+        if ($user->roles->isEmpty()) {
+            $studentRole = new \App\Models\Role([
+                'id' => 1,
+                'nom' => 'Etudiant',
+                'slug' => 'etudiant',
+                'active' => 1
+            ]);
+            $user->setRelation('roles', collect([$studentRole]));
+        }
+
         return response()->json([
             'message' => 'Connexion réussie.',
-            'user' => $user->load('roles'),
+            'user' => $user,
             'token' => $token,
         ], 200);
     }

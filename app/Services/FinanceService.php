@@ -687,9 +687,9 @@ class FinanceService
                     $joursRetard = $echeanceRetard ? (int) round(now()->diffInDays($echeanceRetard->date_limite)) : 0;
                     
                     $enRetard->push([
-                        'nom' => $f->etudiant->nom,
-                        'prenom' => $f->etudiant->prenom,
-                        'matricule' => $f->etudiant->matricule,
+                        'nom' => $f->etudiant?->nom ?? 'Inconnu',
+                        'prenom' => $f->etudiant?->prenom ?? '',
+                        'matricule' => $f->etudiant?->matricule ?? 'N/A',
                         'montant_restant' => $reste,
                         'jours_retard' => max(1, $joursRetard) // au moins 1 jour
                     ]);
@@ -708,7 +708,7 @@ class FinanceService
             ->get()
             ->map(fn($p) => [
                 'id' => $p->id,
-                'etudiant' => $p->etudiant->nom_complet ?? ($p->etudiant->nom . ' ' . $p->etudiant->prenom),
+                'etudiant' => $p->etudiant?->nom_complet ?? 'Étudiant inconnu',
                 'libelle' => $p->nature_paiement === 'inscription' ? 'Inscription' : 'Scolarité',
                 'mode_paiement' => $p->mode_paiement,
                 'montant' => $p->montant,
@@ -881,13 +881,13 @@ class FinanceService
 
             $statutInscr = ($totalPayeInscription >= $montantInscr && $montantInscr > 0) ? 'solde' : 'non_paye';
             
-            $etudiantGroup = $f->etudiant->etudiantGroups->first();
+            $etudiantGroup = $f->etudiant?->etudiantGroups->first();
 
             return [
                 'id' => $f->id,
                 'slug' => $f->slug,
-                'etudiant' => $f->etudiant->nom_complet ?? ($f->etudiant->nom . ' ' . $f->etudiant->prenom),
-                'matricule' => $f->etudiant->matricule,
+                'etudiant' => $f->etudiant?->nom_complet ?? 'Étudiant inconnu',
+                'matricule' => $f->etudiant?->matricule ?? 'N/A',
                 'niveau' => $etudiantGroup?->niveau?->libelle ?? 'N/A',
                 'filiere' => $etudiantGroup?->filiere?->nom ?? 'N/A',
                 'montant_du' => $f->montant_apres_bourse,

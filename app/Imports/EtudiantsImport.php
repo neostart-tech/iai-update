@@ -384,24 +384,22 @@ class EtudiantsImport implements
                 }
             }
 
-            // 5. Gérer les rôles
-            $nouveauxEtudiantsIds = [];
-            foreach ($matricules as $matricule) {
-                if (!in_array($matricule, $this->existingMatricules)) {
-                    $nouveauxEtudiantsIds[] = $etudiants[$matricule]->id;
-                }
-            }
-
-            if (!empty($nouveauxEtudiantsIds)) {
+            // 5. Gérer les rôles (Pour TOUS les étudiants du batch)
+            $allEtudiantIds = $etudiants->pluck('id')->toArray();
+            
+            if (!empty($allEtudiantIds) && $this->roleEtudiantId) {
                 $rolesUsersBatch = [];
-                foreach ($nouveauxEtudiantsIds as $etudiantId) {
-                    $roleExists = DB::table('role_user')
-                        ->where('user_id', $etudiantId)
-                        ->where('user_type', 'App\\Models\\Etudiant')
-                        ->where('role_id', $this->roleEtudiantId)
-                        ->exists();
+                
+                // Récupérer les IDs des étudiants qui ont déjà le rôle pour éviter les doublons
+                $existingRoles = DB::table('role_user')
+                    ->whereIn('user_id', $allEtudiantIds)
+                    ->where('user_type', 'App\\Models\\Etudiant')
+                    ->where('role_id', $this->roleEtudiantId)
+                    ->pluck('user_id')
+                    ->toArray();
 
-                    if (!$roleExists) {
+                foreach ($allEtudiantIds as $etudiantId) {
+                    if (!in_array($etudiantId, $existingRoles)) {
                         $rolesUsersBatch[] = [
                             'user_id' => $etudiantId,
                             'user_type' => 'App\\Models\\Etudiant',
