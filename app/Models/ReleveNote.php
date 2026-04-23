@@ -24,6 +24,11 @@ class ReleveNote extends Model
         'metadata'
     ];
 
+    public function hasSlugBaseKeyProvider(): bool
+    {
+        return false;
+    }
+
     protected $casts = [
         'moyenne_generale' => 'decimal:2',
         'total_credits_valides' => 'integer',

@@ -479,8 +479,12 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::controller(ReleveNoteController::class)->prefix('releves-de-note')->group(function () {
+        Route::get('liste', 'index');
         Route::post('{etudiant}/generer-releve-de-note', 'recalculate');
-        Route::get('{etudiant}/get-releve-de-note', 'show');
+        Route::get('{etudiant}/get-releve-de-note', 'showReleve');
+        Route::delete('{releve:id}/supprimer', 'destroy');
+        Route::post('bulk-generate', 'bulkGenerate');
+        Route::post('check-statuses', 'checkStatuses');
     });
 
     // Routes pour les cartes étudiants

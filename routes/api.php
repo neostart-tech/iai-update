@@ -583,3 +583,35 @@ require __DIR__ . '/api_comptable.php';
 require __DIR__ . '/api_etudiant.php';
 
 // require __DIR__ . '/api_professeur.php';
+
+Route::get('/test-calc/{slug}', function($slug) {
+    $etudiant = \App\Models\Etudiant::where('slug', $slug)->first();
+    $periode = \App\Models\Periode::where('nom', 'LIKE', '%Semestre 1%')->first() ?: \App\Models\Periode::first();
+    
+    if(!$etudiant) return response()->json(['error' => "Etudiant non trouvé pour le slug: $slug"]);
+    
+    $service = app(\App\Services\NoteCalculationService::class);
+    
+    try {
+        $releve = $service->calculateAndSaveForStudent($etudiant, $periode->anneeScolaire, $periode);
+        
+        return response()->json([
+            'success' => true,
+            'etudiant' => $etudiant->nom . ' ' . $etudiant->prenom,
+            'filiere_id' => $etudiant->etudiantGroups()->first()?->filiere_id,
+            'periode' => $periode->nom,
+            'releve_id' => $releve->id,
+            'metadata' => $releve->metadata,
+            'ue_validations_count' => $releve->ueValidations()->count(),
+            'uv_validations_count' => $releve->uvValidations()->count(),
+            'ue_list' => $releve->ueValidations->map(fn($v) => $v->uniteEnseignement->nom),
+            'uv_list' => $releve->uvValidations->map(fn($v) => $v->uniteValeur->nom)
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+    }
+});

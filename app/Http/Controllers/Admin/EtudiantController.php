@@ -90,6 +90,7 @@ class EtudiantController extends Controller
                 'etudiantGroups.group',
                 'etudiantGroups.filiere',
                 'etudiantGroups.niveau',
+                'album'
             ])
             ->firstOrFail(); // renvoie 404 si non trouvé
 

@@ -74,6 +74,7 @@ class EtudiantRessource extends JsonResource
             'promotion' => $this->promotion,
             'est_nouveau' => (int) $this->annee_admission === (int) \Carbon\Carbon::parse(\App\Models\AnneeScolaire::where('active', true)->value('date_debut'))->year,
             'advertiser' => new AdvertiserResource($this->advertiser),
+            'album' => new AlbumResource($this->album),
         ];
     }
 }

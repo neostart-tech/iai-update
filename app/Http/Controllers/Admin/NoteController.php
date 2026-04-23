@@ -23,7 +23,7 @@ class NoteController extends Controller
 			$this->generateFicheDeNote($evaluation);
 		}
 
-		$notes = $evaluation->notes()->with(['etudiant:id,slug,matricule,nom,prenom'])->get();
+		$notes = $evaluation->notes()->withoutGlobalScopes()->with(['etudiant:id,slug,matricule,nom,prenom'])->get();
 		//		dd(
 		//			!$evaluation->getAttribute('correction_submission_date') &&
 		//			today()->isBefore($evaluation->getAttribute('correction_end_date'))
@@ -132,22 +132,36 @@ class NoteController extends Controller
 	public function ChangeNotes(Request $request, Evaluation $evaluation)
 	{
 		$noteId = (int) $request->noteid;
+        $newNote = (float) $request->newnote;
 
-		$note = Note::query()->find($noteId);
+        \Log::info("Modification note request:", [
+            'note_id' => $noteId,
+            'received_value' => $request->newnote,
+            'casted_value' => $newNote,
+            'evaluation_id' => $evaluation->id
+        ]);
 
-		// NoteVariation::firstOrCreate([
-		// 	'note_id' => $noteId,
-		// 	'from' => $note->getAttribute('note'),
-		// 	'to' => (float) $request->newnote,
-		// 	'motif' => $request->motif,
-		// 	'user_id' => auth()->user()->getAttribute('id'),	
-		// 	'annee_scolaire_id' => injectAnneeScolaireId(),
-		// ]);
+		// Utiliser withoutGlobalScopes pour s'assurer qu'on trouve la note même si elle est d'une année passée
+		$note = Note::withoutGlobalScopes()
+            ->where('id', $noteId)
+            ->where('evaluation_id', $evaluation->id)
+            ->first();
 
-		$note->update(['note' => (float) $request->newnote]);
-		// successMsg("Note modifiée avec succès");
-		// return back();
-		return response()->json(['message' => "Note modifiée avec succès"]);
+        if (!$note) {
+            return response()->json(['message' => "Note non trouvée ou n'appartient pas à cette évaluation"], 404);
+        }
+
+		$note->update([
+            'note' => $newNote,
+            'notation' => null
+        ]);
+
+        \Log::info("Note mise à jour en DB:", $note->only(['id', 'note', 'notation']));
+		
+		return response()->json([
+            'message' => "Note modifiée avec succès",
+            'note' => new NoteResource($note)
+        ]);
 	}
 
 	public function publishNotes(Evaluation $evaluation)
