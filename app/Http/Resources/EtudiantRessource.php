@@ -69,12 +69,16 @@ class EtudiantRessource extends JsonResource
                     'id' => $dernierGroup->niveau->id,
                     'nom' => $dernierGroup->niveau->libelle
                 ] : null,
+                'mode_formation' => $dernierGroup->mode_formation,
                 'annee_scolaire_id' => $dernierGroup->annee_scolaire_id,
             ] : null,
+            'statut' => $this->statut,
             'promotion' => $this->promotion,
             'est_nouveau' => (int) $this->annee_admission === (int) \Carbon\Carbon::parse(\App\Models\AnneeScolaire::where('active', true)->value('date_debut'))->year,
             'advertiser' => new AdvertiserResource($this->advertiser),
             'album' => new AlbumResource($this->album),
+            'tuteur' => $this->tuteur,
+            'responsable' => $this->responsable,
         ];
     }
 }

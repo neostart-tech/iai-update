@@ -177,6 +177,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('creation-d-une-candidature', 'inscriptionIndexForm')->name('create');
         Route::post("store-by-admin", "storeByAdmin")->name("store-by-admin");
+        Route::post("{candidature}/update-by-admin", "updateByAdmin")->name("update-by-admin");
         Route::get('payement-des-frais-de-participation', 'payementCandidaturesIndex')->name('payement-des-frais-de-participation');
         Route::get('participation-au-concours', 'participantCandidaturesIndex')->name('participation-au-concours');
         Route::get('admission-a-' . Str::slug(env('APP_NAME')), 'admisCandidaturesIndex')->name('admission');
@@ -225,6 +226,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::controller(NiveauController::class)->prefix('niveau')->name('niveau.')->group(function () {
         Route::get('/liste', 'index')->name('liste');
+        Route::post('/ajouter', 'store')->name('store');
+        Route::put('/{id}/modifier', 'update')->name('update');
+        Route::patch('/{id}/toggle-status', 'toggleStatus')->name('toggle-status');
     });
 
 
@@ -502,6 +506,8 @@ Route::middleware('auth:sanctum')->group(function () {
             return Excel::download(new EtudiantsExport, 'liste_des_etudiants_' . $anneActive . '.xlsx');
         })->name('export');
         Route::get('{etudiant}', 'show')->name('show');
+        Route::put('{etudiant}', 'update')->name('update');
+        Route::delete('{etudiant}', 'destroy')->name('destroy');
     });
 
     Route::controller(NotificationController::class)->group(function () {

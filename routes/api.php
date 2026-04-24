@@ -366,6 +366,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // Effectuer un paiement
         Route::post('/store', 'store');
         Route::post('/', 'store');
+        
+        // Modifier un paiement
+        Route::post('/{id}/update', 'update');
     });
     // Route::controller(PaiementGlobalController::class)->prefix('paiements')->group(function () {
     //     Route::get('rechercher-etudiant', 'rechercherEtudiant');

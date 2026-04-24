@@ -14,9 +14,8 @@ enum TypeDiplomeEnum: string
 {
 	use EnumsValuesTrait;
 
-	case BAC2 = 'BAC 2';
-	case DUT = 'Diplôme universitaire de technologie';
-	case BULLETINS_LYCEE ='Bulletins de lycée';
-	case RELEVE_BAC1='Relevé du Bac 1';
-	case RELEVE_BAC2='Relevé du Bac 2';
+	case BAC2 = 'Bac 2';
+	case BTS = 'BTS';
+	case LICENCE = 'Licence';
+	case MASTER = 'Master';
 }

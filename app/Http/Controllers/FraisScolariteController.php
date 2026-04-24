@@ -78,6 +78,7 @@ class FraisScolariteController extends Controller
         ]);
 
         $sourceFrais = FraisScolarite::where('annee_scolaire_id', $request->source_year_id)->get();
+        $targetAnnee = AnneeScolaire::findOrFail($request->target_year_id);
         $count = 0;
 
         foreach ($sourceFrais as $item) {
@@ -86,11 +87,17 @@ class FraisScolariteController extends Controller
             $newFrais->annee_scolaire_id = $request->target_year_id;
             $newFrais->save();
 
-            // Dupliquer aussi les tranches si elles existent
-            foreach ($item->tranchepaiement as $tranche) {
-                $newTranche = $tranche->replicate();
-                $newTranche->frais_scolarite_id = $newFrais->id;
-                $newTranche->save();
+            // Si une fréquence est définie, on régénère les tranches avec les bonnes dates pour la nouvelle année
+            if ($newFrais->frequence) {
+                $this->generateAutoTranches($newFrais, $newFrais->frequence, $targetAnnee);
+            } else {
+                // Sinon on duplique simplement les tranches existantes (fallback)
+                foreach ($item->tranchepaiement as $tranche) {
+                    $newTranche = $tranche->replicate();
+                    $newTranche->frais_scolarite_id = $newFrais->id;
+                    $newTranche->annee_scolaire_id = $request->target_year_id;
+                    $newTranche->save();
+                }
             }
             $count++;
         }
@@ -105,18 +112,21 @@ class FraisScolariteController extends Controller
             'filiere_id' => "nullable",
             'montant' => 'required|numeric|min:1000',
             'genre' => 'nullable',
+            'mode_formation' => 'nullable|string',
             "description" => 'nullable',
             "frequence" => "nullable|in:annuel,trimestriel,bimestriel" // Nouvelle option
         ]);
 
+        $anneeCourante = AnneeScolaire::courante();
+
         $frais = FraisScolarite::create([
             ...$request->all(),
-            "annee_scolaire_id" => AnneeScolaire::courante()->id
+            "annee_scolaire_id" => $anneeCourante->id
         ]);
 
         // Génération automatique des tranches si demandé
         if ($request->frequence) {
-            $this->generateAutoTranches($frais, $request->frequence);
+            $this->generateAutoTranches($frais, $request->frequence, $anneeCourante);
         }
 
         return new FraisScolariteResource($frais->load('tranchepaiement'));
@@ -130,7 +140,7 @@ class FraisScolariteController extends Controller
         if ($request->frequence) {
             // Supprimer les anciennes tranches avant de régénérer
             $frais->tranchepaiement()->delete();
-            $this->generateAutoTranches($frais, $request->frequence);
+            $this->generateAutoTranches($frais, $request->frequence, $frais->anneeScolaire);
         }
 
         return new FraisScolariteResource($frais->load('tranchepaiement'));
@@ -139,15 +149,15 @@ class FraisScolariteController extends Controller
     /**
      * Génère les tranches de paiement automatiquement
      */
-    private function generateAutoTranches($frais, $frequency)
+    private function generateAutoTranches($frais, $frequency, $anneeScolaire = null)
     {
-        $anneeActive = AnneeScolaire::where('active', true)->first();
-        $dateDebut = $anneeActive && $anneeActive->date_debut ? Carbon::parse($anneeActive->date_debut) : Carbon::now();
+        $targetAnnee = $anneeScolaire ?? AnneeScolaire::where('active', true)->first();
+        $dateDebut = $targetAnnee && $targetAnnee->date_debut ? Carbon::parse($targetAnnee->date_debut) : Carbon::now();
         
         $nbTranches = match($frequency) {
             'annuel' => 1,
             'trimestriel' => 3,
-            'bimestriel' => 6,
+            'bimestriel' => 4,
             default => 1
         };
 

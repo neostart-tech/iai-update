@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Enums\GenreEnum;
-use App\Http\Resources\AnnonceResource;
+use App\Enums\ModeFormationEnum;
 use App\Models\Scopes\CurrentAnneeScolaireScope;
 use App\Traits\Routing\GenerateUniqueSlugTrait;
 use App\Traits\Routing\ModelsSlugKeyTrait;
@@ -19,6 +19,7 @@ class FraisScolarite extends Model
 
     protected $casts = [
         'genre' => GenreEnum::class,
+        'mode_formation' => ModeFormationEnum::class,
     ];
 
     public function anneeScolaire()
@@ -50,9 +51,9 @@ class FraisScolarite extends Model
     return $this->tranchepaiement()->sum('montant');
 }
     /**
-     * Récupérer les frais appropriés selon le genre de l'étudiant
+     * Récupérer les frais appropriés selon le genre et le mode de formation de l'étudiant
      */
-    public static function getFraisForEtudiant($niveauId, $genre = 'Tous', $filiereId = null, $anneeScolaireId = null)
+    public static function getFraisForEtudiant($niveauId, $genre = 'Tous', $filiereId = null, $anneeScolaireId = null, $modeFormation = 'Tous')
     {
         // On récupère l'année passée ou l'année active par défaut
         $anneeTargetId = $anneeScolaireId ?? (\DB::table('annee_scolaires')->where('active', 1)->value('id') ?? 1);
@@ -61,35 +62,59 @@ class FraisScolarite extends Model
             ->where('annee_scolaire_id', $anneeTargetId)
             ->where('niveau_id', $niveauId);
 
-        // 1. Recherche précise : Filière + Genre
+        // 1. Recherche précise : Filière + Genre + Mode
         $result = (clone $query);
         if ($filiereId) {
             $result->where('filiere_id', $filiereId);
         } else {
             $result->whereNull('filiere_id');
         }
-        $res = $result->where('genre', $genre)->first();
+        $res = $result->where('genre', $genre)
+                      ->where('mode_formation', $modeFormation)
+                      ->first();
         if ($res) return $res;
 
-        // 2. Fallback : Filière + Genre "Tous"
+        // 2. Fallback : Filière + Genre + Mode "Tous"
         $result = (clone $query);
         if ($filiereId) {
             $result->where('filiere_id', $filiereId);
         } else {
             $result->whereNull('filiere_id');
         }
-        $res = $result->where('genre', 'Tous')->first();
+        $res = $result->where('genre', $genre)
+                      ->where('mode_formation', 'Tous')
+                      ->first();
         if ($res) return $res;
 
-        // 3. Fallback : Pas de filière + Genre "Tous" ou spécifique ou NULL
+        // 3. Fallback : Filière + Genre "Tous" + Mode spécifique
+        $result = (clone $query);
+        if ($filiereId) {
+            $result->where('filiere_id', $filiereId);
+        } else {
+            $result->whereNull('filiere_id');
+        }
+        $res = $result->where('genre', 'Tous')
+                      ->where('mode_formation', $modeFormation)
+                      ->first();
+        if ($res) return $res;
+
+        // 4. Fallback : Filière + Genre "Tous" + Mode "Tous"
+        $result = (clone $query);
+        if ($filiereId) {
+            $result->where('filiere_id', $filiereId);
+        } else {
+            $result->whereNull('filiere_id');
+        }
+        $res = $result->where('genre', 'Tous')
+                      ->where('mode_formation', 'Tous')
+                      ->first();
+        if ($res) return $res;
+
+        // 5. Fallback final sur niveau uniquement
         $res = self::withoutGlobalScopes()
             ->where('annee_scolaire_id', $anneeTargetId)
             ->where('niveau_id', $niveauId)
             ->whereNull('filiere_id')
-            ->where(function($q) use ($genre) {
-                $q->whereIn('genre', [$genre, 'Tous'])
-                  ->orWhereNull('genre');
-            })
             ->first();
 
         return $res;

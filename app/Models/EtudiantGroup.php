@@ -5,11 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
+use App\Enums\ModeFormationEnum;
+
 class EtudiantGroup extends Pivot
 {
 	protected $table = 'etudiant_group';
 
 	public $incrementing = true;
+    public $timestamps = false;
 
 	protected $fillable = [
 		'etudiant_id',
@@ -17,7 +20,12 @@ class EtudiantGroup extends Pivot
 		'filiere_id',
 		'niveau_id',
 		'annee_scolaire_id',
+        'mode_formation',
 	];
+
+    protected $casts = [
+        'mode_formation' => ModeFormationEnum::class,
+    ];
 
 	
     public function filiere(): BelongsTo
@@ -38,7 +46,7 @@ class EtudiantGroup extends Pivot
     
     public function etudiant(): BelongsTo
     {
-        return $this->belongsTo(Etudiant::class, 'group_id');
+        return $this->belongsTo(Etudiant::class, 'etudiant_id');
     }
 
     public function anneeScolaire(): BelongsTo

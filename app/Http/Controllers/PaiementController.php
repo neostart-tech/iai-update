@@ -106,6 +106,12 @@ class PaiementController extends Controller
                 'errors' => $validator->errors()
             ], 422);
         }
+
+        $justificatifPath = null;
+        if ($request->hasFile('justificatif')) {
+            $justificatifPath = $request->file('justificatif')->store('paiements/justificatifs', 'public');
+        }
+
         try {
             $result = $this->paiementService->traiterPaiement(
                 $request->etudiant_id,
@@ -116,7 +122,8 @@ class PaiementController extends Controller
                 $request->payable_type,
                 $request->get('nature_paiement', 'scolarite'),
                 $request->get('frais_retrait_mm', 0),
-                $request->commentaire
+                $request->commentaire,
+                $justificatifPath
             );
             
             return response()->json($result);
@@ -166,6 +173,55 @@ class PaiementController extends Controller
                 'data' => $etudiants
             ]);
             
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Modifier un paiement
+     */
+    public function update(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'montant' => 'nullable|numeric|min:1',
+            'mode_paiement' => 'nullable|string|in:especes,banque,semoa,caisse,carte,virement,cheque,mobile_money,autre',
+            'reference' => 'nullable|string|max:255',
+            'commentaire' => 'nullable|string|max:1000',
+            'frais_retrait_mm' => 'nullable|numeric|min:0',
+            'justificatif' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $justificatifPath = null;
+        if ($request->hasFile('justificatif')) {
+            $justificatifPath = $request->file('justificatif')->store('paiements/justificatifs', 'public');
+        }
+
+        try {
+            $result = $this->paiementService->modifierPaiement($id, $request->only([
+                'montant', 'mode_paiement', 'reference', 'commentaire', 'frais_retrait_mm'
+            ]), $justificatifPath);
+
+            $paiement = Paiement::find($id);
+            if ($paiement) {
+                // Renvoyer les infos à jour pour le frontend
+                $result['infos'] = $this->paiementService->getInfosPaiement($paiement->etudiant_id);
+                $result['recap'] = $this->paiementService->getRecap($paiement->etudiant_id);
+                $result['historique'] = $this->paiementService->getHistorique($paiement->etudiant_id);
+            }
+
+            return response()->json($result);
+
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,

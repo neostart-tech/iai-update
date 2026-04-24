@@ -487,6 +487,7 @@ class PaiementEtudiantService
                     'id' => $paiement->id,
                     'date_formatted' => $paiement->created_at->format('d/m/Y H:i'),
                     'montant' => (float) $paiement->montant,
+                    'mode_paiement' => $paiement->mode_paiement,
                     'mode_label' => Paiement::MODES_PAIEMENT[$paiement->mode_paiement] ?? $paiement->mode_paiement,
                     'reference' => $paiement->reference,
                     'commentaire' => $paiement->commentaire,
@@ -494,9 +495,10 @@ class PaiementEtudiantService
                     'type_payable' => $typePayable,
                     'nature_paiement' => $paiement->nature_paiement,
                     'payable_id' => $paiement->payable_id,
-                    'frais_retrait' => (float) ($paiement->frais_retrait_mm ?? 0),
+                    'frais_retrait_mm' => (float) ($paiement->frais_retrait_mm ?? 0),
                     'status' => $paiement->status,
                     'status_label' => Paiement::STATUTS[$paiement->status] ?? $paiement->status,
+                    'justificatif' => $paiement->justificatif ? asset('storage/' . $paiement->justificatif) : null,
                 ];
             })->values()->toArray();
         } catch (Exception $e) {
@@ -552,7 +554,7 @@ class PaiementEtudiantService
     /**
      * Traite un nouveau paiement
      */
-    public function traiterPaiement($etudiantId, $montant, $modePaiement, $reference = null, $payableId = null, $payableType = null, $naturePaiement = 'scolarite', $fraisRetraitMM = 0, $commentaire = null)
+    public function traiterPaiement($etudiantId, $montant, $modePaiement, $reference = null, $payableId = null, $payableType = null, $naturePaiement = 'scolarite', $fraisRetraitMM = 0, $commentaire = null, $justificatif = null)
     {
         DB::beginTransaction();
 
@@ -593,6 +595,7 @@ class PaiementEtudiantService
             $paiement->frais_retrait_mm = $fraisRetraitMM ?? 0;
             $paiement->commentaire = $commentaire;
             $paiement->reference = $reference;
+            $paiement->justificatif = $justificatif;
             $paiement->status = 'valide';
             $paiement->date_paiement = now();
             $paiement->payable_type = get_class($payable);
@@ -813,5 +816,100 @@ class PaiementEtudiantService
             'reste' => (float) ($frais->montant - $totalPaye),
             'statut' => $totalPaye >= $frais->montant ? 'paye' : ($totalPaye > 0 ? 'partiel' : 'en_attente'),
         ];
+    }
+    /**
+     * Modifie un paiement existant
+     */
+    public function modifierPaiement($paiementId, $data, $justificatif = null)
+    {
+        DB::beginTransaction();
+
+        try {
+            $paiement = Paiement::findOrFail($paiementId);
+            $etudiantId = $paiement->etudiant_id;
+            $payable = $paiement->payable;
+
+            // Mettre à jour les champs autorisés
+            if (isset($data['montant'])) {
+                // Vérifier que le nouveau montant ne fait pas dépasser le total
+                // On calcule le reste sans compter ce paiement là
+                $totalSaufCePaiement = Paiement::where('etudiant_id', $etudiantId)
+                    ->where('payable_type', get_class($payable))
+                    ->where('payable_id', $payable->id)
+                    ->where('id', '!=', $paiementId)
+                    ->where('status', 'valide')
+                    ->sum('montant');
+                
+                // Montant max autorisé
+                $montantMaxTotal = $this->getMontantTotalPayable($payable, $etudiantId);
+                $nouveauReste = $montantMaxTotal - $totalSaufCePaiement;
+
+                if ($data['montant'] > $nouveauReste) {
+                     throw new Exception("Le nouveau montant dépasse le reste à payer autorisé (" . number_format($nouveauReste, 0, ',', ' ') . " FCFA)");
+                }
+
+                $paiement->montant = $data['montant'];
+            }
+
+            if (isset($data['mode_paiement'])) {
+                $paiement->mode_paiement = $data['mode_paiement'];
+            }
+
+            if (isset($data['reference'])) {
+                $paiement->reference = $data['reference'];
+            }
+
+            if (isset($data['commentaire'])) {
+                $paiement->commentaire = $data['commentaire'];
+            }
+
+            if (isset($data['frais_retrait_mm'])) {
+                $paiement->frais_retrait_mm = $data['frais_retrait_mm'];
+            }
+
+            if ($justificatif) {
+                $paiement->justificatif = $justificatif;
+            }
+
+            $paiement->save();
+
+            // Mettre à jour le statut du payable
+            $this->mettreAJourStatutPayable($payable, $etudiantId);
+
+            DB::commit();
+
+            return [
+                'success' => true,
+                'message' => 'Paiement modifié avec succès',
+                'paiement' => $paiement
+            ];
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Erreur modifierPaiement: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Récupère le montant total autorisé pour un payable
+     */
+    private function getMontantTotalPayable($payable, $etudiantId)
+    {
+        if ($payable instanceof \App\Models\Echeance) {
+            return $payable->montant;
+        }
+
+        if ($payable instanceof \App\Models\TranchePaiement) {
+            $anneeScolaireId = AnneeScolaire::courante()->id;
+            $bourseEtudiant = $this->getBourseEtudiant($etudiantId, $anneeScolaireId);
+            $coefficient = $this->calculerCoefficientBourse($bourseEtudiant);
+            return round($payable->montant * $coefficient);
+        }
+
+        if ($payable instanceof \App\Models\FraisInscription) {
+            return $payable->montant;
+        }
+
+        return 0;
     }
 }
