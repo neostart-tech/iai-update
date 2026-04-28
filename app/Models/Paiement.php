@@ -128,12 +128,18 @@ class Paiement extends Model
         $this->status = 'valide';
         $this->save();
 
-        // Mettre à jour l'échéance liée si c'est le cas
+        // Mettre à jour l'élément lié (échéance, tranche, etc.)
         if ($this->payable instanceof Echeance) {
             $this->payable->updateMontantPaye();
         } elseif ($this->payable instanceof FraisEtudiant) {
-            // Si paiement direct sur le frais
             $this->payable->updateStatut();
+        } elseif ($this->payable instanceof TranchePaiement || $this->payable instanceof FraisInscription) {
+            // Ces modèles n'ont pas forcément de méthode updateStatut() directe, 
+            // mais le PaiementEtudiantService a une logique pour ça.
+            // Pour l'instant on s'assure que le lien est bien là.
+            if (method_exists($this->payable, 'updateStatut')) {
+                $this->payable->updateStatut();
+            }
         }
 
         return $this;

@@ -589,7 +589,8 @@ Route::prefix('tickets')->group(function(){
 
 
 
-Route::any('semoa-callback-url', SemoaCallBackController::class);
+Route::any('semoa-callback-url', SemoaCallBackController::class)->name('api.semoa.callback');
+Route::post('semoa/initiate', [\App\Http\Controllers\SemoaPaymentController::class, 'initiate'])->middleware('auth:sanctum');
 
 require __DIR__ . '/api_admin_routes.php';
 

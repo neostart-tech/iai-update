@@ -552,6 +552,36 @@ class PaiementEtudiantService
     }
 
     /**
+     * Crée un paiement en attente (pour initialisation mobile money/carte)
+     */
+    public function creerPaiementEnAttente($etudiantId, $montant, $modePaiement, $naturePaiement = 'scolarite', $payableId = null, $payableType = null, $commentaire = null)
+    {
+        $anneeScolaireId = getAnneeScolaireId();
+        $etudiant = Etudiant::findOrFail($etudiantId);
+        $payable = $this->determinerPayable($etudiantId, $payableId, $payableType, $anneeScolaireId, $naturePaiement);
+
+        if (!$payable) {
+            throw new Exception("Impossible de déterminer l'élément à payer.");
+        }
+
+        $paiement = new Paiement();
+        $paiement->etudiant_id = $etudiantId;
+        $paiement->montant = $montant;
+        $paiement->mode_paiement = $modePaiement;
+        $paiement->nature_paiement = $naturePaiement;
+        $paiement->commentaire = $commentaire;
+        $paiement->status = 'en_attente';
+        $paiement->date_paiement = now();
+        $paiement->payable_type = get_class($payable);
+        $paiement->payable_id = $payable->id;
+        // On génère une référence temporaire qui sera remplacée par celle de SEMOA
+        $paiement->reference = 'PEND-' . strtoupper(uniqid());
+        $paiement->save();
+
+        return $paiement;
+    }
+
+    /**
      * Traite un nouveau paiement
      */
     public function traiterPaiement($etudiantId, $montant, $modePaiement, $reference = null, $payableId = null, $payableType = null, $naturePaiement = 'scolarite', $fraisRetraitMM = 0, $commentaire = null, $justificatif = null)

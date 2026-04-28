@@ -33,25 +33,12 @@ if (!function_exists('getResponseData')) {
 }
 
 if (!function_exists('saveAuthData')) {
-
-
-	function saveAuthData(array $data): int|false
+	/**
+	 * @deprecated Utiliser le Cache pour stocker les tokens
+	 */
+	function saveAuthData(array $data): bool
 	{
-		$formattedData = '[
-		"access_token" => "' . $data['access_token'] . '",
-		"expires_in" => "' . $data['expires_in'] . '",
-		"refresh_expires_in" => "' . $data['refresh_expires_in'] . '",
-		"refresh_token" => "' . $data['refresh_token'] . '",
-		"token_type" => "' . $data['token_type'] . '",
-		"not-before-policy" => "' . $data['not-before-policy'] . '",
-		"session_state" => "' . $data['session_state'] . '",
-		"scope" => "' . $data['scope'] . '"
-]';
-
-		return file_put_contents('config/semoa.php', '<?php 
-	return ' . $formattedData . '; 
-	'
-		);
+		return true;
 	}
 }
 

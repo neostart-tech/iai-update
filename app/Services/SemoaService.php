@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Casts\Json;
 use Illuminate\Http\Client\{PendingRequest, Response};
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
+use Exception;
 
 class SemoaService
 {
@@ -103,112 +105,115 @@ class SemoaService
 	private static string $apiKey;
 	private static string $apiReference;
 
-	public function __construct()
-	{
-		$this->isBooted = false;
-		if (($configs = config('semoa')) === []) {
-			$configs = authenticateToSemoa();
-		}
+    public function __construct()
+    {
+        self::loadStaticData();
+    }
 
-		$this->refreshConfigs($configs);
-		$this->refreshToken($this->getAccessToken());
+    private static function loadStaticData(): void
+    {
+        self::$url = config('semoa.url') . '/';
+        self::$userName = config('semoa.username');
+        self::$password = config('semoa.password');
+        self::$clientSecret = config('semoa.client_secret');
+        self::$clientId = config('semoa.client_id');
+        self::$apiKey = config('semoa.api_key');
+        self::$apiReference = config('semoa.api_reference');
+    }
 
-		self::loadStaticData();
-		$this->isBooted = true;
-	}
+    private function getToken(): string
+    {
+        return Cache::remember('semoa_access_token', 30 * 60, function () {
+            $response = Http::post(self::$url . 'auth', [
+                "grant_type" => "password",
+                "username" => self::$userName,
+                "password" => self::$password,
+                "client_id" => self::$clientId,
+                "client_secret" => self::$clientSecret,
+            ]);
 
-	private function refreshConfigs(array $configs): self
-	{
-		$this->accessToken = $configs['access_token'];
-		$this->expiresIn = $configs['expires_in'];
-		$this->refreshExpiresIin = $configs['refresh_expires_in'];
-		$this->refreshToken = $configs['refresh_token'];
-		$this->tokenType = $configs['token_type'];
-		$this->notBeforePolicy = $configs['not-before-policy'];
-		$this->sessionState = $configs['session_state'];
-		$this->scope = $configs['scope'];
+            if ($response->failed()) {
+                throw new \Exception("Échec d'authentification SEMOA : " . $response->body());
+            }
 
-		$this->isBooted = true;
-		return $this;
-	}
+            return $response->json()['access_token'];
+        });
+    }
 
-	private function refreshToken(string $token): self
-	{
-		$this->headers["Authorization"] = 'Bearer ' . $token;
-		return $this;
-	}
+    private function getHeaders(string $token): array
+    {
+        $salt = random_int(0, 999999);
+        $signature = strtoupper(hash('sha256', self::$userName . self::$apiKey . $salt));
+        
+        $headers = [
+            "Authorization" => "Bearer $token",
+            "login" => self::$userName,
+            "apisecure" => $signature,
+            "apireference" => self::$userName,
+            "api-key" => self::$apiKey,
+            "salt" => $salt,
+            "Content-Type" => "application/json",
+            "Accept" => "application/json"
+        ];
+        
+        \Log::debug('SEMOA Headers Debug (MAJ):', [
+            'login' => $headers['login'],
+            'apireference' => $headers['apireference'],
+            'salt' => $headers['salt'],
+            'apisecure' => $headers['apisecure'],
+            'api_key_used' => substr(self::$apiKey, 0, 5) . '...'
+        ]);
 
-	private static function loadStaticData(): void
-	{
-		self::$url = env('SEMOA_URL') . '/';
-		self::$userName = env('SEMOA_CLIENT_ID');
-		self::$password = ('SEMOA_CLIENT_SECRET');
-		self::$clientSecret = env('SEMOA_USERNAME');
-		self::$clientId = env('SEMOA_PASSWORD');
-		self::$apiKey = env('SEMOA_API_KEY');
-		self::$apiReference = env('SEMOA_API_REFERENCE');
-	}
+        return $headers;
+    }
 
-	private function authenticateToSemoa(): array
-	{
-		if ($this->isBooted) {
-			return config('semoa');
-		}
+    /**
+     * Initialise un paiement Link2Pay
+     */
+    public function initializePayment(array $data, bool $isRetry = false): array
+    {
+        $token = $this->getToken();
+        
+        $response = Http::withHeaders($this->getHeaders($token))
+            ->post(self::$url . 'orders', [
+                'amount' => $data['amount'],
+                'description' => $data['description'] ?? 'Paiement',
+                'client' => [
+                    'lastname' => $data['lastname'],
+                    'firstname' => $data['firstname'],
+                    'phone' => $data['phone'],
+                ],
+                'currency' => 'XOF',
+                'callback_url' => $data['callback_url'] ?? route('api.semoa.callback'),
+                'success_url' => $data['success_url'] ?? null,
+                'cancel_url' => $data['cancel_url'] ?? null,
+            ]);
 
-		dump('called', $this->isBooted);
-		$configs = authenticateToSemoa();
-		$this->isBooted = true;
-		dump($this->isBooted);
-		return $configs;
-	}
+        if ($response->failed()) {
+            if ($response->status() === 401 && !$isRetry) {
+                Cache::forget('semoa_access_token');
+                return $this->initializePayment($data, true);
+            }
+            throw new \Exception("Erreur SEMOA (Initialisation) : " . $response->body());
+        }
 
-	public function get(string $url, array $data = [], array $headers = []): Response
-	{
-		return $this->performRequest(verb: 'get', url: $url, data: $data, headers: $headers);
-//		return $this;
-	}
+        return $response->json();
+    }
 
-	public function post(string $url, array $data, array $headers = [], bool $encode = false): Response
-	{
-		return $this->performRequest(verb: 'post', url: $url, data: $data, headers: $headers, encode: $encode);
-//		return $this;
-	}
+    /**
+     * Vérifie le statut d'une commande
+     */
+    public function checkPaymentStatus(string $reference): array
+    {
+        $token = $this->getToken();
+        
+        $response = Http::withHeaders($this->getHeaders($token))
+            ->get(self::$url . "orders/{$reference}");
 
-	private function performRequest(string $verb, string $url, array $data = [], array $headers = [], bool $encode = false): Response
-	{
-		if (empty($headers)) {
-			$headers = $this->headers;
-		}
+        if ($response->failed()) {
+            throw new \Exception("Erreur SEMOA (Vérification) : " . $response->body());
+        }
 
-		if ($encode) {
-			$data = Json::encode($data);
-		}
-
-		$this->request = Http::withHeaders($headers)->{$verb}(self::$url . $url, $data);
-
-		$responseBody = $this->request->json();
-		dump($responseBody);
-		dd($this);
-		if ($responseBody['code'] == 400 && $this->request->json()['message'] == "Expired token" || $this->request->json()['message'] == "Invalid token") {
-			$this->isBooted = false;
-//			dd('ici', $this->isBooted, $responseBody);
-			$this->refreshConfigs($this->authenticateToSemoa())->performRequest($verb, $url, $data, $headers);
-		}
-		return $this->request;
-	}
-
-	public function json(): array
-	{
-		return $this->request->json();
-	}
-
-	public function collect(Response $response): Collection
-	{
-		return $this->request->collect();
-	}
-
-	public function toString(): string
-	{
-		return 'Not implemented';
-	}
+        return $response->json();
+    }
 }
