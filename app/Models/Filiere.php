@@ -92,5 +92,8 @@ class Filiere extends Model
 		);
 	}
 
-    
+	public function unitesEnseignements(): HasMany
+	{
+		return $this->hasMany(UniteEnseignement::class);
+	}
 }

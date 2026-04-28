@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\ExamSubmissionController;
 use App\Http\Controllers\Api\SemoaCallBackController;
 use App\Http\Controllers\Api\Support\CategoryController;
 use App\Http\Controllers\Api\Support\TicketController as SupportTicketController;
+use App\Http\Controllers\Api\Support\SupportMessageController;
 use App\Http\Controllers\BourseController;
 use App\Http\Controllers\BroadcastAuthController;
 use App\Http\Controllers\ChangePasswordController;
@@ -69,6 +70,18 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $user;
 });
 
+Route::middleware('auth:sanctum')->get('/user/fiscalite', function (Request $request) {
+    $user = $request->user();
+    return response()->json([
+        'nationalite' => $user->nationalite,
+        'nif' => $user->nif,
+        'identity_document_url' => $user->identity_document_url,
+        'nif_document_url' => $user->nif_document_url,
+        'diploma_document_url' => $user->diploma_document_url,
+        'cv_document_url' => $user->cv_document_url,
+    ]);
+});
+
 
 
 
@@ -114,23 +127,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('tickets', [SupportTicketController::class, 'store']);
     Route::get('tickets/{ticket}', [SupportTicketController::class, 'show']);
     
-    // Actions sur tickets (réservées informaticien)
-    // Route::middleware('informaticien')->group(function () {
-    //     Route::put('tickets/{ticket}/assign', [SupportTicketController::class, 'assign']);
-    //     Route::put('tickets/{ticket}/status', [SupportTicketController::class, 'updateStatus']);
-    // });
+    // Actions sur tickets (réservées au staff support dans le contrôleur)
+    Route::post('tickets/{ticket}/assign', [SupportTicketController::class, 'assign']);
+    Route::put('tickets/{ticket}/status', [SupportTicketController::class, 'updateStatus']);
     
     // Évaluation (accessible par le créateur du ticket)
     Route::post('tickets/{ticket}/rate', [SupportTicketController::class, 'rate']);
     
     // Messages
-    Route::get('tickets/{ticket}/messages', [MessageController::class, 'index']);
-    Route::post('tickets/{ticket}/messages', [MessageController::class, 'store']);
-    Route::delete('messages/{message}', [MessageController::class, 'destroy']);
-
-     Route::get('messages/unread', [MessageController::class, 'unread']);
-    Route::put('messages/{message}/read', [MessageController::class, 'markAsRead']);
-    Route::put('tickets/{ticket}/messages/read-all', [MessageController::class, 'markAllAsRead']);
+    Route::get('tickets/{ticket}/messages', [SupportMessageController::class, 'index']);
+    Route::post('tickets/{ticket}/messages', [SupportMessageController::class, 'store']);
+    Route::put('messages/{message}', [SupportMessageController::class, 'update']);
+    Route::delete('messages/{message}', [SupportMessageController::class, 'destroy']);
 });
 
 
@@ -569,6 +577,14 @@ Route::prefix('tickets')->group(function(){
     // Route::get('/conversations/{conversation}/messages/{message}/attachments/{attachment}/download', 
     //           [MessageController::class, 'downloadAttachment']);
     Route::post('/change-password', [ChangePasswordController::class, 'update']);
+
+    // Communications
+    Route::controller(\App\Http\Controllers\Api\CommunicationController::class)->prefix('communications')->group(function () {
+        Route::get('/', 'index');
+        Route::get('/unread-count', 'getUnreadCount');
+        Route::get('/{communication}', 'show');
+        Route::post('/{communication}/mark-as-read', 'markAsRead');
+    });
 });
 
 

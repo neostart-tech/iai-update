@@ -8,6 +8,7 @@ use App\Models\Support\SupportCategory;
 use App\Http\Resources\Support\TicketResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Events\Support\SupportTicketUpdated;
 
 class TicketController extends Controller
 {
@@ -15,20 +16,20 @@ class TicketController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        
-        if ($user->isInformaticien()) {
-            // Informaticien voit tous les tickets
-            $tickets = SupportTicket::with(['category', 'assignedAgent', 'ticketable'])
-                ->orderBy('created_at', 'desc')
-                ->get();
-        } else {
-            // Utilisateur normal voit ses propres tickets
-            $tickets = SupportTicket::where('ticketable_type', get_class($user))
-                ->where('ticketable_id', $user->id)
-                ->with(['category', 'assignedAgent'])
-                ->orderBy('created_at', 'desc')
-                ->get();
+        $query = SupportTicket::with(['category', 'assignedAgent', 'ticketable']);
+
+        // Le Support (Informaticien) et les Admins voient tous les tickets
+        // On vérifie par nom (plusieurs variantes possibles) avec LIKE pour être sûr
+        $isStaff = $user->isInformaticien() || 
+                   $user->roles()->where('nom', 'like', '%Admin%')->exists() ||
+                   $user->roles()->where('nom', 'like', '%Directeur%')->exists();
+
+        if (!$isStaff) {
+            $query->where('ticketable_id', $user->id)
+                  ->where('ticketable_type', get_class($user));
         }
+
+        $tickets = $query->orderBy('created_at', 'desc')->get();
         
         return TicketResource::collection($tickets);
     }
@@ -67,27 +68,32 @@ class TicketController extends Controller
             return response()->json(['message' => 'Non autorisé'], 403);
         }
         
-        return new TicketResource($ticket->load(['category', 'messages.user', 'messages.attachments', 'assignedAgent']));
+        return new TicketResource($ticket->load(['category', 'messages.user', 'messages.attachments', 'assignedAgent', 'ticketable']));
     }
     
     // Assigner un ticket (réservé informaticien)
     public function assign(Request $request, SupportTicket $ticket)
     {
         $user = $request->user();
-        
-        if (!$user->isInformaticien()) {
-            return response()->json(['message' => 'Non autorisé'], 403);
+
+        // Vérifier si l'user est autorisé (Informaticien, Admin, Directeur)
+        $isStaff = $user->isInformaticien() || 
+                   $user->roles()->where('nom', 'like', '%Admin%')->exists() ||
+                   $user->roles()->where('nom', 'like', '%Directeur%')->exists();
+
+        if (!$isStaff) {
+            return response()->json(['message' => 'Réservé au support'], 403);
         }
         
-        $request->validate([
-            'assigned_to' => 'required|exists:users,id'
-        ]);
+        $assignedTo = $request->assigned_to ?? $user->id;
         
-        $ticket->assigned_to = $request->assigned_to;
+        $ticket->assigned_to = $assignedTo;
         $ticket->status = 'in_progress';
         $ticket->save();
         
-        return new TicketResource($ticket);
+        broadcast(new SupportTicketUpdated($ticket))->toOthers();
+        
+        return new TicketResource($ticket->load(['assignedAgent', 'ticketable', 'category']));
     }
     
     // Changer le statut
@@ -95,10 +101,17 @@ class TicketController extends Controller
     {
         $user = $request->user();
         
-        if (!$user->isInformaticien() && $ticket->ticketable_id !== $user->id) {
-            return response()->json(['message' => 'Non autorisé'], 403);
+        $isStaff = $user->isInformaticien() || 
+                   $user->roles()->where('nom', 'like', '%Admin%')->exists() ||
+                   $user->roles()->where('nom', 'like', '%Directeur%')->exists();
+
+        // Un étudiant ne peut que clore son propre ticket
+        if (!$isStaff) {
+            if ($ticket->ticketable_id !== $user->id || !in_array($request->status, ['closed', 'resolved'])) {
+                return response()->json(['message' => 'Non autorisé'], 403);
+            }
         }
-        
+
         $request->validate([
             'status' => 'required|in:open,in_progress,waiting,resolved,closed'
         ]);
@@ -115,7 +128,9 @@ class TicketController extends Controller
         
         $ticket->save();
         
-        return new TicketResource($ticket);
+        broadcast(new SupportTicketUpdated($ticket))->toOthers();
+        
+        return new TicketResource($ticket->load(['assignedAgent', 'ticketable', 'category']));
     }
     
     // Évaluer un ticket (après résolution)

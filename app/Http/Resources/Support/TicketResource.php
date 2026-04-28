@@ -52,7 +52,7 @@ class TicketResource extends JsonResource
             'waiting' => 'En attente',
             'resolved' => 'Résolu',
             'closed' => 'Fermé',
-            default => $this->status,
+            default => (string)($this->status ?? 'Inconnu'),
         };
     }
     
@@ -75,7 +75,7 @@ class TicketResource extends JsonResource
             'medium' => 'Moyenne',
             'high' => 'Haute',
             'critical' => 'Critique',
-            default => $this->priority,
+            default => (string)($this->priority ?? 'Normale'),
         };
     }
     

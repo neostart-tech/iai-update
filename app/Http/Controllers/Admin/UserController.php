@@ -322,6 +322,52 @@ class UserController extends Controller
     
     return new UserResource($user);
 }
+
+public function updateFiscalite(Request $request, User $user)
+{
+    $request->validate([
+        'nif' => "nullable",
+        'nationalite' => "nullable",
+        'identity_document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        'nif_document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        'diploma_document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+        'cv_document' => ['nullable', 'file', 'mimes:pdf,doc,docx', 'max:5120'],
+    ]);
+
+    $data = $request->only(['nif', 'nationalite']);
+    
+    if ($request->hasFile('identity_document')) {
+        if ($user->identity_document_path) {
+            Storage::disk('public')->delete($user->identity_document_path);
+        }
+        $data['identity_document_path'] = $this->uploadDocument($request->file('identity_document'), 'identite');
+    }
+    
+    if ($request->hasFile('nif_document')) {
+        if ($user->nif_document_path) {
+            Storage::disk('public')->delete($user->nif_document_path);
+        }
+        $data['nif_document_path'] = $this->uploadDocument($request->file('nif_document'), 'nif');
+    }
+    
+    if ($request->hasFile('diploma_document')) {
+        if ($user->diploma_document_path) {
+            Storage::disk('public')->delete($user->diploma_document_path);
+        }
+        $data['diploma_document_path'] = $this->uploadDocument($request->file('diploma_document'), 'diplomes');
+    }
+    
+    if ($request->hasFile('cv_document')) {
+        if ($user->cv_document_path) {
+            Storage::disk('public')->delete($user->cv_document_path);
+        }
+        $data['cv_document_path'] = $this->uploadDocument($request->file('cv_document'), 'cv');
+    }
+    
+    $user->update($data);
+    
+    return new UserResource($user->refresh()->load('roles'));
+}
 	public function loadEmploiDuTemps(User $user)
 	{
 		return EmploiDuTempsResource::collection($user->emploiDuTemps);

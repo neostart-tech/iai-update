@@ -201,8 +201,15 @@ class FiliereController extends Controller
 		// return to_route('admin.filieres.index')->with(successMsg('Filière supprimée avec succès.'));
 	}
 
-	public function getMatiere(Filiere $filiere)
+	public function getProgramme(Filiere $filiere)
 	{
-		
+		$programme = $filiere->load([
+			'unitesEnseignements.periode',
+			'unitesEnseignements.uniteDeValeurs'
+		]);
+
+		return response()->json([
+			'data' => $programme
+		]);
 	}
 }

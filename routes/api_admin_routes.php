@@ -58,6 +58,12 @@ Route::controller(ConfigurationController::class)->prefix('parametre')->name('co
     Route::get('configuration', 'index')->name('index');
 });
 
+// Gestion des informations urgentes (PUBLIC)
+Route::controller(UrgentInfoController::class)->prefix('informations-urgentes')->name('urgent_infos_public.')->group(function () {
+    Route::get('liste', 'index')->name('index');
+    Route::get('{urgent}/show', 'show')->name('show');
+});
+
 Route::middleware('auth:sanctum')->group(function () {
 
 
@@ -66,6 +72,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('ajouter-une-filiere', 'create')->name('create');
         Route::get('{filiere}/a-propos', 'show')->name('show');
         Route::get('{filiere}/modifier', 'edit')->name('edit');
+        Route::get('{filiere}/programme', 'getProgramme')->name('programme');
         Route::post('ajouter-une-filiere', 'store')->name('store');
         Route::put('{filiere}/modifier', 'update')->name('update');
         Route::delete('{filiere}/supprimer', 'destroy')->name('delete');
@@ -119,6 +126,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('{salle}/supprimer-une-salle', 'destroy')->name('delete');
     });
 
+    // Gestion des Jours Fériés par l'administration
+    Route::controller(\App\Http\Controllers\Admin\JourFerieController::class)->prefix('jours-feries')->name('jours-feries.')->group(function () {
+        Route::get('liste', 'index')->name('index');
+        Route::post('ajouter', 'store')->name('store');
+        Route::get('{jourFerie}', 'show')->name('show');
+        Route::put('{jourFerie}/modifier', 'update')->name('update');
+        Route::delete('{jourFerie}/supprimer', 'destroy')->name('delete');
+    });
+
     Route::controller(EmploiDuTempController::class)->prefix('emploi-du-temps')->name('edt.')->group(function () {
         Route::post('store', 'store')->name('store');
         Route::put('update-dates', 'updateDates')->name('update-dates');
@@ -151,6 +167,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{user}/show', 'show');
         Route::put('{user}/update', 'update');
         Route::put('{user}/update-enseignant', 'updateEnseignant');
+        Route::put('{user}/update-fiscalite', 'updateFiscalite');
         Route::delete('{user}/delete', 'destroy')->name('delete');
         
         Route::get('{user}/load-edt', 'loadEmploiDuTemps')->name('load-edt'); // charge les edt de l'utilisateur
@@ -435,11 +452,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Gestion des informations urgentes
     Route::controller(UrgentInfoController::class)->prefix('informations-urgentes')->name('urgent_infos.')->group(function () {
-        Route::get('liste', 'index')->name('index');
         Route::post('ajouter', 'store')->name('store');
         Route::put('{urgent}/modifier', 'update')->name('update');
-        Route::get('{urgent}/show', 'show')->name('show');
-
         Route::post('{urgent}/publier', 'publish')->name('publish');
         Route::post('{urgent}/depublier', 'unpublish')->name('unpublish');
         Route::delete('{urgent}/supprimer', 'destroy')->name('destroy');
@@ -531,6 +545,17 @@ Route::middleware('auth:sanctum')->group(function () {
     // Routes pour les statistiques des salles
     Route::get('/statistiques/salles/utilisees', [StatistiquesController::class, 'NbreSallesUtilisees']);
     Route::get('/statistiques/salles/dispos', [StatistiquesController::class, 'NbreSallesDispos']);
+
+    // Communications (Admin)
+    Route::controller(\App\Http\Controllers\Admin\CommunicationController::class)->prefix('admin/communications')->group(function () {
+        Route::get('/', 'index');
+        Route::post('/', 'store');
+        Route::get('/{communication}', 'show');
+        Route::put('/{communication}', 'update');
+        Route::delete('/{communication}', 'destroy');
+        Route::post('/{communication}/attachments', 'uploadAttachments');
+        Route::delete('/attachments/{attachment}', 'deleteAttachment');
+    });
 
     // Routes pour les statistiques du nombre total d'étudiants
     Route::get('/statistiques/etudiants/total', [StatistiquesController::class, 'NbreTotalEtudiants']);

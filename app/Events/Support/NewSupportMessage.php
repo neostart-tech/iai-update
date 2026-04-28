@@ -57,6 +57,13 @@ class NewSupportMessage implements ShouldBroadcast
                     'name' => $this->message->user->nom . ' ' . $this->message->user->prenom,
                 ],
                 'type' => $this->message->type,
+                'attachments' => $this->message->attachments->map(function($att) {
+                    return [
+                        'id' => $att->id,
+                        'original_name' => $att->original_name,
+                        'path' => $att->path,
+                    ];
+                }),
                 'created_at' => $this->message->created_at,
             ],
         ];

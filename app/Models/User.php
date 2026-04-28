@@ -70,6 +70,16 @@ class User extends Authenticatable
 		'remember_token',
 	];
 
+	protected $appends = [
+		'identity_document_url',
+		'nif_document_url',
+		'diploma_document_url',
+		'cv_document_url',
+		'nom_complet',
+		'nom_upper',
+		'image_url'
+	];
+
 	protected $casts = [
 		'email_verified_at' => 'datetime',
 		'genre' => GenreEnum::class
@@ -155,6 +165,14 @@ public function isInformaticien(): bool
 	public function getCvDocumentUrlAttribute(): ?string
 	{
 		return $this->cv_document_path ? asset(Storage::url($this->cv_document_path)) : null;
+	}
+
+	/**
+	 * Récupère l'URL de l'image de profil
+	 */
+	public function getImageUrlAttribute(): ?string
+	{
+		return $this->image ? asset(Storage::url($this->image)) : null;
 	}
 
 	public function permissions(): HasManyThrough

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\GalleryPhotoResource;
 use App\Models\GalleryAlbum;
 use App\Models\GalleryPhoto;
 use Illuminate\Http\Request;
@@ -16,15 +17,14 @@ class GalleryPhotoController extends Controller
     public function index(Request $request)
     {
         $albumId = $request->query('album');
-        $albums = GalleryAlbum::orderBy('name')->get();
         $photos = GalleryPhoto::query()
             ->when($albumId, fn($q) => $q->where('gallery_album_id', $albumId))
             ->with('album')
             ->orderBy('position')
             ->latest('id')
-            ->paginate(40);
+            ->get();
 
-        return view('admin.gallery.photos.index', compact('photos','albums','albumId'));
+        return GalleryPhotoResource::collection($photos);
     }
 
     /**
@@ -87,8 +87,11 @@ class GalleryPhotoController extends Controller
             $createdCount = 1;
         }
 
-        return redirect()->route('admin.gallery.photos.index', ['album' => $albumId])
-            ->with('success', $createdCount > 1 ? ($createdCount . ' photos ajoutées avec succès.') : 'Photo ajoutée avec succès.');
+        return response()->json([
+            'success' => true,
+            'message' => $createdCount > 1 ? ($createdCount . ' photos ajoutées avec succès.') : 'Photo ajoutée avec succès.',
+            'count' => $createdCount
+        ]);
     }
 
     /**
@@ -150,8 +153,7 @@ class GalleryPhotoController extends Controller
 
         $galleryPhoto->update($data);
 
-        return redirect()->route('admin.gallery.photos.index', ['album' => $galleryPhoto->gallery_album_id])
-            ->with('success', 'Photo mise à jour.');
+        return new GalleryPhotoResource($galleryPhoto);
     }
 
     /**
@@ -164,7 +166,9 @@ class GalleryPhotoController extends Controller
         }
         $albumId = $galleryPhoto->gallery_album_id;
         $galleryPhoto->delete();
-        return redirect()->route('admin.gallery.photos.index', ['album' => $albumId])
-            ->with('success', 'Photo supprimée.');
+        return response()->json([
+            'success' => true,
+            'message' => 'Photo supprimée.'
+        ]);
     }
 }
