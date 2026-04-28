@@ -488,10 +488,30 @@ public function getStatistiquesPresencesAttribute()
     /**
      * Retourne l'URL complète de l'image de profil
      */
+    /**
+     * Retourne l'URL complète de l'image de profil
+     */
     public function ImagePath(): string
     {
         if (!$this->image) return "";
         if (str_starts_with($this->image, 'http')) return $this->image;
         return asset(\Illuminate\Support\Facades\Storage::url($this->image));
+    }
+
+    /**
+     * Génère le prochain matricule disponible pour une année donnée
+     * Format: XXX-ESC-YYYY (ex: 035-ESC-2025)
+     */
+    public static function generateNextMatricule(int $year): string
+    {
+        $code = "ESC"; // Fixé selon demande
+        
+        // Compter le nombre d'étudiants déjà inscrits pour cette année d'admission
+        $count = self::where('annee_admission', $year)->count();
+        
+        $nextNumber = $count + 1;
+        
+        // Formatage: XXX-ESC-YYYY avec padding de 3 chiffres
+        return sprintf('%03d-%s-%d', $nextNumber, $code, $year);
     }
 }

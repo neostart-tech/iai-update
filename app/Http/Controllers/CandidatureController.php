@@ -546,7 +546,7 @@ class CandidatureController extends Controller
 					'annee_admission' => $year,
 					'promotion' => $promotion,
 					'advertiser_id' => $request->input('advertiser_id', $candidature->advertiser_id),
-					'matricule' => Str::upper($year . '_' . fake()->unique()->randomNumber(6, true)),
+					'matricule' => Etudiant::generateNextMatricule($year),
 				]);
 
 				$roleEtudiant = Role::where('nom', 'Etudiant')->first();
