@@ -71,4 +71,23 @@ class NiveauController extends Controller
 
         return new NiveauResource($niveau);
     }
+
+    public function getPeriodes($id)
+    {
+        $niveau = Niveau::findOrFail($id);
+        return response()->json($niveau->periodes);
+    }
+
+    public function assignPeriodes(Request $request, $id)
+    {
+        $request->validate([
+            'periode_ids' => 'required|array',
+            'periode_ids.*' => 'exists:periodes,id',
+        ]);
+
+        $niveau = Niveau::findOrFail($id);
+        $niveau->periodes()->sync($request->periode_ids);
+
+        return response()->json(['message' => 'Périodes associées avec succès']);
+    }
 }

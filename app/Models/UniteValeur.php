@@ -42,6 +42,11 @@ class UniteValeur extends Model
 		return $this->belongsTo(Filiere::class, 'filiere_id');
 	}
 
+	public function niveau()
+	{
+		return $this->belongsTo(Niveau::class);
+	}
+
 	public function periode()
 	{
 		return $this->belongsTo(Periode::class);
@@ -88,4 +93,12 @@ class UniteValeur extends Model
 	{
 		return $this->hasMany(UVWeighting::class, 'unite_valeur_id');
 	}
+
+    /**
+     * Le syllabus associé à cette UV
+     */
+    public function syllabus(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Syllabus::class, 'unite_valeur_id');
+    }
 }

@@ -16,8 +16,8 @@ class PeriodeRequest extends FormRequest
 		return [
 			'nom' => ['required'],
 			'description' => ['required'],
-			'debut' => ['required', 'before_or_equal:' . $this->date('fin'), 'after_or_equal:' . today()],
-			'fin' => ['required', 'after_or_equal:' . today(), 'after_or_equal:' . $this->date('debut')]
+			'debut' => ['required', 'before_or_equal:' . $this->date('fin')],
+			'fin' => ['required', 'after_or_equal:' . $this->date('debut')]
 		];
 	}
 

@@ -31,7 +31,11 @@ class PaiementEtudiantService
                     $query->where('annee_scolaire_id', $anneeScolaireId)
                         ->with(['niveau', 'filiere', 'group']);
                 }
-            ])->findOrFail($etudiantId);
+            ])->find($etudiantId);
+
+            if (!$etudiant) {
+                throw new Exception("Profil étudiant introuvable (ID: $etudiantId). Veuillez contacter l'administration.");
+            }
 
            
 
@@ -431,14 +435,54 @@ class PaiementEtudiantService
             $pourcentage = $montantTotal > 0 ? round(($totalPaye / $montantTotal) * 100) : 0;
 
             if ($infos['type'] === 'negocie') {
-                // Compter les échéances par statut
                 $echeances = collect($infos['echeances']);
+                
+                // 1. Chercher d'abord dans la table dédiée frais_inscriptions
+                $fraisInscTable = \App\Models\FraisInscription::where('annee_scolaire_id', AnneeScolaire::courante()->id)
+                    ->where('active', true)
+                    ->first();
+                
+                $montantInscription = $fraisInscTable ? (float)$fraisInscTable->montant : 0;
+
+                // 2. Vérifier si l'inscription est payée
+                $echeancesInsc = $echeances->filter(function($e) {
+                    $lib = strtolower($e['libelle']);
+                    $lib = str_replace(['é', 'è', 'ê', 'à'], ['e', 'e', 'e', 'a'], $lib);
+                    return str_contains($lib, 'inscrip') || str_contains($lib, 'admis');
+                });
+
+                if ($echeancesInsc->isEmpty() && $echeances->isNotEmpty()) {
+                    $echeancesInsc = collect([$echeances->first()]);
+                }
+
+                $inscriptionPayeeParEcheance = $echeancesInsc->every(fn($e) => $e['statut'] === 'paye');
+
+                // 2b. Vérifier s'il y a un paiement direct sur FraisInscription
+                $inscriptionPayeeDirect = false;
+                if ($fraisInscTable) {
+                    $inscriptionPayeeDirect = \App\Models\Paiement::where('etudiant_id', $etudiantId)
+                        ->where('payable_type', \App\Models\FraisInscription::class)
+                        ->where('payable_id', $fraisInscTable->id)
+                        ->where('status', 'valide')
+                        ->exists();
+                }
+
+                $inscriptionPayee = $inscriptionPayeeParEcheance || $inscriptionPayeeDirect;
+
+                if ($montantInscription <= 0 && !$inscriptionPayee) {
+                    $echeanceInsc = $echeancesInsc->firstWhere('statut', '!=', 'paye');
+                    if ($echeanceInsc) {
+                        $montantInscription = $echeanceInsc['reste'];
+                    }
+                }
 
                 return [
                     'montant_total' => $montantTotal,
                     'total_paye' => $totalPaye,
                     'reste_a_payer' => $montantTotal - $totalPaye,
                     'pourcentage' => $pourcentage,
+                    'inscription_payee' => $inscriptionPayee,
+                    'montant_inscription' => $montantInscription,
                     'nombre_echeances' => $echeances->count(),
                     'echeances_payees' => $echeances->where('statut', 'paye')->count(),
                     'echeances_partiellement_payees' => $echeances->where('statut', 'partiel')->count(),
@@ -446,14 +490,54 @@ class PaiementEtudiantService
                     'echeances_en_retard' => $echeances->where('statut', 'en_retard')->count(),
                 ];
             } else {
-                // Compter les tranches par statut
                 $tranches = collect($infos['tranches']);
+                
+                // 1. Chercher d'abord dans la table dédiée frais_inscriptions
+                $fraisInscTable = \App\Models\FraisInscription::where('annee_scolaire_id', AnneeScolaire::courante()->id)
+                    ->where('active', true)
+                    ->first();
+                
+                $montantInscription = $fraisInscTable ? (float)$fraisInscTable->montant : 0;
+
+                // 2. Vérifier si l'inscription est payée (via les tranches)
+                $tranchesInsc = $tranches->filter(function($t) {
+                    $lib = strtolower($t['libelle']);
+                    $lib = str_replace(['é', 'è', 'ê', 'à'], ['e', 'e', 'e', 'a'], $lib);
+                    return str_contains($lib, 'inscrip') || str_contains($lib, 'admis');
+                });
+
+                if ($tranchesInsc->isEmpty() && $tranches->isNotEmpty()) {
+                    $tranchesInsc = collect([$tranches->first()]);
+                }
+
+                $inscriptionPayeeParTranche = $tranchesInsc->every(fn($t) => $t['statut'] === 'paye');
+
+                // 2b. Vérifier s'il y a un paiement direct sur FraisInscription
+                $inscriptionPayeeDirect = false;
+                if ($fraisInscTable) {
+                    $inscriptionPayeeDirect = \App\Models\Paiement::where('etudiant_id', $etudiantId)
+                        ->where('payable_type', \App\Models\FraisInscription::class)
+                        ->where('payable_id', $fraisInscTable->id)
+                        ->where('status', 'valide')
+                        ->exists();
+                }
+
+                $inscriptionPayee = $inscriptionPayeeParTranche || $inscriptionPayeeDirect;
+
+                if ($montantInscription <= 0 && !$inscriptionPayee) {
+                    $trancheInsc = $tranchesInsc->firstWhere('statut', '!=', 'paye');
+                    if ($trancheInsc) {
+                        $montantInscription = $trancheInsc['reste'];
+                    }
+                }
 
                 return [
                     'montant_total' => $montantTotal,
                     'total_paye' => $totalPaye,
                     'reste_a_payer' => $montantTotal - $totalPaye,
                     'pourcentage' => $pourcentage,
+                    'inscription_payee' => $inscriptionPayee,
+                    'montant_inscription' => $montantInscription,
                     'nombre_tranches' => $tranches->count(),
                     'tranches_payees' => $tranches->where('statut', 'paye')->count(),
                     'tranches_partiellement_payees' => $tranches->where('statut', 'partiel')->count(),
@@ -490,6 +574,7 @@ class PaiementEtudiantService
                     'mode_paiement' => $paiement->mode_paiement,
                     'mode_label' => Paiement::MODES_PAIEMENT[$paiement->mode_paiement] ?? $paiement->mode_paiement,
                     'reference' => $paiement->reference,
+                    'recu' => $paiement->recu, // On ajoute le champ recu ici !
                     'commentaire' => $paiement->commentaire,
                     'libelle' => $libelle,
                     'type_payable' => $typePayable,

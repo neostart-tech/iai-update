@@ -35,4 +35,9 @@ class Periode extends Model
 	{
 		return $this->belongsTo(AnneeScolaire::class);
 	}
+
+	public function niveaux()
+	{
+		return $this->belongsToMany(Niveau::class, 'niveau_periode');
+	}
 }

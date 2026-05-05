@@ -64,6 +64,10 @@ Route::controller(UrgentInfoController::class)->prefix('informations-urgentes')-
     Route::get('{urgent}/show', 'show')->name('show');
 });
 
+// Route publique pour la génération des cartes d'étudiants (Générateur Hybride)
+Route::get('student-cards/generate-pdf', [CarteEtudiantController::class, 'genererCartesPdf'])
+    ->name('student-cards.generate-pdf');
+
 Route::middleware('auth:sanctum')->group(function () {
 
 
@@ -246,6 +250,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/ajouter', 'store')->name('store');
         Route::put('/{id}/modifier', 'update')->name('update');
         Route::patch('/{id}/toggle-status', 'toggleStatus')->name('toggle-status');
+        Route::get('/{id}/periodes', 'getPeriodes')->name('get-periodes');
+        Route::post('/{id}/assign-periodes', 'assignPeriodes')->name('assign-periodes');
     });
 
 
@@ -265,6 +271,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{group}/load-calendar', 'loadCalendar')->name('load-calendar');
         Route::post('{group}/emploi-du-temps', 'updateCalendar')->name('update-calendar');
         Route::post('ajouter', 'store')->name('store');
+        Route::post('assign-delegue', 'assignDelegue')->name('assign-delegue');
         Route::post('{group}/attribution-aux-etudiants-enregistrement', 'storeGroupAssignment')->name('store-attribution');
         Route::delete('{groupe}/supprimer', 'destroy')->name('delete');
     });
@@ -510,6 +517,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{etudiant}', 'genererCarteEtudiant')->name('index');
     });
 
+    // Données pour la génération de cartes HTML (multi-sélection)
+    Route::post('student-cards/selected-data', [CarteEtudiantController::class, 'selectedData'])
+        ->name('student-cards.selected-data');
+
     Route::controller(AdminEtudiantController::class)->prefix('etudiants')->name('etudiants.')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('get-etudiant-non-boursier', "getNonBoursiers");
@@ -560,4 +571,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // Routes pour les statistiques du nombre total d'étudiants
     Route::get('/statistiques/etudiants/total', [StatistiquesController::class, 'NbreTotalEtudiants']);
     Route::get('/statistiques/etudiants/total/{anneeScolaireId}', [StatistiquesController::class, 'NbreTotalEtudiants']);
+
+    // Nouvelles routes de statistiques
+    Route::get('/statistiques/enseignants/nombre', [StatistiquesController::class, 'NbreEnseignants']);
+    Route::get('/statistiques/evaluations/nombre', [StatistiquesController::class, 'NbreEvaluations']);
+    Route::get('/statistiques/presences/taux', [StatistiquesController::class, 'TauxPresenceMoyen']);
+    Route::get('/statistiques/presences/tendance', [StatistiquesController::class, 'fetchPresenceTrend']);
+    Route::get('/statistiques/filieres/top', [StatistiquesController::class, 'fetchTopFilieres']);
+    Route::get('/statistiques/evaluations/stats', [StatistiquesController::class, 'fetchEvaluationsStats']);
+    Route::get('/statistiques/periodes/current', [StatistiquesController::class, 'fetchCurrentPeriode']);
+    Route::get('/statistiques/periodes', [StatistiquesController::class, 'fetchPeriodes']);
+    Route::get('/statistiques/candidatures/en-attente', [StatistiquesController::class, 'NbreCandidaturesEnAttente']);
 });

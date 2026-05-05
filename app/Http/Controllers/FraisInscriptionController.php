@@ -17,6 +17,10 @@ class FraisInscriptionController extends Controller
 
     public function store(Request $request)
     {
+        if (!request()->user()->canManageFraisInscription()) {
+            return response()->json(['message' => 'Action non autorisée'], 403);
+        }
+
         $request->validate([
             'montant' => 'required|integer|min:0',
         ]);
@@ -38,6 +42,10 @@ class FraisInscriptionController extends Controller
 
     public function update(Request $request, $id)
     {
+        if (!request()->user()->canManageFraisInscription()) {
+            return response()->json(['message' => 'Action non autorisée'], 403);
+        }
+
         $request->validate([
             'montant' => 'required|integer|min:0',
         ]);
@@ -50,6 +58,10 @@ class FraisInscriptionController extends Controller
 
     public function destroy($id)
     {
+        if (!request()->user()->canManageFraisInscription()) {
+            return response()->json(['message' => 'Action non autorisée'], 403);
+        }
+
         $frais = FraisInscription::findOrFail($id);
         $frais->delete();
         return response()->json(['message' => 'Frais supprimé avec succès']);
@@ -57,6 +69,10 @@ class FraisInscriptionController extends Controller
 
     public function activate($id)
     {
+        if (!request()->user()->canManageFraisInscription()) {
+            return response()->json(['message' => 'Action non autorisée'], 403);
+        }
+
         // On désactive tout
         FraisInscription::query()->update(['active' => false]);
         

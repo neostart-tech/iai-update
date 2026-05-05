@@ -34,6 +34,8 @@ class UnitValeurRequest extends FormRequest
 			'poids_expose' => ['nullable', 'integer', 'min:0', 'max:100'],
 			"filiere_id" => 'nullable',
 			"volume_horaire" => "nullable",
+			'niveau_id' => ['nullable', 'exists:niveaux,id'],
+			'periode_id' => ['nullable', 'exists:periodes,id'],
 		];
 	}
 

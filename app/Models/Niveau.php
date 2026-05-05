@@ -39,4 +39,9 @@ class Niveau extends Model
     {
         return $this->hasMany(Group::class);
     }
+
+    public function periodes()
+    {
+        return $this->belongsToMany(Periode::class, 'niveau_periode');
+    }
 }

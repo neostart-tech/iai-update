@@ -28,6 +28,27 @@ class EmploiDuTempController extends Controller
 			->exists();
 	}
 
+	private function hasTeacherOverlap(int $teacherId, Carbon $debut, Carbon $fin, ?int $excludeId = null): bool
+	{
+		return EmploiDuTemp::query()
+			->where('owner_id', $teacherId)
+			->where('owner_type', User::class)
+			->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+			->where('debut', '<', $fin)
+			->where('fin', '>', $debut)
+			->exists();
+	}
+
+	private function hasGroupOverlap(int $groupId, Carbon $debut, Carbon $fin, ?int $excludeId = null): bool
+	{
+		return EmploiDuTemp::query()
+			->where('group_id', $groupId)
+			->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+			->where('debut', '<', $fin)
+			->where('fin', '>', $debut)
+			->exists();
+	}
+
 	// public function store(Request $request): Response|ResponseFactory|EmploiDuTempsResource
 	// {
 
@@ -206,6 +227,14 @@ class EmploiDuTempController extends Controller
 
 			if ($this->hasSalleOverlap($salleId, $debut, $fin)) {
 				return __422('Salle déjà occupée sur cette plage horaire.');
+			}
+
+			if ($this->hasTeacherOverlap($ownerId, $debut, $fin)) {
+				return __422("L'enseignant sélectionné est déjà occupé sur cette plage horaire.");
+			}
+
+			if ($this->hasGroupOverlap($groupId, $debut, $fin)) {
+				return __422("Ce groupe d'étudiants a déjà un cours programmé sur cette plage horaire.");
 			}
 
 			$recurrenceType = $request->input('recurrence_type', 'aucune');
@@ -582,11 +611,29 @@ class EmploiDuTempController extends Controller
 
 		if ($this->hasSalleOverlap(
 			$salleIdToCheck,
-			$debutToCheck,  // Maintenant un objet Carbon
-			$finToCheck,    // Maintenant un objet Carbon
+			$debutToCheck,
+			$finToCheck,
 			$edt->id
 		)) {
 			return __422('Salle déjà occupée sur cette plage horaire.');
+		}
+
+		if ($this->hasTeacherOverlap(
+			$payload['owner_id'] ?? $edt->owner_id,
+			$debutToCheck,
+			$finToCheck,
+			$edt->id
+		)) {
+			return __422("L'enseignant est déjà occupé sur cette plage horaire.");
+		}
+
+		if ($this->hasGroupOverlap(
+			$payload['group_id'] ?? $edt->group_id,
+			$debutToCheck,
+			$finToCheck,
+			$edt->id
+		)) {
+			return __422("Ce groupe a déjà un cours programmé sur cette plage horaire.");
 		}
 
 		$edt->update($payload);
@@ -656,15 +703,27 @@ class EmploiDuTempController extends Controller
 			return __422("L'heure de fin doit être postérieure à l'heure de début.");
 		}
 
-		$salleId = Salle::where('slug', $request->salle)->orWhere('id', $request->salle)->first()->getAttribute('id');
+		$salleKey = $request->salle_id ?? $request->salle;
+		$salleId = Salle::where('slug', $salleKey)->orWhere('id', $salleKey)->first()?->getAttribute('id');
+		$teacherId = $request->enseignant_id ? (User::where('slug', $request->enseignant_id)->orWhere('id', $request->enseignant_id)->first()?->getAttribute('id')) : null;
+		$groupId = $request->groupe_id ? (Group::where('slug', $request->groupe_id)->orWhere('id', $request->groupe_id)->first()?->getAttribute('id')) : null;
+		$excludeId = $request->id;
 
-		$occupied = $this->hasSalleOverlap($salleId, $debut, $fin);
+		if ($salleId && $this->hasSalleOverlap($salleId, $debut, $fin, $excludeId)) {
+			return response(['available' => false, 'message' => 'La salle est déjà occupée sur cette plage horaire.']);
+		}
+
+		if ($teacherId && $this->hasTeacherOverlap($teacherId, $debut, $fin, $excludeId)) {
+			return response(['available' => false, 'message' => "L'enseignant est déjà occupé sur cette plage horaire."]);
+		}
+
+		if ($groupId && $this->hasGroupOverlap($groupId, $debut, $fin, $excludeId)) {
+			return response(['available' => false, 'message' => 'Ce groupe a déjà un cours sur cette plage horaire.']);
+		}
 
 		return response([
-			'available' => !$occupied,
-			'message' => $occupied
-				? 'Salle occupée sur cette plage horaire.'
-				: 'Salle disponible.'
+			'available' => true,
+			'message' => 'Créneau disponible.'
 		]);
 	}
 

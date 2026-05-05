@@ -118,6 +118,33 @@ public function isInformaticien(): bool
     return $this->roles()->where('nom', 'Informaticien')->exists();
 }
 
+    /**
+     * Vérifier si l'utilisateur peut générer les frais d'inscription
+     */
+    public function canManageFraisInscription(): bool
+    {
+        return $this->roles()->whereIn('nom', [
+            'Directeur Général',
+            'Directeur Général Adjoint',
+            'Informaticien',
+            'Comptable'
+        ])->exists();
+    }
+
+    /**
+     * Vérifier si l'utilisateur peut générer des cartes d'étudiants
+     */
+    public function canGenerateStudentCards(): bool
+    {
+        return $this->roles()->whereIn('nom', [
+            'Directeur Général',
+            'Directeur Général Adjoint',
+            'Informaticien',
+            'Directeur Académique',
+            'Logisticien'
+        ])->exists();
+    }
+
 
 	/**
 	 * Vérifie si l'utilisateur est togolais

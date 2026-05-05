@@ -60,6 +60,7 @@ class SemoaPaymentController extends Controller
                 'lastname' => $request->lastname,
                 'firstname' => $request->firstname,
                 'phone' => $request->phone,
+                'gateway_reference' => $request->payment_method, // On passe le mode de paiement choisi
                 'success_url' => $frontendUrl . '/etudiant/mes-paiements?status=success',
                 'cancel_url' => $frontendUrl . '/etudiant/mes-paiements?status=cancel',
             ]);

@@ -21,11 +21,20 @@ class PaiementController extends Controller
     }
     
     /**
-     * Récupérer les informations de paiement d'un étudiant
+     * Récupérer les informations de paiement de l'étudiant
      */
-    public function getInfos($etudiantId)
+    public function getInfos($identifier = null)
     {
         try {
+            if ($identifier) {
+                $etudiant = Etudiant::where('id', $identifier)->orWhere('slug', $identifier)->first();
+                if (!$etudiant) throw new Exception("Étudiant introuvable");
+                $etudiantId = $etudiant->id;
+            } else {
+                $user = request()->user();
+                $etudiantId = $user->etudiant_id ?? $user->id;
+            }
+            
             $infos = $this->paiementService->getInfosPaiement($etudiantId);
             
             return response()->json([
@@ -42,11 +51,20 @@ class PaiementController extends Controller
     }
     
     /**
-     * Récupérer le récapitulatif d'un étudiant
+     * Récupérer le récapitulatif de l'étudiant
      */
-    public function getRecap($etudiantId)
+    public function getRecap($identifier = null)
     {
         try {
+            if ($identifier) {
+                $etudiant = Etudiant::where('id', $identifier)->orWhere('slug', $identifier)->first();
+                if (!$etudiant) throw new Exception("Étudiant introuvable");
+                $etudiantId = $etudiant->id;
+            } else {
+                $user = request()->user();
+                $etudiantId = $user->etudiant_id ?? $user->id;
+            }
+
             $recap = $this->paiementService->getRecap($etudiantId);
             
             return response()->json([
@@ -63,11 +81,20 @@ class PaiementController extends Controller
     }
     
     /**
-     * Récupérer l'historique des paiements d'un étudiant
+     * Récupérer l'historique des paiements de l'étudiant
      */
-    public function getHistorique($etudiantId)
+    public function getHistorique($identifier = null)
     {
         try {
+            if ($identifier) {
+                $etudiant = Etudiant::where('id', $identifier)->orWhere('slug', $identifier)->first();
+                if (!$etudiant) throw new Exception("Étudiant introuvable");
+                $etudiantId = $etudiant->id;
+            } else {
+                $user = request()->user();
+                $etudiantId = $user->etudiant_id ?? $user->id;
+            }
+
             $historique = $this->paiementService->getHistorique($etudiantId);
             
             return response()->json([

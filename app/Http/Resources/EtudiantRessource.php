@@ -79,6 +79,13 @@ class EtudiantRessource extends JsonResource
             'album' => new AlbumResource($this->album),
             'tuteur' => $this->tuteur,
             'responsable' => $this->responsable,
+            'roles' => $this->roles->map(function ($role) {
+                return [
+                    'id' => $role->id,
+                    'nom' => $role->nom,
+                    'slug' => $role->slug,
+                ];
+            }),
         ];
     }
 }

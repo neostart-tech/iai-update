@@ -363,13 +363,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/rechercher-etudiants', 'rechercherEtudiants');
 
         // Informations de paiement
-        Route::get('/infos/{etudiantId}', 'getInfos');
+        Route::get('/infos/{etudiantId?}', 'getInfos');
 
         // Récapitulatif
-        Route::get('/recap/{etudiantId}', 'getRecap');
+        Route::get('/recap/{etudiantId?}', 'getRecap');
 
         // Historique des paiements
-        Route::get('/historique/{etudiantId}', 'getHistorique');
+        Route::get('/historique/{etudiantId?}', 'getHistorique');
 
         // Effectuer un paiement
         Route::post('/store', 'store');
@@ -585,6 +585,23 @@ Route::prefix('tickets')->group(function(){
         Route::get('/{communication}', 'show');
         Route::post('/{communication}/mark-as-read', 'markAsRead');
     });
+
+    // Cartes d'étudiants
+    Route::controller(\App\Http\Controllers\Api\StudentCardController::class)->prefix('student-cards')->group(function () {
+        Route::get('/etudiants', 'index');
+        Route::post('/selected-data', 'getSelected');
+        Route::get('/filters', 'getFilters');
+    });
+
+    // Syllabuses
+    Route::controller(\App\Http\Controllers\SyllabusController::class)->prefix('syllabuses')->group(function () {
+        Route::get('/{uvSlug}', 'show');
+        Route::post('/{uvSlug}', 'store');
+        Route::post('/{uvSlug}/upload-attachment', 'uploadFile');
+    });
+
+    // Enseignant Courses
+    Route::get('/enseignant/mes-matieres', [\App\Http\Controllers\Api\Enseignant\TeacherCourseController::class, 'index']);
 });
 
 
