@@ -611,7 +611,8 @@ class CandidatureController extends Controller
 				$candidature->niveau_id,
 				$candidature->genre,
 				$candidature->filiere_id,
-				$activeAnnee->id
+				$activeAnnee->id,
+				$request->input('mode_formation', 'Tous')
 			);
 
 			if ($fraisScolarite) {

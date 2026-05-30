@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Notification;
 use App\Notifications\PublicationNotification;
 use App\Models\User;
 use App\Models\Etudiant;
+use App\Jobs\SendNewsletterNotificationJob;
 
 class BlogController extends Controller
 {
@@ -99,6 +100,9 @@ public function publishedBlog(Blog $blog)
     if ($blog->status === 'published') {
         Notification::send(User::all(), new PublicationNotification($blog));
         Notification::send(Etudiant::all(), new PublicationNotification($blog));
+        
+        // Notifier les abonnés à la newsletter
+        SendNewsletterNotificationJob::dispatch('blog', $blog);
     }
 
     return new BlogResource($blog);

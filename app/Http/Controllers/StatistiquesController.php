@@ -322,4 +322,35 @@ class StatistiquesController extends Controller
         $periodes = \App\Models\Periode::where('annee_scolaire_id', $anneeActiveId)->get();
         return response()->json($periodes);
     }
+
+    /**
+     * Récupère les statistiques pour le module de communication.
+     */
+    public function fetchCommunicationStats(): \Illuminate\Http\JsonResponse
+    {
+        return response()->json([
+            'messages' => [
+                'total' => \App\Models\Contact::count(),
+                'non_lus' => \App\Models\Contact::where('status', false)->count(),
+            ],
+            'prospects' => [
+                'total' => \App\Models\Prospect::count(),
+                'non_contactes' => \App\Models\Prospect::where('status', false)->count(),
+            ],
+            'blogs' => [
+                'total' => \App\Models\Blog::count(),
+                'publies' => \App\Models\Blog::where('status', true)->count(),
+            ],
+            'evenements' => [
+                'total' => \App\Models\Evenement::count(),
+            ],
+            'opportunites' => [
+                'total' => \App\Models\Announcement::count(),
+                'actives' => \App\Models\Announcement::where('status', true)->count(),
+            ],
+            'partenaires' => [
+                'total' => \App\Models\Advertiser::count(),
+            ]
+        ]);
+    }
 }

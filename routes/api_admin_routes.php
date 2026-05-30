@@ -451,8 +451,19 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('{contact}/lire', 'read')->name('read');
 
             Route::get('{contact}', 'show')->name('show');
-
             Route::delete('{contact}', 'destroy')->name('delete');
+        });
+
+    // Prospects / Brochures
+    Route::controller(\App\Http\Controllers\Admin\ProspectController::class)
+        ->prefix('prospects')
+        ->name('prospects.')
+        ->group(function () {
+            Route::get('count-unread', 'countUnread')->name('count-unread');
+            Route::get('', 'index')->name('index');
+            Route::get('{prospect}', 'show')->name('show');
+            Route::patch('{prospect}/toggle-status', 'toggleStatus')->name('toggle-status');
+            Route::delete('{prospect}', 'destroy')->name('delete');
         });
 
 
@@ -568,6 +579,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/attachments/{attachment}', 'deleteAttachment');
     });
 
+    // Web Communications (Admin - Newsletter et Commentaires)
+    Route::controller(\App\Http\Controllers\Api\Admin\WebCommunicationController::class)->prefix('admin/web-communications')->group(function () {
+        Route::get('/comments', 'getComments');
+        Route::put('/comments/{id}/status', 'updateCommentStatus');
+        Route::delete('/comments/{id}', 'deleteComment');
+        
+        Route::get('/newsletter', 'getNewsletterSubscribers');
+        Route::delete('/newsletter/{id}', 'deleteNewsletterSubscriber');
+    });
+
     // Routes pour les statistiques du nombre total d'étudiants
     Route::get('/statistiques/etudiants/total', [StatistiquesController::class, 'NbreTotalEtudiants']);
     Route::get('/statistiques/etudiants/total/{anneeScolaireId}', [StatistiquesController::class, 'NbreTotalEtudiants']);
@@ -582,4 +603,5 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/statistiques/periodes/current', [StatistiquesController::class, 'fetchCurrentPeriode']);
     Route::get('/statistiques/periodes', [StatistiquesController::class, 'fetchPeriodes']);
     Route::get('/statistiques/candidatures/en-attente', [StatistiquesController::class, 'NbreCandidaturesEnAttente']);
+    Route::get('/statistiques/communication', [StatistiquesController::class, 'fetchCommunicationStats']);
 });

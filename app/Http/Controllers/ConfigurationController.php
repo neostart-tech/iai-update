@@ -14,6 +14,18 @@ class ConfigurationController extends Controller
 {
     public function index()
     {
+        $keys = [
+            ['key' => 'stat_etudiants_formes', 'value' => '520', 'type' => 'text', 'name' => 'Étudiants formés', 'group' => 'Communication'],
+            ['key' => 'stat_diplomes', 'value' => '410', 'type' => 'text', 'name' => 'Diplômés', 'group' => 'Communication'],
+            ['key' => 'stat_partenaires', 'value' => '84', 'type' => 'text', 'name' => 'Partenaires', 'group' => 'Communication'],
+            ['key' => 'stat_insertion_pro', 'value' => '76', 'type' => 'text', 'name' => 'Insertion pro.', 'group' => 'Communication']
+        ];
+        foreach($keys as $k) {
+            if (!\App\Models\Configuration::where('key', $k['key'])->exists()) {
+                \App\Models\Configuration::create($k);
+            }
+        }
+        
         return ParametreResource::collection(Configuration::all());
         return view('admin.config.index', [
             'configurations' => Configuration::all()

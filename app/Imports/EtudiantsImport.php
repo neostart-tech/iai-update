@@ -137,6 +137,10 @@ class EtudiantsImport implements
                 $sexeExcel = $this->cleanString($row['sexe'] ?? '');
                 $genre = $this->determineGenre($sexeExcel);
 
+                // Gérer le mode de formation
+                $modeExcel = $this->cleanString($row['mode_formation'] ?? $row['mode de formation'] ?? $row['mode formation'] ?? '');
+                $modeFormation = $this->determineModeFormation($modeExcel);
+
                 // Gérer la date de naissance
                 $dateNaissance = $this->parseDate($row['date_de_naissance'] ?? $row['date de naissance'] ?? '');
 
@@ -195,6 +199,7 @@ class EtudiantsImport implements
                     'group_id' => $groupId,
                     'annee_scolaire_id' => $this->anneeScolaireId, // Utilisez la propriété déjà définie
                     'matricule' => $matricule, // Changé de matricule_temp à matricule
+                    'mode_formation' => $modeFormation,
                     // 'created_at' => $now,
                     // 'updated_at' => $now,
                 ];
@@ -363,6 +368,7 @@ class EtudiantsImport implements
                         'filiere_id' => $group['filiere_id'],
                         'niveau_id' => $group['niveau_id'],
                         'annee_scolaire_id' => $this->anneeScolaireId,
+                        'mode_formation' => $group['mode_formation'],
                         // 'updated_at' => now(),
                     ];
 
@@ -600,6 +606,24 @@ class EtudiantsImport implements
         }
 
         return 'Féminin';
+    }
+
+    /**
+     * Déterminer le mode de formation
+     */
+    private function determineModeFormation($mode)
+    {
+        if (empty($mode)) {
+            return 'Présentiel';
+        }
+
+        $modeLower = strtolower($mode);
+
+        if (str_contains($modeLower, 'ligne') || str_contains($modeLower, 'online') || str_contains($modeLower, 'dist')) {
+            return 'En ligne';
+        }
+
+        return 'Présentiel';
     }
 
     /**

@@ -38,7 +38,8 @@ class FraisEtudiantService
                 $groupInfo->niveau_id,
                 $etudiant->genre?->value ?? 'Tous',
                 $groupInfo->filiere_id,
-                $anneeId
+                $anneeId,
+                $groupInfo->mode_formation ?? 'Tous'
             );
 
             if (!$fraisBase) {

@@ -12,6 +12,8 @@ class BlogComment extends Model
         'author_name',
         'author_email',
         'content',
+        'rating',
+        'status',
     ];
 
     public $timestamps = true;

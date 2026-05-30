@@ -68,7 +68,7 @@ class DiagnosticFinancierService
         if (!$groupe) return 0;
         $fraisEtudiant = $etudiant->fraisEtudiant()->where('annee_scolaire_id', $anneeId)->first();
         $genreValue = ($etudiant->genre instanceof \UnitEnum) ? $etudiant->genre->value : ($etudiant->genre ?? 'Tous');
-        $fraisBase = FraisScolarite::getFraisForEtudiant($groupe->niveau_id, $genreValue, $groupe->filiere_id, $anneeId);
+        $fraisBase = FraisScolarite::getFraisForEtudiant($groupe->niveau_id, $genreValue, $groupe->filiere_id, $anneeId, $groupe->mode_formation ?? 'Tous');
         if ($fraisBase) {
             $montant = $fraisBase->montant;
             if ($fraisEtudiant && $fraisEtudiant->montant_initial > 0) {
@@ -84,7 +84,7 @@ class DiagnosticFinancierService
         $groupe = $etudiant->etudiantGroups()->where('annee_scolaire_id', $anneeId)->first();
         if (!$groupe || !$groupe->niveau_id) return 0;
         $fraisEtudiant = $etudiant->fraisEtudiant()->where('annee_scolaire_id', $anneeId)->first();
-        $fraisScolarite = FraisScolarite::getFraisForEtudiant($groupe->niveau_id, $etudiant->genre?->value ?? 'Tous', $groupe->filiere_id, $anneeId);
+        $fraisScolarite = FraisScolarite::getFraisForEtudiant($groupe->niveau_id, $etudiant->genre?->value ?? 'Tous', $groupe->filiere_id, $anneeId, $groupe->mode_formation ?? 'Tous');
         if ($fraisScolarite) {
             $baseMontant = $fraisScolarite->montant;
             if ($fraisEtudiant && $fraisEtudiant->montant_initial > 0) {

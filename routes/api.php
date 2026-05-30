@@ -604,6 +604,32 @@ Route::prefix('tickets')->group(function(){
     Route::get('/enseignant/mes-matieres', [\App\Http\Controllers\Api\Enseignant\TeacherCourseController::class, 'index']);
 });
 
+// ========================================
+// PUBLIC ROUTES
+// ========================================
+Route::prefix('public')->group(function () {
+    // Inscription routes (unauthenticated)
+    Route::get('niveau/liste', [\App\Http\Controllers\NiveauController::class, 'index']);
+    Route::get('filieres/liste', [\App\Http\Controllers\Admin\FiliereController::class, 'index']);
+    Route::post('candidature/soumettre', [\App\Http\Controllers\CandidatureController::class, 'storeByAdmin']);
+
+    Route::get('galeries', [\App\Http\Controllers\Api\PublicGalleryController::class, 'index']);
+    Route::get('galeries/{id}', [\App\Http\Controllers\Api\PublicGalleryController::class, 'show']);
+    Route::post('contact', [\App\Http\Controllers\Api\PublicContactController::class, 'store']);
+    Route::post('prospects', [\App\Http\Controllers\Api\PublicProspectController::class, 'store']);
+    
+    // Configurations publiques
+    Route::get('configurations', [\App\Http\Controllers\ConfigurationController::class, 'index']);
+    
+    // Blogs
+    Route::get('blogs', [\App\Http\Controllers\Api\PublicBlogController::class, 'index']);
+    Route::get('blogs/{idOrSlug}', [\App\Http\Controllers\Api\PublicBlogController::class, 'show']);
+    Route::post('blogs/{idOrSlug}/comments', [\App\Http\Controllers\Api\PublicBlogController::class, 'addComment']);
+
+    // Newsletter
+    Route::post('newsletter/subscribe', [\App\Http\Controllers\Api\PublicNewsletterController::class, 'subscribe']);
+});
+
 
 
 Route::any('semoa-callback-url', SemoaCallBackController::class)->name('api.semoa.callback');
