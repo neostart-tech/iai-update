@@ -6,6 +6,7 @@ use App\Enums\TypeProgrammeEnum;
 use App\Exports\EmploiDuTempsMatriceExport;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Admin\EmploiDuTempsResource;
+use App\Imports\EmploiDuTempsImport;
 use App\Models\{EmploiDuTemp, Group, Salle, UniteValeur, User};
 use Illuminate\Contracts\Routing\ResponseFactory;
 use Illuminate\Http\{Request, Response};
@@ -21,6 +22,27 @@ class EmploiDuTempController extends Controller
 	{
 		return EmploiDuTemp::query()
 			->where('salle_id', $salleId)
+			->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+			->where('debut', '<', $fin)
+			->where('fin', '>', $debut)
+			->exists();
+	}
+
+	private function hasTeacherOverlap(int $teacherId, Carbon $debut, Carbon $fin, ?int $excludeId = null): bool
+	{
+		return EmploiDuTemp::query()
+			->where('owner_id', $teacherId)
+			->where('owner_type', User::class)
+			->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+			->where('debut', '<', $fin)
+			->where('fin', '>', $debut)
+			->exists();
+	}
+
+	private function hasGroupOverlap(int $groupId, Carbon $debut, Carbon $fin, ?int $excludeId = null): bool
+	{
+		return EmploiDuTemp::query()
+			->where('group_id', $groupId)
 			->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
 			->where('debut', '<', $fin)
 			->where('fin', '>', $debut)
@@ -169,28 +191,50 @@ class EmploiDuTempController extends Controller
 				return __422("L'heure de fin doit être postérieure à l'heure de début.");
 			}
 
+			// $salleId = Salle::where('slug', $request->salle)
+			// 	->orWhere('id', intval($request->salle))
+			// 	->value('id');
 			$salleId = Salle::where('slug', $request->salle)
 				->orWhere('id', intval($request->salle))
+				->orWhere('nom', 'LIKE', '%' . $request->salle . '%')
 				->value('id');
 			if (!$salleId) return __422('Salle invalide.');
 
+			// $groupId = Group::where('slug', $request->grade)
+			// 	->orWhere('id', intval($request->grade))
+			// 	->value('id');
 			$groupId = Group::where('slug', $request->grade)
 				->orWhere('id', intval($request->grade))
+				->orWhere('nom', 'LIKE', '%' . $request->grade . '%')
 				->value('id');
 			if (!$groupId) return __422('Groupe invalide.');
 
+			// $uvId = UniteValeur::where('slug', $request->uv_id)
+			// 	->orWhere('id', intval($request->uv_id))
+			// 	->value('id');
 			$uvId = UniteValeur::where('slug', $request->uv_id)
 				->orWhere('id', intval($request->uv_id))
+				->orWhere('code', 'LIKE', '%' . $request->uv_id . '%')
+				->orWhere('nom', 'LIKE', '%' . $request->uv_id . '%')
 				->value('id');
 			if (!$uvId) return __422('Unité de valeur invalide.');
 
 			$ownerId = User::where('slug', $request->teacher)
 				->orWhere('id', intval($request->teacher))
+				->orWhereRaw("CONCAT(nom,' ',prenom) LIKE ?", ["%{$request->teacher}%"])
 				->value('id');
 			if (!$ownerId) return __422('Enseignant invalide.');
 
 			if ($this->hasSalleOverlap($salleId, $debut, $fin)) {
 				return __422('Salle déjà occupée sur cette plage horaire.');
+			}
+
+			if ($this->hasTeacherOverlap($ownerId, $debut, $fin)) {
+				return __422("L'enseignant sélectionné est déjà occupé sur cette plage horaire.");
+			}
+
+			if ($this->hasGroupOverlap($groupId, $debut, $fin)) {
+				return __422("Ce groupe d'étudiants a déjà un cours programmé sur cette plage horaire.");
 			}
 
 			$recurrenceType = $request->input('recurrence_type', 'aucune');
@@ -220,6 +264,24 @@ class EmploiDuTempController extends Controller
 		}
 
 		return new EmploiDuTempsResource($emploiDuTemps);
+	}
+
+
+	public function importExcel(Request $request)
+	{
+		$request->validate([
+			'file' => 'required|mimes:xlsx,csv'
+		]);
+
+		Excel::import(
+			new EmploiDuTempsImport(),
+			$request->file('file')
+		);
+
+		return response()->json([
+			'success' => true,
+			'message' => 'Import avec logique complète terminé'
+		]);
 	}
 
 
@@ -549,11 +611,29 @@ class EmploiDuTempController extends Controller
 
 		if ($this->hasSalleOverlap(
 			$salleIdToCheck,
-			$debutToCheck,  // Maintenant un objet Carbon
-			$finToCheck,    // Maintenant un objet Carbon
+			$debutToCheck,
+			$finToCheck,
 			$edt->id
 		)) {
 			return __422('Salle déjà occupée sur cette plage horaire.');
+		}
+
+		if ($this->hasTeacherOverlap(
+			$payload['owner_id'] ?? $edt->owner_id,
+			$debutToCheck,
+			$finToCheck,
+			$edt->id
+		)) {
+			return __422("L'enseignant est déjà occupé sur cette plage horaire.");
+		}
+
+		if ($this->hasGroupOverlap(
+			$payload['group_id'] ?? $edt->group_id,
+			$debutToCheck,
+			$finToCheck,
+			$edt->id
+		)) {
+			return __422("Ce groupe a déjà un cours programmé sur cette plage horaire.");
 		}
 
 		$edt->update($payload);
@@ -623,92 +703,102 @@ class EmploiDuTempController extends Controller
 			return __422("L'heure de fin doit être postérieure à l'heure de début.");
 		}
 
-		$salleId = Salle::where('slug', $request->salle)->orWhere('id', $request->salle)->first()->getAttribute('id');
+		$salleKey = $request->salle_id ?? $request->salle;
+		$salleId = Salle::where('slug', $salleKey)->orWhere('id', $salleKey)->first()?->getAttribute('id');
+		$teacherId = $request->enseignant_id ? (User::where('slug', $request->enseignant_id)->orWhere('id', $request->enseignant_id)->first()?->getAttribute('id')) : null;
+		$groupId = $request->groupe_id ? (Group::where('slug', $request->groupe_id)->orWhere('id', $request->groupe_id)->first()?->getAttribute('id')) : null;
+		$excludeId = $request->id;
 
-		$occupied = $this->hasSalleOverlap($salleId, $debut, $fin);
+		if ($salleId && $this->hasSalleOverlap($salleId, $debut, $fin, $excludeId)) {
+			return response(['available' => false, 'message' => 'La salle est déjà occupée sur cette plage horaire.']);
+		}
+
+		if ($teacherId && $this->hasTeacherOverlap($teacherId, $debut, $fin, $excludeId)) {
+			return response(['available' => false, 'message' => "L'enseignant est déjà occupé sur cette plage horaire."]);
+		}
+
+		if ($groupId && $this->hasGroupOverlap($groupId, $debut, $fin, $excludeId)) {
+			return response(['available' => false, 'message' => 'Ce groupe a déjà un cours sur cette plage horaire.']);
+		}
 
 		return response([
-			'available' => !$occupied,
-			'message' => $occupied
-				? 'Salle occupée sur cette plage horaire.'
-				: 'Salle disponible.'
+			'available' => true,
+			'message' => 'Créneau disponible.'
 		]);
 	}
 
 
 	public function setEmploiDuTempsForUser(): void {}
 
-public function exportMatrice(Request $request)
-{
-    $request->validate([
-        'group_id' => 'required|exists:groups,id',
-        'type_export' => 'required|in:tous,cours,evaluations',
-        'date_debut' => 'required|date',
-        'date_fin' => 'nullable|date|after_or_equal:date_debut',
-    ]);
+	public function exportMatrice(Request $request)
+	{
+		$request->validate([
+			'group_id' => 'required|exists:groups,id',
+			'type_export' => 'required|in:tous,cours,evaluations',
+			'date_debut' => 'required|date',
+			'date_fin' => 'nullable|date|after_or_equal:date_debut',
+		]);
 
-    $group_id = $request->group_id;
-    $type_export = $request->type_export;
-    $date_debut = Carbon::parse($request->date_debut);
-    $date_fin = $request->date_fin ? Carbon::parse($request->date_fin) : $date_debut->copy();
+		$group_id = $request->group_id;
+		$type_export = $request->type_export;
+		$date_debut = Carbon::parse($request->date_debut);
+		$date_fin = $request->date_fin ? Carbon::parse($request->date_fin) : $date_debut->copy();
 
-    $groupe = Group::find($group_id);
-    
-    // Générer le nom du fichier avec le type
-    $typeTexte = '';
-    if ($type_export === 'cours') {
-        $typeTexte = '_cours';
-    } elseif ($type_export === 'evaluations') {
-        $typeTexte = '_evaluations';
-    }
-    
-    $date_debut_str = $date_debut->format('d-m-Y');
-    $date_fin_str = $date_fin->format('d-m-Y');
-    
-    if ($date_debut->format('Y-m-d') === $date_fin->format('Y-m-d')) {
-        $filename = 'emploi_du_temps' . $typeTexte . '_' . $groupe->nom . '_' . $date_debut_str . '.xlsx';
-    } else {
-        $filename = 'emploi_du_temps' . $typeTexte . '_' . $groupe->nom . '_du_' . $date_debut_str . '_au_' . $date_fin_str . '.xlsx';
-    }
+		$groupe = Group::find($group_id);
 
-    return Excel::download(
-        new EmploiDuTempsMatriceExport($group_id, $date_debut, $date_fin, $type_export),
-        $filename
-    );
-}
+		// Générer le nom du fichier avec le type
+		$typeTexte = '';
+		if ($type_export === 'cours') {
+			$typeTexte = '_cours';
+		} elseif ($type_export === 'evaluations') {
+			$typeTexte = '_evaluations';
+		}
+
+		$date_debut_str = $date_debut->format('d-m-Y');
+		$date_fin_str = $date_fin->format('d-m-Y');
+
+		if ($date_debut->format('Y-m-d') === $date_fin->format('Y-m-d')) {
+			$filename = 'emploi_du_temps' . $typeTexte . '_' . $groupe->nom . '_' . $date_debut_str . '.xlsx';
+		} else {
+			$filename = 'emploi_du_temps' . $typeTexte . '_' . $groupe->nom . '_du_' . $date_debut_str . '_au_' . $date_fin_str . '.xlsx';
+		}
+
+		return Excel::download(
+			new EmploiDuTempsMatriceExport($group_id, $date_debut, $date_fin, $type_export),
+			$filename
+		);
+	}
 
 
- public function getEmploiDuTempsData(Request $request)
-    {
-        $request->validate([
-            'group_id' => 'required|exists:groups,id',
-            'type_export' => 'required|in:tous,cours,evaluations',
-            'date_debut' => 'required|date',
-            'date_fin' => 'nullable|date|after_or_equal:date_debut',
-        ]);
+	public function getEmploiDuTempsData(Request $request)
+	{
+		$request->validate([
+			'group_id' => 'required|exists:groups,id',
+			'type_export' => 'required|in:tous,cours,evaluations',
+			'date_debut' => 'required|date',
+			'date_fin' => 'nullable|date|after_or_equal:date_debut',
+		]);
 
-        $group_id = $request->group_id;
-        $type_export = $request->type_export;
-        $date_debut = Carbon::parse($request->date_debut)->startOfDay();
-        $date_fin = $request->date_fin 
-            ? Carbon::parse($request->date_fin)->endOfDay() 
-            : $date_debut->copy()->endOfDay();
+		$group_id = $request->group_id;
+		$type_export = $request->type_export;
+		$date_debut = Carbon::parse($request->date_debut)->startOfDay();
+		$date_fin = $request->date_fin
+			? Carbon::parse($request->date_fin)->endOfDay()
+			: $date_debut->copy()->endOfDay();
 
-        // Créer une instance de l'export
-        $export = new EmploiDuTempsMatriceExport($group_id, $date_debut, $date_fin, $type_export);
-        
-        // Récupérer les cours organisés
-        $coursOrganises = $export->getCoursGroupes();
-        
-        // Récupérer les informations du groupe
-        $groupe = Group::with('niveau')->find($group_id);
+		// Créer une instance de l'export
+		$export = new EmploiDuTempsMatriceExport($group_id, $date_debut, $date_fin, $type_export);
 
-        return response()->json([
-            'success' => true,
-            'cours' => $coursOrganises,
-            'groupe' => $groupe
-        ]);
-    }
+		// Récupérer les cours organisés
+		$coursOrganises = $export->getCoursGroupes();
 
-	
+		// Récupérer les informations du groupe
+		$groupe = Group::with('niveau')->find($group_id);
+
+		return response()->json([
+			'success' => true,
+			'cours' => $coursOrganises,
+			'groupe' => $groupe
+		]);
+	}
 }

@@ -14,17 +14,27 @@ class RelanceTrancheMail extends Mailable
 {
   use Queueable, SerializesModels;
 
-	public function __construct(private readonly string $greeting)
-	{
-	}
+    public function __construct(
+        public Etudiant $etudiant, 
+        public string $mailContent,
+        public string $moreInfo = '',
+        public string $mailTitle = 'Relance de paiement des frais de scolarité',
+        public ?string $buttonText = 'Accéder à mon compte',
+        public ?string $buttonHref = null
+    ) {
+        if (!$this->buttonHref) {
+            $this->buttonHref = env('FRONTEND_URL', 'http://localhost:3000') . '/login';
+        }
+    }
 
     /**
      * Get the message envelope.
      */
     public function envelope(): Envelope
     {
+        $schoolName = \App\Helpers\ConfigHelper::getAppName();
         return new Envelope(
-            subject: 'Relance de paiement - Tranche non soldée',
+            subject: "Avis de retard de paiement - $schoolName",
         );
     }
     
@@ -35,22 +45,19 @@ class RelanceTrancheMail extends Mailable
 	public function content(): Content
 	{
 		return new Content(
-		   view: 'mails.relance_tranche',
+		    view: 'mails.relance_tranche',
 			with: [
-				'mailTitle' => 'Relance de paiement des frais de scolarité',
-				'mailContent' => $this->getMainContent(),
-				'buttonText' => 'Cliquez-ici pour accéder à votre compte',
-				'buttonHref' => route('officiel.login'),
+				'etudiant' => $this->etudiant,
+				'mailContent' => $this->mailContent,
+				'mailTitle' => $this->mailTitle,
+				'buttonText' => $this->buttonText,
+				'buttonHref' => $this->buttonHref,
+                'moreInfo' => $this->moreInfo
 			]
 		);
 	}
 
 	
-   private function getMainContent(): string
-	{
-		return $this->greeting .
-			"Nous vous envoyons ce message pour vous inviter a soldé votre frais de scolarité
-		";
-	}
+
 	
 }

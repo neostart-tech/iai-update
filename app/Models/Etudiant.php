@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\GenreEnum;
+use App\Models\Support\SupportTicket;
 use App\Notifications\Etudiants\PasswordResetLinkSentNotification;
 use App\Traits\Routing\{GenerateUniqueSlugTrait, ModelsSlugKeyTrait};
 use App\Traits\UserIdentityTrait;
@@ -49,10 +50,15 @@ class Etudiant extends Authenticatable
 		'image',
 		'annee_admission',
 		'matricule',
+		'statut',
 		'slug',
 		'cv',
+		'advertiser_id',
+		'promotion',
 		//		'email_verified_at'
 	];
+
+
 
 	protected $casts = [
 		'genre' => GenreEnum::class,
@@ -63,6 +69,11 @@ class Etudiant extends Authenticatable
 	{
 		return $this->hasMany(Note::class);
 	}
+
+	public function supportTickets()
+{
+    return $this->morphMany(SupportTicket::class, 'ticketable');
+}
 
 
 	public function roles(): MorphToMany
@@ -122,6 +133,10 @@ class Etudiant extends Authenticatable
 			->latest('id');
 	}
 
+	public function tickets()
+{
+    return $this->morphMany(Ticket::class, 'ticketable');
+}
 	public function group()
 	{
 		return $this->hasOneThrough(
@@ -315,6 +330,26 @@ public function echeances()
 		return true;
 	}
 
+	/**
+	 * Vérifie si l'étudiant est autorisé à composer pour les examens en ligne
+	 */
+	public function peutComposer(): bool
+	{
+		// 1. Vérification du statut global (manuel)
+		if ($this->statut === 'bloque') {
+			return false;
+		}
+
+		// 2. Vérification financière (Désactivée pour le moment selon demande)
+		/*
+		if (!$this->estAjour()) {
+			return false;
+		}
+		*/
+
+		return true;
+	}
+
 	public function bourses()
 	{
 		return $this->belongsToMany(Bourse::class,'bourse_etudiants');
@@ -388,13 +423,18 @@ public function echeances()
 
 
 	public function presences(): HasMany
-{
-    return $this->hasMany(CoursPresence::class, 'etudiant_id');
-}
+	{
+		return $this->hasMany(CoursPresence::class, 'etudiant_id');
+	}
 
-/**
- * Les comportements de l'étudiant
- */
+	public function advertiser()
+	{
+		return $this->belongsTo(Advertiser::class);
+	}
+
+	/**
+	 * Les comportements de l'étudiant
+	 */
 public function comportements(): HasMany
 {
     return $this->hasMany(Comportement::class, 'etudiant_id');
@@ -438,5 +478,40 @@ public function getStatistiquesPresencesAttribute()
 
 
 
-	
+    /**
+     * Relation avec les soumissions d'examens en ligne
+     */
+    public function examSubmissions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ExamSubmission::class, 'etudiant_id');
+    }
+    /**
+     * Retourne l'URL complète de l'image de profil
+     */
+    /**
+     * Retourne l'URL complète de l'image de profil
+     */
+    public function ImagePath(): string
+    {
+        if (!$this->image) return "";
+        if (str_starts_with($this->image, 'http')) return $this->image;
+        return asset(\Illuminate\Support\Facades\Storage::url($this->image));
+    }
+
+    /**
+     * Génère le prochain matricule disponible pour une année donnée
+     * Format: XXX-ESC-YYYY (ex: 035-ESC-2025)
+     */
+    public static function generateNextMatricule(int $year): string
+    {
+        $code = "ESC"; // Fixé selon demande
+        
+        // Compter le nombre d'étudiants déjà inscrits pour cette année d'admission
+        $count = self::where('annee_admission', $year)->count();
+        
+        $nextNumber = $count + 1;
+        
+        // Formatage: XXX-ESC-YYYY avec padding de 3 chiffres
+        return sprintf('%03d-%s-%d', $nextNumber, $code, $year);
+    }
 }

@@ -22,10 +22,30 @@ Route::middleware('auth:sanctum')->group(function(){
 Route::group([],function () {
 
 	Route::controller(ComptabiliteController::class)->group(function () {
-
-		Route::get('dashboard',  'dashboard')->name('dashboard');
-
+		Route::get('dashboard-old',  'dashboard')->name('dashboard');
 		Route::get('export/{year}/{format}',  'export')->whereIn('format', ['csv', 'xlsx'])->name('export');
+	});
+
+	// Nouvelles routes API pour la finance
+	Route::prefix('finance')->group(function () {
+		Route::get('/dashboard', [\App\Http\Controllers\Api\FinanceController::class, 'dashboard']);
+		Route::get('/recouvrement', [\App\Http\Controllers\Api\FinanceController::class, 'suiviRecouvrement']);
+		Route::get('/recouvrement/{slug}/detail', [\App\Http\Controllers\Api\FinanceController::class, 'detailRecouvrement']);
+		Route::post('/recouvrement/{slug}/rappel', [\App\Http\Controllers\Api\FinanceController::class, 'envoyerRappel']);
+		Route::post('/recouvrement/{slug}/abandon-ui', [\App\Http\Controllers\Api\FinanceController::class, 'declarerAbandonUI']);
+		Route::get('/recouvrement-journalier', [\App\Http\Controllers\Api\FinanceController::class, 'recouvrementJournalier']);
+		Route::get('/suivi-mensuel', [\App\Http\Controllers\Api\FinanceController::class, 'suiviMensuel']);
+		Route::post('/{fraisEtudiantId}/abandon', [\App\Http\Controllers\Api\FinanceController::class, 'declarerAbandon']);
+		Route::get('/abandons', [\App\Http\Controllers\Api\FinanceController::class, 'listeAbandons']);
+		Route::get('/export/{format}', [\App\Http\Controllers\Api\FinanceController::class, 'exportRecouvrement'])->whereIn('format', ['xlsx', 'csv']);
+
+		// Gestion des dépenses
+		Route::prefix('depenses')->group(function () {
+			Route::get('/', [\App\Http\Controllers\Api\DepenseController::class, 'index']);
+			Route::post('/', [\App\Http\Controllers\Api\DepenseController::class, 'store']);
+			Route::delete('/{id}', [\App\Http\Controllers\Api\DepenseController::class, 'destroy']);
+			Route::get('/stats', [\App\Http\Controllers\Api\DepenseController::class, 'stats']);
+		});
 	});
 
 
@@ -41,6 +61,7 @@ Route::group([],function () {
 		Route::get('index', 'index')->name('index');
 		Route::get('/{id}/tranche', 'show')->name('show');
 		Route::post('store', 'store')->name('store');
+		Route::post('duplicate', 'duplicate')->name('duplicate');
 		Route::put('update/{id}', 'update')->name('update');
 		Route::delete('destroy/{id}', 'destroy')->name('destroy');
 	});

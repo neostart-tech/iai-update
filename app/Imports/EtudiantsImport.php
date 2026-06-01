@@ -25,6 +25,7 @@ use Maatwebsite\Excel\Concerns\Importable;
 use Carbon\Carbon;
 use Str;
 use Illuminate\Support\Facades\Log;
+use App\Services\FraisEtudiantService;
 
 class EtudiantsImport implements
     ToCollection,
@@ -50,6 +51,8 @@ class EtudiantsImport implements
 
     private int $anneeScolaireId;
     private int $roleEtudiantId;
+    private FraisEtudiantService $fraisService;
+
 
 
 
@@ -63,6 +66,7 @@ class EtudiantsImport implements
         $this->roleEtudiantId = DB::table('roles')
             ->where('slug', 'etudiant')
             ->value('id');
+        $this->fraisService = new FraisEtudiantService();
     }
     /**
      * Traitement par collection (plus rapide que ToModel)
@@ -103,11 +107,7 @@ class EtudiantsImport implements
                 //     continue;
                 // }
 
-                if (in_array($matricule, $this->existingMatricules)) {
-                    $this->skippedCount++;
-                    $this->addError($index + 2, 'Matricule déjà existant', $matricule);
-                    continue;
-                }
+                // Le matricule existe peut-être déjà, mais on continue pour permettre l'UPSERT et la mise à jour des frais
 
                 // Gérer la filière (avec cache)
                 $filiereId = $this->getFiliereId($filiereNom);
@@ -136,6 +136,10 @@ class EtudiantsImport implements
                 // Gérer le sexe
                 $sexeExcel = $this->cleanString($row['sexe'] ?? '');
                 $genre = $this->determineGenre($sexeExcel);
+
+                // Gérer le mode de formation
+                $modeExcel = $this->cleanString($row['mode_formation'] ?? $row['mode de formation'] ?? $row['mode formation'] ?? '');
+                $modeFormation = $this->determineModeFormation($modeExcel);
 
                 // Gérer la date de naissance
                 $dateNaissance = $this->parseDate($row['date_de_naissance'] ?? $row['date de naissance'] ?? '');
@@ -195,6 +199,7 @@ class EtudiantsImport implements
                     'group_id' => $groupId,
                     'annee_scolaire_id' => $this->anneeScolaireId, // Utilisez la propriété déjà définie
                     'matricule' => $matricule, // Changé de matricule_temp à matricule
+                    'mode_formation' => $modeFormation,
                     // 'created_at' => $now,
                     // 'updated_at' => $now,
                 ];
@@ -338,7 +343,7 @@ class EtudiantsImport implements
             // 2. Récupérer les IDs des étudiants
             $matricules = array_column($etudiantsBatch, 'matricule');
             $etudiants = Etudiant::whereIn('matricule', $matricules)
-                ->get(['id', 'matricule'])
+                ->get(['id', 'matricule', 'genre'])
                 ->keyBy('matricule');
 
             // 3. Compter les mises à jour
@@ -363,6 +368,7 @@ class EtudiantsImport implements
                         'filiere_id' => $group['filiere_id'],
                         'niveau_id' => $group['niveau_id'],
                         'annee_scolaire_id' => $this->anneeScolaireId,
+                        'mode_formation' => $group['mode_formation'],
                         // 'updated_at' => now(),
                     ];
 
@@ -384,24 +390,22 @@ class EtudiantsImport implements
                 }
             }
 
-            // 5. Gérer les rôles
-            $nouveauxEtudiantsIds = [];
-            foreach ($matricules as $matricule) {
-                if (!in_array($matricule, $this->existingMatricules)) {
-                    $nouveauxEtudiantsIds[] = $etudiants[$matricule]->id;
-                }
-            }
-
-            if (!empty($nouveauxEtudiantsIds)) {
+            // 5. Gérer les rôles (Pour TOUS les étudiants du batch)
+            $allEtudiantIds = $etudiants->pluck('id')->toArray();
+            
+            if (!empty($allEtudiantIds) && $this->roleEtudiantId) {
                 $rolesUsersBatch = [];
-                foreach ($nouveauxEtudiantsIds as $etudiantId) {
-                    $roleExists = DB::table('role_user')
-                        ->where('user_id', $etudiantId)
-                        ->where('user_type', 'App\\Models\\Etudiant')
-                        ->where('role_id', $this->roleEtudiantId)
-                        ->exists();
+                
+                // Récupérer les IDs des étudiants qui ont déjà le rôle pour éviter les doublons
+                $existingRoles = DB::table('role_user')
+                    ->whereIn('user_id', $allEtudiantIds)
+                    ->where('user_type', 'App\\Models\\Etudiant')
+                    ->where('role_id', $this->roleEtudiantId)
+                    ->pluck('user_id')
+                    ->toArray();
 
-                    if (!$roleExists) {
+                foreach ($allEtudiantIds as $etudiantId) {
+                    if (!in_array($etudiantId, $existingRoles)) {
                         $rolesUsersBatch[] = [
                             'user_id' => $etudiantId,
                             'user_type' => 'App\\Models\\Etudiant',
@@ -412,6 +416,65 @@ class EtudiantsImport implements
 
                 if (!empty($rolesUsersBatch)) {
                     DB::table('role_user')->insert($rolesUsersBatch);
+                }
+            }
+
+            // 6. Assigner les FRAIS par défaut (avec rechargement complet pour éviter les champs manquants)
+            foreach ($etudiants as $etudiant) {
+                try {
+                    // Recharger l'étudiant avec toutes ses relations pour garantir que le genre et les groupes sont disponibles
+                    $etudiantComplet = Etudiant::with(['etudiantGroups' => function($q) {
+                        $q->where('annee_scolaire_id', $this->anneeScolaireId);
+                    }])->find($etudiant->id);
+
+                    if ($etudiantComplet) {
+                        $this->fraisService->assignDefaultFrais($etudiantComplet, $this->anneeScolaireId);
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("Import: Impossible d'assigner les frais à l'étudiant ID={$etudiant->id}: " . $e->getMessage());
+                }
+            }
+
+            // 7. Enregistrer le paiement des frais d'inscription
+            // On récupère le frais d'inscription dont le statut est actif et qui correspond à l'année active
+            $fraisInscriptionActif = \App\Models\FraisInscription::where('active', true)
+                ->where('annee_scolaire_id', $this->anneeScolaireId)
+                ->first();
+            
+            if ($fraisInscriptionActif) {
+                $paiementsBatch = [];
+                $now = now();
+                
+                foreach ($etudiants as $etudiant) {
+                    // Vérification de sécurité contre les doublons
+                    // On vérifie que l'étudiant n'a pas déjà payé ce frais d'inscription spécifique (qui inclut l'année)
+                    $paiementExiste = \Illuminate\Support\Facades\DB::table('paiements')
+                        ->where('etudiant_id', $etudiant->id)
+                        ->where('payable_type', 'App\\Models\\FraisInscription')
+                        ->where('payable_id', $fraisInscriptionActif->id)
+                        ->exists();
+
+                    if (!$paiementExiste) {
+                        $paiementsBatch[] = [
+                            'etudiant_id'   => $etudiant->id,
+                            'montant'       => $fraisInscriptionActif->montant,
+                            'mode_paiement' => 'especes', // Mode par défaut
+                            'nature_paiement' => 'inscription',
+                            'reference'     => 'INS-' . $etudiant->matricule . '-' . time(),
+                            'status'        => 'valide', // Statut validé demandé
+                            'payable_type'  => 'App\\Models\\FraisInscription',
+                            'payable_id'    => $fraisInscriptionActif->id,
+                            'date_paiement' => $now,      // Champ obligatoirement requis par la base de données
+                            'created_at'    => $now,
+                            'updated_at'    => $now,
+                        ];
+                    }
+                }
+
+                if (!empty($paiementsBatch)) {
+                    foreach (array_chunk($paiementsBatch, 50) as $chunk) {
+                        \Illuminate\Support\Facades\DB::table('paiements')->insert($chunk);
+                    }
                 }
             }
 
@@ -543,6 +606,24 @@ class EtudiantsImport implements
         }
 
         return 'Féminin';
+    }
+
+    /**
+     * Déterminer le mode de formation
+     */
+    private function determineModeFormation($mode)
+    {
+        if (empty($mode)) {
+            return 'Présentiel';
+        }
+
+        $modeLower = strtolower($mode);
+
+        if (str_contains($modeLower, 'ligne') || str_contains($modeLower, 'online') || str_contains($modeLower, 'dist')) {
+            return 'En ligne';
+        }
+
+        return 'Présentiel';
     }
 
     /**

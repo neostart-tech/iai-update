@@ -18,7 +18,7 @@ use Illuminate\Support\Str;
 
 /**
  * @method static self create(array $attributes)
- * @property Album album
+ * @property Album $album
  * @property Tuteur $tuteur
  * @property ResponsableFrais $responsable
  */
@@ -85,7 +85,7 @@ class Candidature extends Authenticatable
 	{
 		parent::boot();
 
-		static::saving(function ($model) {
+		static::creating(function ($model) {
 			$slug = $model->generateUniqueSlug(Str::slug($model->nom . '-' . $model->prenom));
 			if ($model->hasComplexSlug()) {
 				$slug = uniqid($slug . '-');
@@ -124,5 +124,10 @@ class Candidature extends Authenticatable
 			'niveau_id',
 			'id'
 		);
+	}
+
+	public function advertiser(): BelongsTo
+	{
+		return $this->belongsTo(Advertiser::class);
 	}
 }

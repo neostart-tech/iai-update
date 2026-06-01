@@ -19,6 +19,8 @@ class DatabaseSeeder extends Seeder
 			PermissionRoleSeeder::class,
 			AutresPermissionsSeeder::class,
 			AdminSeeder::class,
+			AssignEtudiantRoleSeeder::class,
+			NiveauPeriodeSeeder::class,
 			// CandidatureSeeder::class
 		]);
 	}

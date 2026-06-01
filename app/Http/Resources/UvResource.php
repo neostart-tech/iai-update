@@ -29,6 +29,7 @@ class UvResource extends JsonResource
             "user"=> UserResource::collection($this->resource->user) ?? null,
             'filiere'=>new FiliereResource($this->resource->filiere) ?? null,
             'periode'=>new PeriodeResource($this->resource->periode) ?? null,
+            'niveau' => new NiveauResource($this->resource->niveau) ?? null,
         ];
     }
 }

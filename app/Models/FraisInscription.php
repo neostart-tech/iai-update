@@ -9,6 +9,11 @@ use Illuminate\Database\Eloquent\Model;
 class FraisInscription extends Model
 {
     use HasFactory;
-    protected $primaryKey = "id";
+    
     protected $guarded = ["id"];
+
+    public function anneeScolaire()
+    {
+        return $this->belongsTo(AnneeScolaire::class, 'annee_scolaire_id');
+    }
 }

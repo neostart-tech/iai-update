@@ -12,7 +12,7 @@ use App\Http\Resources\PeriodeResource;
 use App\Http\Resources\SalleResource;
 use App\Http\Resources\UvResource;
 use App\Jobs\CreatingUserBasedOnCandidatsDataJob;
-use App\Models\{Candidature, Etudiant, EtudiantNiveau, Filiere, Group, Salle, UniteValeur as UV};
+use App\Models\{Candidature, Etudiant, EtudiantNiveau, Filiere, Group, Role, Salle, UniteValeur as UV};
 use App\Models\EtudiantGroup;
 use App\Models\RoleUser;
 use App\Models\Periode;
@@ -30,24 +30,22 @@ use Illuminate\View\View;
 class GroupController extends Controller
 {
 
-	public function index()
+	public function index(Request $request)
 	{
-		// $anneeActive = AnneeScolaire::where('active', true)->first()->getAttribute('id');
-		// return view('admin.groups.index')->with([
-		// 	'groups' => Group::with(['filieres', 'niveau'])
-		// 		->withCount(['etudiants'=>function($query) use ($anneeActive){
-		// 			$query->where('etudiant_group.annee_scolaire_id',$anneeActive);
-		// 		}])
-		// 		->get(),
-		// 	'niveaux' => Niveau::all(),
-		// 	'filieres' => Filiere::all(),
-		// ]);
-		$anneeActive = injectAnneeScolaireId();
+		$anneeActiveId = getAnneeScolaireId();
 
 		$groups = Group::with(['filieres', 'niveau'])
+			->when($request->niveau_id, function ($query, $niveauId) {
+				$query->where('niveau_id', $niveauId);
+			})
+			->when($request->filiere_id, function ($query, $filiereId) {
+				$query->whereHas('filieres', function ($q) use ($filiereId) {
+					$q->where('filieres.id', $filiereId);
+				});
+			})
 			->withCount([
-				'etudiants' => function ($query) use ($anneeActive) {
-					$query->where('etudiant_group.annee_scolaire_id', $anneeActive);
+				'etudiants' => function ($query) use ($anneeActiveId) {
+					$query->where('etudiant_group.annee_scolaire_id', $anneeActiveId);
 				}
 			])
 			->get();
@@ -189,7 +187,7 @@ class GroupController extends Controller
 
 		// dd(count(EtudiantGroup::where('annee_scolaire_id',$anneeActive->id)->where('group_id',$group->id)->get()));
 
-		$etudiants = Etudiant::whereHas('groups', function ($query) use ($group, $anneeActive) {
+		$etudiants = Etudiant::with('roles')->whereHas('groups', function ($query) use ($group, $anneeActive) {
 			$query->where('etudiant_group.group_id', $group->id)->where('etudiant_group.annee_scolaire_id', $anneeActive);
 		})->get();
 
@@ -256,8 +254,42 @@ class GroupController extends Controller
 	// 	]);
 	// }
 
-	public function getMatieres(Group $group): AnonymousResourceCollection
-	{
-		return UniteValeurPartialRessource::collection($group->matieres());
-	}
+    public function getMatieres(Group $group): AnonymousResourceCollection
+    {
+        return UniteValeurPartialRessource::collection($group->matieres());
+    }
+
+    public function assignDelegue(Request $request)
+    {
+        $request->validate([
+            'etudiant_id' => 'required|exists:etudiants,id',
+            'is_delegue' => 'required|boolean',
+        ]);
+
+        $etudiant = Etudiant::findOrFail($request->etudiant_id);
+        
+        // On cherche le rôle délégué par son slug
+        $roleDelegue = Role::where('slug', 'delegue')->first();
+        
+        if (!$roleDelegue) {
+            // Création du rôle s'il n'existe pas (sécurité)
+            $roleDelegue = Role::create([
+                'nom' => 'Délégué',
+                'slug' => 'delegue',
+                'active' => true
+            ]);
+        }
+
+        if ($request->is_delegue) {
+            $etudiant->roles()->syncWithoutDetaching([$roleDelegue->id]);
+        } else {
+            $etudiant->roles()->detach($roleDelegue->id);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $request->is_delegue ? "L'étudiant est maintenant délégué" : "Le statut de délégué a été retiré",
+            'is_delegue' => $request->is_delegue
+        ]);
+    }
 }

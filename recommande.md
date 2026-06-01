@@ -1,0 +1,1 @@
+Donner la possbilte aux utlsiateur de noter sa satification suite a une aide coté support.

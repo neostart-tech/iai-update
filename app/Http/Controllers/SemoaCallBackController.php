@@ -19,13 +19,7 @@ use App\Models\AnneeScolaire;
 
 class SemoaCallBackController extends Controller
 {
-    const SEMOA_USERNAME = "demo";
-    const SEMOA_PASSWORD = "1TFzh8<3KJQr";
-    const SEMOA_CLIENT_ID = "cashpay";
-    const SEMOA_API_REFERENCE = 20;
-    const SEMOA_LOGIN = "20";
-    const SEMOA_API_KEY = "TXpFE54mlXkFozpg5SdMC6kNy7jTuNCMcetP";
-    const SEMOA_CLIENT_SECRET = "HpuNOm3sDOkAvd8v3UCIxiBu68634BBs";
+    // Les identifiants sont maintenant récupérés via env() ou config()
     const TOKEN_CACHE_KEY = 'semoa_api_token';
     const TOKEN_EXPIRATION_MINUTES = 30;
 
@@ -38,7 +32,9 @@ class SemoaCallBackController extends Controller
 
     private function generateApiSecure(): string
     {
-        $concatenatedString = self::SEMOA_LOGIN . self::SEMOA_API_KEY . $this->generateSalt();
+        $login = env('SEMOA_API_REFERENCE', '20');
+        $apiKey = env('SEMOA_API_KEY');
+        $concatenatedString = $login . $apiKey . $this->generateSalt();
         return hash('sha256', $concatenatedString);
     }
 
@@ -49,9 +45,7 @@ class SemoaCallBackController extends Controller
 
     private function getApiBaseUrl(): string
     {
-        return env('SEMOA_IN_SANDBOX', true)
-            ? "https://api.semoa-payments.ovh/sandbox"
-            : "https://api.semoa-payments.ovh/prod";
+        return env('SEMOA_URL', "https://api.semoa-payments.ovh/sandbox-v3");
     }
 
 
@@ -59,10 +53,12 @@ class SemoaCallBackController extends Controller
     {
         $salt = $this->generateSalt();
 
+        $login = env('SEMOA_API_REFERENCE', '20');
+        $apiKey = env('SEMOA_API_KEY');
         $headers = [
-            "login" => self::SEMOA_LOGIN,
-            "apisecure" => hash('sha256', self::SEMOA_LOGIN . self::SEMOA_API_KEY . $salt),
-            "apireference" => self::SEMOA_API_REFERENCE,
+            "login" => $login,
+            "apisecure" => hash('sha256', $login . $apiKey . $salt),
+            "apireference" => env('SEMOA_API_REFERENCE', '20'),
             "salt" => $salt,
             "Content-Type" => "application/json",
         ];
@@ -81,10 +77,10 @@ class SemoaCallBackController extends Controller
                 $response = $this->client->post($this->getApiBaseUrl() . "/auth", [
                     'json' => [
                         "grant_type" => "password",
-                        "username" => self::SEMOA_USERNAME,
-                        "password" => self::SEMOA_PASSWORD,
-                        "client_id" => self::SEMOA_CLIENT_ID,
-                        "client_secret" => self::SEMOA_CLIENT_SECRET,
+                        "username" => env('SEMOA_USERNAME'),
+                        "password" => env('SEMOA_PASSWORD'),
+                        "client_id" => env('SEMOA_CLIENT_ID'),
+                        "client_secret" => env('SEMOA_CLIENT_SECRET'),
                     ],
                     'headers' => [
                         'Content-Type' => 'application/json',

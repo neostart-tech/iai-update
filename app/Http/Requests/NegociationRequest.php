@@ -31,7 +31,7 @@ class NegociationRequest extends FormRequest
             'echeances' => 'required_if:type_paiement,negociation|array|min:1',
             'echeances.*.libelle' => 'required|string|max:255',
             'echeances.*.montant' => 'required|numeric|min:1',
-            'echeances.*.date_limite' => 'required|date|after:today',
+            'echeances.*.date_limite' => 'required|date',
             'commentaire' => 'nullable|string|max:1000'
         ];
     }
@@ -86,6 +86,7 @@ class NegociationRequest extends FormRequest
             
             foreach ($echeances as $index => $echeance) {
                 $position = $index + 1;
+                $isExisting = !empty($echeance['id'] ?? null);
                 
                 // Vérification personnalisée du libellé
                 if (empty($echeance['libelle'] ?? null)) {
@@ -114,10 +115,11 @@ class NegociationRequest extends FormRequest
                         "echeances.{$index}.date_limite", 
                         "La date limite de l'échéance n°{$position} est obligatoire"
                     );
-                } elseif (strtotime($echeance['date_limite']) <= strtotime('today')) {
+                } elseif (!$isExisting && strtotime($echeance['date_limite']) < strtotime('today')) {
+                    // On n'autorise les dates passées QUE pour les échéances déjà existantes
                     $validator->errors()->add(
                         "echeances.{$index}.date_limite", 
-                        "La date limite de l'échéance n°{$position} doit être dans le futur"
+                        "La date limite de la nouvelle échéance n°{$position} ne peut pas être dans le passé"
                     );
                 }
             }

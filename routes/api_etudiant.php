@@ -28,7 +28,7 @@ Route::prefix('espace-etudiant')->name('etudiants.')->group(function () {
         Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('auth.logout');
 
     // Route::middleware('auth:etudiants')->group(function () {
-    Route::middleware('auth:sanctum')->group([], function () {
+    Route::middleware('auth:sanctum')->group(function () {
         // Route::view('', 'etudiants.dashboard')->name('dashboard');
 
         Route::controller(EtudiantController::class)->group(function () {
@@ -75,6 +75,8 @@ Route::prefix('espace-etudiant')->name('etudiants.')->group(function () {
             Route::get('/view', 'showViewReleveForAuthStudent')->name('auth.view');
             Route::get('', 'showReleveForAuthStudent')->name('auth.index');
         });
+
+        Route::get('mes-matieres', [\App\Http\Controllers\Api\Etudiant\StudentCourseController::class, 'index'])->name('courses.index');
         // Route::middleware('paiement.ajour')->group(function () {
 
         //     Route::controller(ReclamationController::class)->prefix('reclamations')->name('reclamations.')->group(function () {
@@ -96,6 +98,8 @@ Route::prefix('espace-etudiant')->name('etudiants.')->group(function () {
             Route::post('payments/process', [SemoaCallBackController::class, 'processPayment'])->name('payments.process');
             Route::get('payment-status/{reference}', [SemoaCallBackController::class, 'paymentStatus'])->name('payment-status');
         });
+
+        Route::get('syllabuses', [\App\Http\Controllers\SyllabusController::class, 'getEtudiantSyllabuses'])->name('syllabuses.index');
     });
 
     // Route::middleware('guest:etudiants')->group(function () {

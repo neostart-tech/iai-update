@@ -126,5 +126,231 @@ class StatistiquesController extends Controller
         })->count();
     }
 
+    /**
+     * Compte le nombre total d'enseignants.
+     */
+    public function NbreEnseignants(): int
+    {
+        $anneeActiveId = AnneeScolaire::where('active', true)->value('id');
+        return \App\Models\User::enseignants()
+            ->whereHas('userUniteValeurs', function($q) use ($anneeActiveId) {
+                $q->where('annee_scolaire_id', $anneeActiveId);
+            })->count();
+    }
 
+    /**
+     * Compte le nombre d'évaluations pour l'année scolaire active.
+     */
+    public function NbreEvaluations(): int
+    {
+        $anneeActiveId = AnneeScolaire::where('active', true)->value('id');
+        return \App\Models\Evaluation::whereHas('group', function ($query) use ($anneeActiveId) {
+            $query->where('annee_scolaire_id', $anneeActiveId);
+        })->count();
+    }
+
+    /**
+     * Calcule le taux de présence moyen.
+     */
+    public function TauxPresenceMoyen(): float
+    {
+        $anneeActiveId = AnneeScolaire::where('active', true)->value('id');
+        $totalPresences = \DB::table('presences')
+            ->join('etudiant_group', 'presences.etudiant_id', '=', 'etudiant_group.etudiant_id')
+            ->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
+            ->count();
+
+        if ($totalPresences === 0) return 0;
+
+        $presents = \DB::table('presences')
+            ->join('etudiant_group', 'presences.etudiant_id', '=', 'etudiant_group.etudiant_id')
+            ->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
+            ->whereIn('statut', ['present', 'retard'])
+            ->count();
+
+        return round(($presents / $totalPresences) * 100, 1);
+    }
+
+    /**
+     * Compte le nombre de candidatures en attente.
+     */
+    public function NbreCandidaturesEnAttente(): int
+    {
+        return \App\Models\Candidature::whereNull('validation_date')->count();
+    }
+
+    /**
+     * Récupère la tendance de l'assiduité sur les 6 derniers mois.
+     */
+    public function fetchPresenceTrend(): \Illuminate\Http\JsonResponse
+    {
+        $months = [];
+        $data = [];
+        $anneeActiveId = AnneeScolaire::where('active', true)->value('id');
+
+        for ($i = 5; $i >= 0; $i--) {
+            $date = now()->subMonths($i);
+            $monthName = $date->translatedFormat('M');
+            $months[] = $monthName;
+
+            $total = \DB::table('presences')
+                ->join('etudiant_group', 'presences.etudiant_id', '=', 'etudiant_group.etudiant_id')
+                ->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
+                ->whereYear('presences.created_at', $date->year)
+                ->whereMonth('presences.created_at', $date->month)
+                ->count();
+
+            if ($total === 0) {
+                $data[] = 0;
+                continue;
+            }
+
+            $presents = \DB::table('presences')
+                ->join('etudiant_group', 'presences.etudiant_id', '=', 'etudiant_group.etudiant_id')
+                ->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
+                ->whereYear('presences.created_at', $date->year)
+                ->whereMonth('presences.created_at', $date->month)
+                ->whereIn('statut', ['present', 'retard'])
+                ->count();
+
+            $data[] = round(($presents / $total) * 100, 1);
+        }
+
+        return response()->json([
+            'labels' => $months,
+            'data' => $data
+        ]);
+    }
+
+    /**
+     * Récupère le top 5 des filières par nombre d'étudiants.
+     */
+    public function fetchTopFilieres(): \Illuminate\Http\JsonResponse
+    {
+        $anneeActiveId = AnneeScolaire::where('active', true)->value('id');
+
+        $topFilieres = \DB::table('etudiant_group')
+            ->join('filieres', 'etudiant_group.filiere_id', '=', 'filieres.id')
+            ->where('etudiant_group.annee_scolaire_id', $anneeActiveId)
+            ->select('filieres.nom as name', \DB::raw('count(distinct etudiant_group.etudiant_id) as total'))
+            ->groupBy('filieres.id', 'filieres.nom')
+            ->orderByDesc('total')
+            ->limit(5)
+            ->get();
+
+        return response()->json($topFilieres);
+    }
+
+    /**
+     * Récupère les statistiques réelles des évaluations (taux de réussite et examens validés).
+     */
+    public function fetchEvaluationsStats(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $anneeActiveId = AnneeScolaire::where('active', true)->value('id');
+        $periodeId = $request->get('periode_id');
+
+        // 1. Nombre d'évaluations "validées" (soumises par les enseignants)
+        $valideesQuery = \App\Models\Evaluation::whereNotNull('correction_submission_date')
+            ->whereHas('group', function ($query) use ($anneeActiveId) {
+                $query->where('annee_scolaire_id', $anneeActiveId);
+            });
+        
+        if ($periodeId) {
+            $valideesQuery->where('semestre', $periodeId); // On suppose que la colonne est 'semestre'
+        }
+        
+        $validees = $valideesQuery->count();
+
+        // 2. Taux de réussite global (moyenne des notes >= 10 sur les évaluations soumises)
+        $notesQuery = \App\Models\Note::whereHas('evaluation', function ($query) use ($anneeActiveId, $periodeId) {
+            $query->whereNotNull('correction_submission_date')
+                  ->whereHas('group', function ($q) use ($anneeActiveId) {
+                      $q->where('annee_scolaire_id', $anneeActiveId);
+                  });
+            
+            if ($periodeId) {
+                $query->where('semestre', $periodeId);
+            }
+        });
+
+        $totalNotes = $notesQuery->count();
+
+        if ($totalNotes === 0) {
+            return response()->json([
+                'reussite' => 0,
+                'validees' => $validees
+            ]);
+        }
+
+        $reussites = $notesQuery->where('note', '>=', 10)->count();
+        $tauxReussite = round(($reussites / $totalNotes) * 100, 1);
+
+        return response()->json([
+            'reussite' => $tauxReussite,
+            'validees' => $validees
+        ]);
+    }
+
+    /**
+     * Récupère la période (semestre) actuelle.
+     */
+    public function fetchCurrentPeriode(): \Illuminate\Http\JsonResponse
+    {
+        $anneeActiveId = AnneeScolaire::where('active', true)->value('id');
+        $now = now();
+        
+        $periode = \App\Models\Periode::where('annee_scolaire_id', $anneeActiveId)
+            ->where('debut', '<=', $now)
+            ->where('fin', '>=', $now)
+            ->first();
+
+        if (!$periode) {
+            $periode = \App\Models\Periode::where('annee_scolaire_id', $anneeActiveId)
+                ->orderByDesc('debut')
+                ->first();
+        }
+
+        return response()->json($periode);
+    }
+
+    /**
+     * Liste toutes les périodes de l'année scolaire active.
+     */
+    public function fetchPeriodes(): \Illuminate\Http\JsonResponse
+    {
+        $anneeActiveId = AnneeScolaire::where('active', true)->value('id');
+        $periodes = \App\Models\Periode::where('annee_scolaire_id', $anneeActiveId)->get();
+        return response()->json($periodes);
+    }
+
+    /**
+     * Récupère les statistiques pour le module de communication.
+     */
+    public function fetchCommunicationStats(): \Illuminate\Http\JsonResponse
+    {
+        return response()->json([
+            'messages' => [
+                'total' => \App\Models\Contact::count(),
+                'non_lus' => \App\Models\Contact::where('status', false)->count(),
+            ],
+            'prospects' => [
+                'total' => \App\Models\Prospect::count(),
+                'non_contactes' => \App\Models\Prospect::where('status', false)->count(),
+            ],
+            'blogs' => [
+                'total' => \App\Models\Blog::count(),
+                'publies' => \App\Models\Blog::where('status', true)->count(),
+            ],
+            'evenements' => [
+                'total' => \App\Models\Evenement::count(),
+            ],
+            'opportunites' => [
+                'total' => \App\Models\Announcement::count(),
+                'actives' => \App\Models\Announcement::where('status', true)->count(),
+            ],
+            'partenaires' => [
+                'total' => \App\Models\Advertiser::count(),
+            ]
+        ]);
+    }
 }

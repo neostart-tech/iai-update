@@ -31,3 +31,12 @@ Broadcast::channel('conversation.{id}', function ($user,$id) {
 Broadcast::channel('user.{id}', function ($user, $id) {
     return (int) $user->id === (int) $id;
 });
+
+// Canaux de support
+Broadcast::channel('support.ticket.{id}', function ($user, $id) {
+    return true; // Tout le monde peut écouter
+});
+
+Broadcast::channel('support.informaticiens', function ($user) {
+    return true;
+});

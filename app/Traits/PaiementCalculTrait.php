@@ -57,13 +57,16 @@ trait PaiementCalculTrait
         
         $totalPaye = 0;
         $dernierPaiement = null;
+        $dernierCommentaire = null;
         $prochaineDateLimite = null;
 
         foreach ($fraisEtudiant->echeances as $echeance) {
             $totalPaye += $echeance->montant_paye;
             
             if ($echeance->paiements->isNotEmpty()) {
-                $dernierPaiement = $echeance->paiements->sortByDesc('date_paiement')->first()->date_paiement;
+                $dernierP = $echeance->paiements->sortByDesc('date_paiement')->first();
+                $dernierPaiement = $dernierP->date_paiement;
+                $dernierCommentaire = $dernierP->commentaire;
             }
 
             if ($echeance->reste_a_payer > 0) {
@@ -85,6 +88,7 @@ trait PaiementCalculTrait
             'reste_a_payer' => $fraisEtudiant->montant_apres_bourse - $totalPaye,
             'statut' => $statut,
             'dernier_paiement' => $dernierPaiement,
+            'dernier_commentaire' => $dernierCommentaire,
             'prochaine_date_limite' => $prochaineDateLimite,
         ];
     }
@@ -128,6 +132,7 @@ trait PaiementCalculTrait
         $tranches = $fraisScolarite->tranchepaiement;
         $totalPaye = 0;
         $dernierPaiement = null;
+        $dernierCommentaire = null;
         $prochaineDateLimite = null;
 
         foreach ($tranches as $tranche) {
@@ -140,7 +145,9 @@ trait PaiementCalculTrait
             $totalPaye += $payeTranche;
 
             if ($paiements->isNotEmpty()) {
-                $dernierPaiement = $paiements->sortByDesc('date_paiement')->first()->date_paiement;
+                $dernierP = $paiements->sortByDesc('date_paiement')->first();
+                $dernierPaiement = $dernierP->date_paiement;
+                $dernierCommentaire = $dernierP->commentaire;
             }
 
             if ($tranche->montant > $payeTranche) {
@@ -186,6 +193,7 @@ trait PaiementCalculTrait
             'reste_a_payer' => $montantApresBourse - $totalPaye,
             'statut' => $statut,
             'dernier_paiement' => $dernierPaiement,
+            'dernier_commentaire' => $dernierCommentaire,
             'prochaine_date_limite' => $prochaineDateLimite,
         ];
     }
@@ -206,6 +214,7 @@ trait PaiementCalculTrait
             'reste_a_payer' => 0,
             'statut' => 'aucun_frais',
             'dernier_paiement' => null,
+            'dernier_commentaire' => null,
             'prochaine_date_limite' => null,
         ];
     }

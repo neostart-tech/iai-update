@@ -7,15 +7,11 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class UserResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(Request $request): array
     {
         return [
             'id' => $this->resource->id,
+            'name' => $this->resource->nom_complet,
             'nom' => $this->resource->nom,
             'prenom' => $this->resource->prenom,
             'email' => $this->resource->email,
@@ -31,10 +27,15 @@ class UserResource extends JsonResource
             'date_naissance' => $this->resource->date_naissance,
             'lieu_naissance' => $this->resource->lieu_naissance,
             'nationalite' => $this->resource->nationalite,
+            'nif' => $this->resource->nif,
+            'is_togolais' => $this->resource->isTogolais(),
+            'identity_document_url' => $this->resource->identity_document_url,
+            'nif_document_url' => $this->resource->nif_document_url,
+            'diploma_document_url' => $this->resource->diploma_document_url,
+            'cv_document_url' => $this->resource->cv_document_url,
             'group' => new GroupeResource($this->resource->group),
             'supervisor_type_value' => $this->formatSuperviseur($this->resource->supervisor_type),
             'supervisor_type' => $this->resource->supervisor_type,
-
             'supervisor_notes' => $this->resource->supervisor_notes,
             'roles' => RoleResource::collection($this->resource->roles),
         ];
@@ -42,15 +43,11 @@ class UserResource extends JsonResource
 
     public function formatSuperviseur($role)
     {
-        if ($role === 'interne') {
-            return 'Interne';
-        }
-        if ($role === 'externe') {
-            return 'Externe';
-        }
-        if ($role === 'non_surveillant') {
-            return 'Non surveillant';
-        }
-        return $role;
+        return match ($role) {
+            'interne' => 'Interne',
+            'externe' => 'Externe',
+            'non_surveillant' => 'Non surveillant',
+            default => $role,
+        };
     }
 }

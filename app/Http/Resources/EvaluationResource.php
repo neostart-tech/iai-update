@@ -27,7 +27,10 @@ class EvaluationResource extends JsonResource
             'published' => $this->resource->published,
             'type' => $this->resource->type,
             'date' => $this->resource->date,
+            'heure_debut' => date_format(date_create($this->resource->debut), 'h:i:s'),
+            'heure_fin' => date_format(date_create($this->resource->fin), 'h:i:s'),
             'debut' => $this->resource->debut,
+            'duration_minutes' => $this->resource->duration_minutes,
             'fin' => $this->resource->fin,
             'has_anonymat' => $this->resource->has_anonymat,
             'correction_end_date' => $this->resource->correction_end_date,
@@ -41,29 +44,29 @@ class EvaluationResource extends JsonResource
     }
 
 
-  private function computeStatus(): string
-{
-    if (! $this->published) {
-        return 'En attente';
+    private function computeStatus(): string
+    {
+        if (! $this->published) {
+            return 'En attente';
+        }
+
+        if (! $this->debut || ! $this->fin) {
+            return 'En attente';
+        }
+
+        $now = Carbon::now();
+
+        $start = Carbon::parse($this->debut);
+        $end   = Carbon::parse($this->fin);
+
+        if ($now->lt($start)) {
+            return 'En attente';
+        }
+
+        if ($now->between($start, $end)) {
+            return 'En cours';
+        }
+
+        return 'Terminée';
     }
-
-    if (! $this->debut || ! $this->fin) {
-        return 'En attente';
-    }
-
-    $now = Carbon::now();
-
-    $start = Carbon::parse($this->debut);
-    $end   = Carbon::parse($this->fin);
-
-    if ($now->lt($start)) {
-        return 'En attente';
-    }
-
-    if ($now->between($start, $end)) {
-        return 'En cours';
-    }
-
-    return 'Terminée';
-}
 }

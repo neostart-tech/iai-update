@@ -30,8 +30,10 @@ class PresenceController extends Controller
         try {
             $user = request()->user();
             
-            if (Auth::guard('etudiants')->check()) {
-                $group = $user?->etudiantGroups?->first()?->group;
+            // Détecter si c'est un étudiant (via l'instance du modèle, plus fiable que le guard avec Sanctum)
+            if ($user instanceof \App\Models\Etudiant) {
+                // Pour un étudiant (cas des délégués notamment), on récupère les cours de son groupe
+                $group = $user->group; // Utilise la relation group définie dans le modèle Etudiant
                 
                 if (!$group) {
                     return response()->json([]);
@@ -41,7 +43,9 @@ class PresenceController extends Controller
                     'salle', 
                     'group', 
                     'group.niveau', 
-                    'uv', 
+                    'uv.syllabus', 
+                    'uv.periode', 
+                    'uv.uniteEnseignement',
                     'owner', 
                     'presences',
                     'enseignantPresence'
@@ -50,11 +54,14 @@ class PresenceController extends Controller
                 ->where('type_programme', 'Cours')
                 ->get();
             } else {
+                // Pour un enseignant ou autre personnel, on récupère les cours dont il est propriétaire
                 $cours = EmploiDuTemp::with([
                     'salle', 
                     'group', 
                     'group.niveau', 
-                    'uv', 
+                    'uv.syllabus', 
+                    'uv.periode', 
+                    'uv.uniteEnseignement',
                     'owner', 
                     'presences',
                     'enseignantPresence'
@@ -83,7 +90,9 @@ class PresenceController extends Controller
                 'salle', 
                 'group',
                 'group.niveau', 
-                'uv', 
+                'uv.syllabus', 
+                'uv.periode', 
+                'uv.uniteEnseignement',
                 'owner', 
                 'presences',
                 'enseignantPresence'

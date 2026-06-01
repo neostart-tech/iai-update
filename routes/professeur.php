@@ -108,4 +108,7 @@ Route::middleware('auth:enseignants')
         route::get('evaluations/{id}/student-evaluation-submission', 'getStudentEvaluationSubmission')->name('student-evaluation-submission');
         route::get('evaluations/{id}/student-evaluation-submission/index', 'getStudentEvaluationSubmissionview')->name('student-evaluation-submission-view');
 
+        // Nouvelles routes pour l'IA
+        Route::post('evaluations/ai/suggest-questions', 'aiSuggestQuestions')->name('ai-suggest-questions');
+        Route::post('evaluations/ai/refine-question', 'aiRefineQuestion')->name('ai-refine-questions');
     });

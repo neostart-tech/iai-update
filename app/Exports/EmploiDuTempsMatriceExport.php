@@ -18,7 +18,7 @@ use PhpOffice\PhpSpreadsheet\Style\Color;
 use PhpOffice\PhpSpreadsheet\Hyperlink;
 use Carbon\Carbon;
 
-class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, ShouldAutoSize, WithEvents
+class EmploiDuTempsMatriceExport implements FromArray, WithTitle, ShouldAutoSize, WithEvents
 {
     protected $group_id;
     protected $date_debut;
@@ -50,7 +50,6 @@ class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, Sh
         // En-têtes
         $headers = [
             'JOUR',
-            'DATE',
             'HORAIRE',
             'MATIÈRE / ACTIVITÉ',
             'TYPE',
@@ -59,7 +58,7 @@ class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, Sh
         ];
         $data[] = $headers;
 
-        // Récupérer les cours GROUPÉS par date/heure/matière
+        // Récupérer les cours GROUPÉS par jour
         $coursOrganises = $this->getCoursGroupes();
 
         // Ajouter les données
@@ -67,7 +66,6 @@ class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, Sh
             // En-tête de journée
             $data[] = [
                 $jourData['jour_fr'],
-                $jourData['date_formatted'],
                 '',
                 '',
                 '',
@@ -79,7 +77,6 @@ class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, Sh
             foreach ($jourData['cours'] as $c) {
                 $data[] = [
                     '', // Pas de répétition du jour
-                    '',
                     $c['horaire'],
                     $c['matiere'],
                     $c['type'],
@@ -99,7 +96,7 @@ class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, Sh
             
             // Ligne de séparation entre les jours
             if ($jourData !== end($coursOrganises)) {
-                $data[] = ['', '', '', '', '', '', ''];
+                $data[] = ['', '', '', '', '', ''];
             }
         }
 
@@ -179,25 +176,49 @@ class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, Sh
             }
         }
 
-        // Organiser les cours par jour
+        // Organiser les cours par jour de la semaine (Emploi du temps générique)
         $coursParJour = [];
         foreach ($coursUniques as $cours) {
-            $dateKey = $cours['date'];
+            $jourKey = strtoupper($cours['jour_fr']);
             
-            if (!isset($coursParJour[$dateKey])) {
-                $coursParJour[$dateKey] = [
+            if (!isset($coursParJour[$jourKey])) {
+                $coursParJour[$jourKey] = [
                     'jour_fr' => $cours['jour_fr'],
-                    'date_formatted' => $cours['date_formatted'],
-                    'date' => $cours['date_obj'],
                     'cours' => []
                 ];
             }
             
-            $coursParJour[$dateKey]['cours'][] = $cours;
+            // Vérifier s'il y a un doublon strict
+            $exists = false;
+            foreach ($coursParJour[$jourKey]['cours'] as $c) {
+                if ($c['horaire'] === $cours['horaire'] &&
+                    $c['matiere'] === $cours['matiere'] &&
+                    $c['professeur'] === $cours['professeur'] &&
+                    $c['salle_affichage'] === $cours['salle_affichage']) {
+                    $exists = true;
+                    break;
+                }
+            }
+            
+            if (!$exists) {
+                $coursParJour[$jourKey]['cours'][] = $cours;
+            }
         }
 
-        // Trier par date
-        ksort($coursParJour);
+        // Trier par ordre des jours de la semaine
+        $ordreJours = [
+            'LUNDI' => 1,
+            'MARDI' => 2,
+            'MERCREDI' => 3,
+            'JEUDI' => 4,
+            'VENDREDI' => 5,
+            'SAMEDI' => 6,
+            'DIMANCHE' => 7
+        ];
+        
+        usort($coursParJour, function($a, $b) use ($ordreJours) {
+            return ($ordreJours[strtoupper($a['jour_fr'])] ?? 99) - ($ordreJours[strtoupper($b['jour_fr'])] ?? 99);
+        });
         
         // Trier les cours par heure pour chaque jour
         foreach ($coursParJour as &$jourData) {
@@ -358,30 +379,14 @@ class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, Sh
         return substr($nom . $suffix, 0, 31);
     }
 
-    public function styles(Worksheet $sheet)
-    {
-        return [
-            4 => [
-                'font' => ['bold' => true, 'size' => 11],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => self::COULEUR_HEADER]
-                ],
-                'font' => ['color' => ['rgb' => 'FFFFFF']],
-                'alignment' => [
-                    'horizontal' => Alignment::HORIZONTAL_CENTER,
-                    'vertical' => Alignment::VERTICAL_CENTER
-                ]
-            ],
-        ];
-    }
+
 
     public function registerEvents(): array
     {
         return [
             AfterSheet::class => function(AfterSheet $event) {
                 $sheet = $event->sheet;
-                $lastColumn = 'G';
+                $lastColumn = 'F';
                 
                 // Titre principal
                 $sheet->insertNewRowBefore(1, 3);
@@ -449,7 +454,7 @@ class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, Sh
                     $cellValue = $sheet->getCell('A' . $row)->getValue();
                     
                     if (!empty($cellValue) && $row > 4 && !$this->isHeaderRow($row) && !$this->isSeparatorRow($sheet, $row)) {
-                        $sheet->mergeCells('A' . $row . ':G' . $row);
+                        $sheet->mergeCells('A' . $row . ':F' . $row);
                         
                         $sheet->getStyle('A' . $row)->applyFromArray([
                             'fill' => [
@@ -467,6 +472,15 @@ class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, Sh
                     }
                 }
                 
+                // Style des en-têtes de colonnes (Ligne 4 après insertion)
+                $sheet->getStyle('A4:' . $lastColumn . '4')->applyFromArray([
+                    'font' => ['bold' => true, 'size' => 11],
+                    'alignment' => [
+                        'horizontal' => Alignment::HORIZONTAL_CENTER,
+                        'vertical' => Alignment::VERTICAL_CENTER
+                    ]
+                ]);
+                
                 // Bordures
                 $sheet->getStyle('A4:' . $lastColumn . $lastRow)
                     ->getBorders()
@@ -474,31 +488,30 @@ class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, Sh
                     ->setBorderStyle(Border::BORDER_THIN);
                 
                 // Alignements
-                $sheet->getStyle('A4:G4')
+                $sheet->getStyle('A4:F4')
                     ->getAlignment()
                     ->setHorizontal(Alignment::HORIZONTAL_CENTER)
                     ->setVertical(Alignment::VERTICAL_CENTER);
                 
                 for ($row = 5; $row <= $lastRow; $row++) {
                     if (!$this->isSeparatorRow($sheet, $row)) {
-                        $sheet->getStyle('C' . $row)
+                        $sheet->getStyle('B' . $row)
                             ->getAlignment()
                             ->setHorizontal(Alignment::HORIZONTAL_CENTER);
                         
-                        $sheet->getStyle('E' . $row)
+                        $sheet->getStyle('D' . $row)
                             ->getAlignment()
                             ->setHorizontal(Alignment::HORIZONTAL_CENTER);
                     }
                 }
                 
                 // Largeurs de colonnes
-                $sheet->getColumnDimension('A')->setWidth(12);
-                $sheet->getColumnDimension('B')->setWidth(12);
-                $sheet->getColumnDimension('C')->setWidth(15);
-                $sheet->getColumnDimension('D')->setWidth(50);
-                $sheet->getColumnDimension('E')->setWidth(15);
-                $sheet->getColumnDimension('F')->setWidth(30);
-                $sheet->getColumnDimension('G')->setWidth(40);
+                $sheet->getColumnDimension('A')->setWidth(15);
+                $sheet->getColumnDimension('B')->setWidth(15);
+                $sheet->getColumnDimension('C')->setWidth(50);
+                $sheet->getColumnDimension('D')->setWidth(15);
+                $sheet->getColumnDimension('E')->setWidth(30);
+                $sheet->getColumnDimension('F')->setWidth(40);
                 
                 // Hauteurs de lignes
                 $sheet->getRowDimension('1')->setRowHeight(30);
@@ -509,7 +522,7 @@ class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, Sh
                 // CRÉATION DES HYPERLIENS CLIQUABLES
                 foreach ($this->coursAvecLiens as $coursLien) {
                     $row = $coursLien['row'] + 3; // +3 car on a inséré 3 lignes au début
-                    $cell = 'G' . $row;
+                    $cell = 'F' . $row;
                     
                     // Récupérer la cellule
                     $cell = $sheet->getCell($cell);
@@ -529,7 +542,7 @@ class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, Sh
                 
                 // Légende
                 $legendeRow = $lastRow + 2;
-                $sheet->mergeCells('A' . $legendeRow . ':G' . $legendeRow);
+                $sheet->mergeCells('A' . $legendeRow . ':F' . $legendeRow);
                 $legende = 'LÉGENDE : ';
                 $legende .= '• Les cours identiques (même date, même heure) sont automatiquement regroupés. ';
                 $legende .= '• Les salles virtuelles sont indiquées en bleu souligné - Cliquez sur le lien pour rejoindre la réunion.';
@@ -543,7 +556,7 @@ class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, Sh
                 // Optionnel : Ajouter une section avec tous les liens
                 if (!empty($this->coursAvecLiens)) {
                     $liensRow = $legendeRow + 2;
-                    $sheet->mergeCells('A' . $liensRow . ':G' . $liensRow);
+                    $sheet->mergeCells('A' . $liensRow . ':F' . $liensRow);
                     $sheet->setCellValue('A' . $liensRow, 'LISTE DES LIENS DE CONNEXION :');
                     $sheet->getStyle('A' . $liensRow)->applyFromArray([
                         'font' => ['bold' => true, 'size' => 10],
@@ -562,7 +575,7 @@ class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, Sh
                     }
                     
                     foreach ($liensUniques as $lien) {
-                        $sheet->mergeCells('A' . $lienRow . ':G' . $lienRow);
+                        $sheet->mergeCells('A' . $lienRow . ':F' . $lienRow);
                         $sheet->setCellValue('A' . $lienRow, '• ' . $lien['texte']);
                         
                         // Créer un lien dans la légende aussi
@@ -595,8 +608,7 @@ class EmploiDuTempsMatriceExport implements FromArray, WithTitle, WithStyles, Sh
     {
         $cellValue = $sheet->getCell('A' . $row)->getValue();
         return empty($cellValue) && 
-               empty($sheet->getCell('B' . $row)->getValue()) && 
-               empty($sheet->getCell('C' . $row)->getValue());
+               empty($sheet->getCell('B' . $row)->getValue());
     }
 
     

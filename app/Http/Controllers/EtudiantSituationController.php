@@ -157,4 +157,72 @@ class EtudiantSituationController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Met à jour le statut global d'un étudiant
+     */
+    public function updateStatut(Request $request, $id)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'statut' => 'required|string|in:actif,bloque',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $etudiant = \App\Models\Etudiant::findOrFail($id);
+            $etudiant->update(['statut' => $request->statut]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Statut mis à jour avec succès',
+                'data' => $etudiant
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour du statut: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Met à jour le statut global de plusieurs étudiants à la fois
+     */
+    public function bulkUpdateStatut(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'ids' => 'required|array',
+                'ids.*' => 'exists:etudiants,id',
+                'statut' => 'required|string|in:actif,bloque',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $count = \App\Models\Etudiant::whereIn('id', $request->ids)->update(['statut' => $request->statut]);
+
+            return response()->json([
+                'success' => true,
+                'message' => $count . ' étudiant(s) mis à jour avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour des statuts: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

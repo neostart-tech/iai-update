@@ -39,8 +39,8 @@ class CandidatureValideMail extends Mailable
 	private function getMainContent(): string
 	{
 		return $this->greeting .
-			". Votre dossier de candidature pour le concours de sélection de" .' '.AppGetters::getAppName()." "."a été approuvé.
-			Connectez-vous à votre compte régulièrement pour suivre l'état d'avancement de votre candidature.
+			". Nous avons le plaisir de vous informer que, suite à l'étude approfondie de votre dossier par la commission d'admission, votre candidature pour " . AppGetters::getAppName() . " a été approuvée.
+			Connectez-vous régulièrement à votre espace numérique pour suivre les prochaines étapes de votre procédure d'admission.
 		";
 	}
 }

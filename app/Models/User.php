@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\GenreEnum;
+use App\Models\Support\SupportMessage;
+use App\Models\Support\SupportTicket;
 use App\Notifications\admins\PasswordResetLinkSentNotification;
 use App\Traits\Routing\{GenerateUniqueSlugTrait, ModelsSlugKeyTrait};
 use App\Traits\UserIdentityTrait;
@@ -56,11 +58,26 @@ class User extends Authenticatable
 		'group_id',
 		'supervisor_type',
 		'supervisor_notes',
+		'nif',
+		'identity_document_path',
+		'nif_document_path',
+		'diploma_document_path',
+		'cv_document_path'
 	];
 
 	protected $hidden = [
 		'password',
 		'remember_token',
+	];
+
+	protected $appends = [
+		'identity_document_url',
+		'nif_document_url',
+		'diploma_document_url',
+		'cv_document_url',
+		'nom_complet',
+		'nom_upper',
+		'image_url'
 	];
 
 	protected $casts = [
@@ -77,6 +94,112 @@ class User extends Authenticatable
 			'user_id',
 			'role_id'
 		);
+	}
+
+
+	public function supportTickets()
+{
+    return $this->morphMany(SupportTicket::class, 'ticketable');
+}
+
+public function assignedTickets()
+{
+    return $this->hasMany(SupportTicket::class, 'assigned_to');
+}
+
+public function supportMessages()
+{
+    return $this->hasMany(SupportMessage::class, 'user_id');
+}
+
+// Vérifier si l'utilisateur est informaticien
+public function isInformaticien(): bool
+{
+    return $this->roles()->where('nom', 'Informaticien')->exists();
+}
+
+    /**
+     * Vérifier si l'utilisateur peut générer les frais d'inscription
+     */
+    public function canManageFraisInscription(): bool
+    {
+        return $this->roles()->whereIn('nom', [
+            'Directeur Général',
+            'Directeur Général Adjoint',
+            'Informaticien',
+            'Comptable'
+        ])->exists();
+    }
+
+    /**
+     * Vérifier si l'utilisateur peut générer des cartes d'étudiants
+     */
+    public function canGenerateStudentCards(): bool
+    {
+        return $this->roles()->whereIn('nom', [
+            'Directeur Général',
+            'Directeur Général Adjoint',
+            'Informaticien',
+            'Directeur Académique',
+            'Logisticien'
+        ])->exists();
+    }
+
+
+	/**
+	 * Vérifie si l'utilisateur est togolais
+	 */
+	public function isTogolais(): bool
+	{
+		return $this->nationalite === 'Togo';
+	}
+
+	/**
+	 * Vérifie si le NIF est requis
+	 */
+	public function requiresNif(): bool
+	{
+		return $this->isTogolais();
+	}
+
+	/**
+	 * Récupère le chemin du document d'identité
+	 */
+	public function getIdentityDocumentUrlAttribute(): ?string
+	{
+		return $this->identity_document_path ? asset(Storage::url($this->identity_document_path)) : null;
+	}
+
+	/**
+	 * Récupère le chemin du document NIF
+	 */
+	public function getNifDocumentUrlAttribute(): ?string
+	{
+		return $this->nif_document_path ? asset(Storage::url($this->nif_document_path)) : null;
+	}
+
+	/**
+	 * Récupère le chemin du diplôme
+	 */
+	public function getDiplomaDocumentUrlAttribute(): ?string
+	{
+		return $this->diploma_document_path ? asset(Storage::url($this->diploma_document_path)) : null;
+	}
+
+	/**
+	 * Récupère le chemin du CV
+	 */
+	public function getCvDocumentUrlAttribute(): ?string
+	{
+		return $this->cv_document_path ? asset(Storage::url($this->cv_document_path)) : null;
+	}
+
+	/**
+	 * Récupère l'URL de l'image de profil
+	 */
+	public function getImageUrlAttribute(): ?string
+	{
+		return $this->image ? asset(Storage::url($this->image)) : null;
 	}
 
 	public function permissions(): HasManyThrough
@@ -123,6 +246,11 @@ class User extends Authenticatable
 		return static::query()->whereRelation('roles', fn(Builder $builder) => $builder->whereIn('role_id', static::$enseignantRolesId));
 	}
 
+
+	public function tickets()
+	{
+		return $this->morphMany(Ticket::class, 'ticketable');
+	}
 
 
 	public static function surveillants(): Builder

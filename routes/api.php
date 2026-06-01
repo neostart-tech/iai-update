@@ -6,12 +6,16 @@ use App\Http\Controllers\ReclamationController;
 use App\Http\Controllers\Api\Admin\CandidaturePresenceController;
 use App\Http\Controllers\Api\CommuniqueController;
 use App\Http\Controllers\Api\Etudiant\MonParcoursController;
-use App\Http\Controllers\API\ExamPartController;
-use App\Http\Controllers\API\ExamQuestionController;
-use App\Http\Controllers\API\ExamQuestionOptionController;
-use App\Http\Controllers\API\ExamSessionController;
-use App\Http\Controllers\API\ExamSubmissionController;
+use App\Http\Controllers\Api\ExamComplexResponseController;
+use App\Http\Controllers\Api\ExamPartController;
+use App\Http\Controllers\Api\ExamQuestionController;
+use App\Http\Controllers\Api\ExamQuestionOptionController;
+use App\Http\Controllers\Api\ExamSessionController;
+use App\Http\Controllers\Api\ExamSubmissionController;
 use App\Http\Controllers\Api\SemoaCallBackController;
+use App\Http\Controllers\Api\Support\CategoryController;
+use App\Http\Controllers\Api\Support\TicketController as SupportTicketController;
+use App\Http\Controllers\Api\Support\SupportMessageController;
 use App\Http\Controllers\BourseController;
 use App\Http\Controllers\BroadcastAuthController;
 use App\Http\Controllers\ChangePasswordController;
@@ -29,13 +33,53 @@ use App\Http\Controllers\PaiementGlobalController;
 use App\Http\Controllers\PlanPaiementController;
 use App\Http\Controllers\PresenceController;
 use App\Http\Controllers\PresenceExportController;
+use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TranchePaiementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
+    $user = $request->user();
+    
+    // Charger les rôles normalement
+    $user->load('roles');
+    
+    // Si c'est un étudiant et qu'il n'a pas de rôles (cas de la prod), on force le rôle 'etudiant'
+    if ($user instanceof \App\Models\Etudiant) {
+        if ($user->roles->isEmpty()) {
+            $studentRole = new \App\Models\Role([
+                'id' => 1,
+                'nom' => 'Etudiant',
+                'slug' => 'etudiant',
+                'active' => 1
+            ]);
+            $user->setRelation('roles', collect([$studentRole]));
+        } else {
+            // Toujours s'assurer que le rôle etudiant est présent pour les etudiants
+            $studentRole = new \App\Models\Role([
+                'id' => 1,
+                'nom' => 'Etudiant',
+                'slug' => 'etudiant',
+                'active' => 1
+            ]);
+            $user->setRelation('roles', collect([$studentRole]));
+        }
+    }
+    
+    return $user;
+});
+
+Route::middleware('auth:sanctum')->get('/user/fiscalite', function (Request $request) {
+    $user = $request->user();
+    return response()->json([
+        'nationalite' => $user->nationalite,
+        'nif' => $user->nif,
+        'identity_document_url' => $user->identity_document_url,
+        'nif_document_url' => $user->nif_document_url,
+        'diploma_document_url' => $user->diploma_document_url,
+        'cv_document_url' => $user->cv_document_url,
+    ]);
 });
 
 
@@ -71,6 +115,31 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('{announcement}/postuler-a-une-offre', 'applyToAnnouncement')->name('apply-to-announcement');
         Route::get('mes-depots', 'myApplications')->name('my-applications');
     });
+
+    Route::prefix('support')->middleware('auth:sanctum')->group(function () {
+    
+    // Catégories (accessibles à tous les utilisateurs connectés)
+    Route::get('categories', [CategoryController::class, 'index']);
+    Route::get('categories/{category}', [CategoryController::class, 'show']);
+    
+    // Tickets
+    Route::get('tickets', [SupportTicketController::class, 'index']);
+    Route::post('tickets', [SupportTicketController::class, 'store']);
+    Route::get('tickets/{ticket}', [SupportTicketController::class, 'show']);
+    
+    // Actions sur tickets (réservées au staff support dans le contrôleur)
+    Route::post('tickets/{ticket}/assign', [SupportTicketController::class, 'assign']);
+    Route::put('tickets/{ticket}/status', [SupportTicketController::class, 'updateStatus']);
+    
+    // Évaluation (accessible par le créateur du ticket)
+    Route::post('tickets/{ticket}/rate', [SupportTicketController::class, 'rate']);
+    
+    // Messages
+    Route::get('tickets/{ticket}/messages', [SupportMessageController::class, 'index']);
+    Route::post('tickets/{ticket}/messages', [SupportMessageController::class, 'store']);
+    Route::put('messages/{message}', [SupportMessageController::class, 'update']);
+    Route::delete('messages/{message}', [SupportMessageController::class, 'destroy']);
+});
 
 
 
@@ -282,21 +351,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
     // Routes pour l'admin
-
-    // Dashboard des négociations
     Route::controller(NegociationController::class)->prefix('admin')->group(function () {
-
         Route::get('negociations/dashboard', 'dashboard');
-
-        // Ressource complète pour les négociations
+        Route::get('negociations/etudiant/{etudiantId}', 'getByEtudiant');
         Route::resource('negociations', NegociationController::class);
-        Route::post('negociations/{id}/ajouter-paiement',  'ajouterPaiement')
-            ->name('negociations.ajouter-paiement');
-    });
-    Route::controller(NegociationController::class)->group(function () {
-        Route::get('negociations/dashboard',  'dashboard');
-        Route::get('negociations/{id}',  'show');
-        Route::post('negociations/{id}/ajouter-paiement',  'ajouterPaiement');
+        Route::post('negociations/{id}/ajouter-paiement', 'ajouterPaiement')->name('negociations.ajouter-paiement');
     });
 
     Route::controller(PaiementController::class)->prefix('paiements')->group(function () {
@@ -304,16 +363,20 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/rechercher-etudiants', 'rechercherEtudiants');
 
         // Informations de paiement
-        Route::get('/infos/{etudiantId}', 'getInfos');
+        Route::get('/infos/{etudiantId?}', 'getInfos');
 
         // Récapitulatif
-        Route::get('/recap/{etudiantId}', 'getRecap');
+        Route::get('/recap/{etudiantId?}', 'getRecap');
 
         // Historique des paiements
-        Route::get('/historique/{etudiantId}', 'getHistorique');
+        Route::get('/historique/{etudiantId?}', 'getHistorique');
 
         // Effectuer un paiement
+        Route::post('/store', 'store');
         Route::post('/', 'store');
+        
+        // Modifier un paiement
+        Route::post('/{id}/update', 'update');
     });
     // Route::controller(PaiementGlobalController::class)->prefix('paiements')->group(function () {
     //     Route::get('rechercher-etudiant', 'rechercherEtudiant');
@@ -337,6 +400,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/situation/statistiques', [EtudiantSituationController::class, 'statistiques']);
         Route::get('/situation/{id}', [EtudiantSituationController::class, 'show']);
         Route::get('/situation/export/csv', [EtudiantSituationController::class, 'exportCSV']);
+        Route::post('/situation/bulk-status', [EtudiantSituationController::class, 'bulkUpdateStatut']);
+        Route::put('/situation/{id}/statut', [EtudiantSituationController::class, 'updateStatut']);
     });
 
 
@@ -437,6 +502,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('exam-question-options/reorder', [ExamQuestionOptionController::class, 'reorder']);
     Route::patch('exam-question-options/{id}/mark-correct', [ExamQuestionOptionController::class, 'markCorrect']);
 
+    // ==================== IA QUESTIONS ====================
+    Route::post('exam-questions/generate-ai', [ExamQuestionController::class, 'aiGenerate']);
+    Route::post('exam-questions/refine-ai', [ExamQuestionController::class, 'aiRefine']);
+
     // ==================== SESSIONS & SOUMISSIONS (ÉTUDIANTS) ====================
     Route::prefix('exam/{evaluationId}')->group(function () {
         // Sessions
@@ -456,6 +525,9 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::get('/exam/{evaluationId}/submissions/all', [ExamSubmissionController::class, 'allSubmissions']);
+    Route::get('/exam/{evaluationId}/all-submissions', [ExamSubmissionController::class, 'allSubmissions']);
+    Route::get('/exam/{evaluationId}/submissions/submitted', [ExamSubmissionController::class, 'submittedOnlySubmissions']);
+    Route::post('/exam/{evaluationId}/finalize-grade/{etudiantId}', [ExamSubmissionController::class, 'finalizeEtudiantGrade']);
 
     // ==================== SESSIONS (GESTION) ====================
     Route::get('/evaluations/{evaluationId}/sessions', [ExamSessionController::class, 'examSessions']);
@@ -467,6 +539,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/exam-sessions/clean-duplicates', [ExamSessionController::class, 'cleanDuplicates']);
 
     Route::post('/exam-submissions/{id}/grade', [ExamSubmissionController::class, 'grade']);
+    Route::post('/exam-submissions/{id}/suggest-grade', [ExamSubmissionController::class, 'suggestGrade']);
+
+Route::post('/exam/{evaluationId}/submit-complex', [ExamSubmissionController::class, 'submitComplex']);
+Route::get('/exam-submissions/{id}/details', [ExamSubmissionController::class, 'details']);
+
+
+Route::prefix('exam')->group(function () {
+    Route::post('/{evaluationId}/save-complex', [ExamComplexResponseController::class, 'saveComplex']);
+});
+
+Route::prefix('tickets')->group(function(){
+  Route::get('/liste', [TicketController::class, 'index']);
+    Route::post('/ajouter', [TicketController::class, 'store']);
+    Route::delete('/{id}/supprimer', [TicketController::class, 'destroy']);
+    Route::post('/{id}/fermer', [TicketController::class, 'close']);
+});
+
 
 
     //    Route::get('/conversations', [ConversationController::class, 'index']);
@@ -488,11 +577,63 @@ Route::middleware('auth:sanctum')->group(function () {
     // Route::get('/conversations/{conversation}/messages/{message}/attachments/{attachment}/download', 
     //           [MessageController::class, 'downloadAttachment']);
     Route::post('/change-password', [ChangePasswordController::class, 'update']);
+
+    // Communications
+    Route::controller(\App\Http\Controllers\Api\CommunicationController::class)->prefix('communications')->group(function () {
+        Route::get('/', 'index');
+        Route::get('/unread-count', 'getUnreadCount');
+        Route::get('/{communication}', 'show');
+        Route::post('/{communication}/mark-as-read', 'markAsRead');
+    });
+
+    // Cartes d'étudiants
+    Route::controller(\App\Http\Controllers\Api\StudentCardController::class)->prefix('student-cards')->group(function () {
+        Route::get('/etudiants', 'index');
+        Route::post('/selected-data', 'getSelected');
+        Route::get('/filters', 'getFilters');
+    });
+
+    // Syllabuses
+    Route::controller(\App\Http\Controllers\SyllabusController::class)->prefix('syllabuses')->group(function () {
+        Route::get('/{uvSlug}', 'show');
+        Route::post('/{uvSlug}', 'store');
+        Route::post('/{uvSlug}/upload-attachment', 'uploadFile');
+    });
+
+    // Enseignant Courses
+    Route::get('/enseignant/mes-matieres', [\App\Http\Controllers\Api\Enseignant\TeacherCourseController::class, 'index']);
+});
+
+// ========================================
+// PUBLIC ROUTES
+// ========================================
+Route::prefix('public')->group(function () {
+    // Inscription routes (unauthenticated)
+    Route::get('niveau/liste', [\App\Http\Controllers\NiveauController::class, 'index']);
+    Route::get('filieres/liste', [\App\Http\Controllers\Admin\FiliereController::class, 'index']);
+    Route::post('candidature/soumettre', [\App\Http\Controllers\CandidatureController::class, 'storeByAdmin']);
+
+    Route::get('galeries', [\App\Http\Controllers\Api\PublicGalleryController::class, 'index']);
+    Route::get('galeries/{id}', [\App\Http\Controllers\Api\PublicGalleryController::class, 'show']);
+    Route::post('contact', [\App\Http\Controllers\Api\PublicContactController::class, 'store']);
+    Route::post('prospects', [\App\Http\Controllers\Api\PublicProspectController::class, 'store']);
+    
+    // Configurations publiques
+    Route::get('configurations', [\App\Http\Controllers\ConfigurationController::class, 'index']);
+    
+    // Blogs
+    Route::get('blogs', [\App\Http\Controllers\Api\PublicBlogController::class, 'index']);
+    Route::get('blogs/{idOrSlug}', [\App\Http\Controllers\Api\PublicBlogController::class, 'show']);
+    Route::post('blogs/{idOrSlug}/comments', [\App\Http\Controllers\Api\PublicBlogController::class, 'addComment']);
+
+    // Newsletter
+    Route::post('newsletter/subscribe', [\App\Http\Controllers\Api\PublicNewsletterController::class, 'subscribe']);
 });
 
 
 
-Route::any('semoa-callback-url', SemoaCallBackController::class);
+Route::any('semoa-callback-url', SemoaCallBackController::class)->name('api.semoa.callback');
+Route::post('semoa/initiate', [\App\Http\Controllers\SemoaPaymentController::class, 'initiate'])->middleware('auth:sanctum');
 
 require __DIR__ . '/api_admin_routes.php';
 
@@ -505,3 +646,35 @@ require __DIR__ . '/api_comptable.php';
 require __DIR__ . '/api_etudiant.php';
 
 // require __DIR__ . '/api_professeur.php';
+
+Route::get('/test-calc/{slug}', function($slug) {
+    $etudiant = \App\Models\Etudiant::where('slug', $slug)->first();
+    $periode = \App\Models\Periode::where('nom', 'LIKE', '%Semestre 1%')->first() ?: \App\Models\Periode::first();
+    
+    if(!$etudiant) return response()->json(['error' => "Etudiant non trouvé pour le slug: $slug"]);
+    
+    $service = app(\App\Services\NoteCalculationService::class);
+    
+    try {
+        $releve = $service->calculateAndSaveForStudent($etudiant, $periode->anneeScolaire, $periode);
+        
+        return response()->json([
+            'success' => true,
+            'etudiant' => $etudiant->nom . ' ' . $etudiant->prenom,
+            'filiere_id' => $etudiant->etudiantGroups()->first()?->filiere_id,
+            'periode' => $periode->nom,
+            'releve_id' => $releve->id,
+            'metadata' => $releve->metadata,
+            'ue_validations_count' => $releve->ueValidations()->count(),
+            'uv_validations_count' => $releve->uvValidations()->count(),
+            'ue_list' => $releve->ueValidations->map(fn($v) => $v->uniteEnseignement->nom),
+            'uv_list' => $releve->uvValidations->map(fn($v) => $v->uniteValeur->nom)
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+    }
+});

@@ -33,10 +33,18 @@ class PaiementGlobalController extends Controller
 
         $search = $request->search;
         
+        $anneeScolaireId = getAnneeScolaireId();
+        
         $etudiants = Etudiant::with(['niveau', 'filiere'])
-            ->where('nom', 'like', "%{$search}%")
-            ->orWhere('prenom', 'like', "%{$search}%")
-            ->orWhere('matricule', 'like', "%{$search}%")
+            ->where(function($q) use ($search) {
+                $q->where('nom', 'like', "%{$search}%")
+                  ->orWhere('prenom', 'like', "%{$search}%")
+                  ->orWhere('matricule', 'like', "%{$search}%");
+            })
+            ->whereDoesntHave('fraisEtudiant', function($q) use ($anneeScolaireId) {
+                $q->where('annee_scolaire_id', $anneeScolaireId)
+                  ->where('est_en_abandon', true);
+            })
             ->limit(10)
             ->get()
             ->map(function($etudiant) {

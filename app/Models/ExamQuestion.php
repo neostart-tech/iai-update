@@ -1,11 +1,11 @@
 <?php
-// app/Models/ExamQuestion.php
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ExamQuestion extends Model
 {
@@ -43,6 +43,38 @@ class ExamQuestion extends Model
     public function submissions(): HasMany
     {
         return $this->hasMany(ExamSubmission::class, 'question_id');
+    }
+
+    /**
+     * Relation pour les questions avec données complexes (TABLEAUX DYNAMIQUES)
+     */
+    public function complexData(): HasOne
+    {
+        return $this->hasOne(ExamQuestionComplexData::class, 'question_id');
+    }
+
+    /**
+     * Relation pour les questions structurées
+     */
+    public function structuredData(): HasOne
+    {
+        return $this->hasOne(ExamQuestionStructuredData::class, 'question_id');
+    }
+
+    /**
+     * Relation pour les questions à plusieurs parties
+     */
+    public function multiParts(): HasOne
+    {
+        return $this->hasOne(ExamQuestionMultiParts::class, 'question_id');
+    }
+
+    /**
+     * Relation pour les questions de rédaction guidée
+     */
+    public function guidedWriting(): HasOne
+    {
+        return $this->hasOne(ExamQuestionGuidedWriting::class, 'question_id');
     }
 
     /**

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Etudiant;
@@ -8,13 +8,76 @@ use App\Models\ExamSubmission;
 use App\Models\ExamQuestion;
 use App\Models\ExamSession;
 use App\Models\Evaluation;
+use App\Models\Note;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use App\Services\GeminiService;
 
 class ExamSubmissionController extends Controller
 {
+    /**
+     * Suggérer une note via l'IA pour une soumission spécifique
+     */
+    public function suggestGrade(string $id, GeminiService $geminiService): JsonResponse
+    {
+        try {
+            $submission = ExamSubmission::with(['question.options', 'etudiant', 'evaluation'])->findOrFail($id);
+            $question = $submission->question;
+            
+            // Préparer la réponse de l'étudiant avec le texte des options si c'est un QCM
+            $studentReply = '';
+            $optionsContext = '';
+            
+            if ($question->options && $question->options->count() > 0) {
+                $optionsContext = "Options possibles :\n";
+                foreach ($question->options as $opt) {
+                    $optionsContext .= "- " . $opt->text . ($opt->is_correct ? " (CORRECTE)" : "") . "\n";
+                }
+            }
+
+            if (is_array($submission->reponse)) {
+                if (isset($submission->reponse['text'])) {
+                    $studentReply = $submission->reponse['text'];
+                } elseif (isset($submission->reponse['option_id'])) {
+                    $selectedOpt = $question->options->firstWhere('id', $submission->reponse['option_id']);
+                    $studentReply = "L'étudiant a choisi l'option : " . ($selectedOpt ? $selectedOpt->text : "ID " . $submission->reponse['option_id']);
+                } elseif (isset($submission->reponse['option_ids'])) {
+                    $selectedTexts = [];
+                    foreach ($submission->reponse['option_ids'] as $oid) {
+                        $opt = $question->options->firstWhere('id', $oid);
+                        if ($opt) $selectedTexts[] = $opt->text;
+                    }
+                    $studentReply = "L'étudiant a choisi les options : " . implode(', ', $selectedTexts);
+                }
+                
+                if (isset($submission->reponse['justification'])) {
+                    $studentReply .= "\nJustification de l'étudiant : " . $submission->reponse['justification'];
+                }
+            } else {
+                $studentReply = $submission->reponse ?? 'Pas de réponse';
+            }
+
+            $questionContext = $question->content . "\n" . $optionsContext;
+
+            $suggestion = $geminiService->suggestGrade(
+                $questionContext,
+                $studentReply,
+                (float) $question->points,
+                $question->config['correction_guide'] ?? null
+            );
+
+            return response()->json($suggestion, 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suggestion IA : ' . $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * GET /api/exam/{evaluationSlug}/student/{etudiantId}/submissions
      * Le paramètre s'appelle $evaluationId mais c'est en réalité le slug
@@ -134,7 +197,7 @@ class ExamSubmissionController extends Controller
     /**
      * POST /api/exam/{evaluationSlug}/submit-question
      */
-    public function submitQuestion(Request $request, string $evaluationId): JsonResponse
+    public function submitQuestion(Request $request, string $evaluationId, GeminiService $geminiService): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'question_id' => 'required|exists:exam_questions,id',
@@ -169,8 +232,8 @@ class ExamSubmissionController extends Controller
                 ], 400);
             }
 
-            // Correction automatique selon le type
-            $correction = $this->autoCorrect($question, $request->reponse);
+            // Correction automatique selon le type (avec support IA pour texte_court)
+            $correction = $this->autoCorrect($question, $request->reponse, $geminiService);
 
             // Créer ou mettre à jour la soumission
             $submission = ExamSubmission::updateOrCreate(
@@ -292,8 +355,18 @@ class ExamSubmissionController extends Controller
     /**
      * POST /api/exam-submissions/{id}/grade
      */
-    public function grade(Request $request, ExamSubmission $examSubmission): JsonResponse
+    public function grade(Request $request, $id): JsonResponse
     {
+        $examSubmission = ExamSubmission::findOrFail($id);
+        
+        // Empêcher la modification si déjà noté
+        if ($examSubmission->points_obtenus !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette question a déjà été notée et ne peut plus être modifiée.'
+            ], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'points_obtenus' => 'required|numeric|min:0',
             'commentaire' => 'nullable|string'
@@ -308,14 +381,23 @@ class ExamSubmissionController extends Controller
         }
 
         try {
-            $examSubmission->update([
-                'points_obtenus' => $request->points_obtenus,
-                'metadata' => array_merge($examSubmission->metadata ?? [], [
-                    'commentaire_correction' => $request->commentaire,
-                    'corrige_par' => auth()->id(),
-                    'corrige_le' => now()->toDateTimeString()
-                ])
-            ]);
+            $reponse = $examSubmission->reponse;
+            if (!is_array($reponse)) {
+                $reponse = ['text' => (string)$reponse];
+            }
+            
+            $reponse['commentaire_correction'] = $request->commentaire;
+            $reponse['corrige_par'] = auth()->id() ?? 1; // Fallback to 1 if not auth
+            $reponse['corrige_le'] = now()->toDateTimeString();
+
+            // Affectation manuelle
+            $examSubmission->points_obtenus = $request->points_obtenus;
+            $examSubmission->reponse = $reponse;
+            $saved = $examSubmission->save();
+
+            if (!$saved) {
+                throw new \Exception("Échec de la sauvegarde Eloquent");
+            }
 
             return response()->json([
                 'success' => true,
@@ -381,7 +463,7 @@ class ExamSubmissionController extends Controller
     /**
      * Correction automatique selon le type de question
      */
-    private function autoCorrect(ExamQuestion $question, $reponse): array
+    private function autoCorrect(ExamQuestion $question, $reponse, ?GeminiService $geminiService = null): array
     {
         $points = 0;
         $isCorrect = false;
@@ -411,15 +493,9 @@ class ExamSubmissionController extends Controller
                 break;
 
             case 'texte_court':
-                // Comparaison avec mots-clés
-                $expected = strtolower($question->config['expected_answer'] ?? '');
-                $userAnswer = strtolower($reponse['text'] ?? '');
-                $isCorrect = ($expected == $userAnswer);
-                $points = $isCorrect ? $question->points : 0;
-                break;
-
             default:
                 $points = null; // Correction manuelle
+                $isCorrect = false;
                 break;
         }
 
@@ -430,41 +506,155 @@ class ExamSubmissionController extends Controller
         ];
     }
 
-public function allSubmissions(string $evaluationId): JsonResponse
-{
-    try {
-        // Trouver l'évaluation par son slug
-        $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
-        
-        // 🔴 CORRECTION - Utiliser etudiantGroups pour récupérer les étudiants du groupe
-        $etudiants = Etudiant::whereHas('etudiantGroups', function($q) use ($evaluation) {
-            $q->where('group_id', $evaluation->group_id)
-              ->where('annee_scolaire_id', injectAnneeScolaireId()); // Filtrer par année active
-        })->get();
-        
-        // Alternative si vous voulez charger les relations
-        $etudiants = Etudiant::with(['etudiantGroups' => function($q) use ($evaluation) {
-            $q->where('group_id', $evaluation->group_id)
-              ->where('annee_scolaire_id', injectAnneeScolaireId());
-        }])->whereHas('etudiantGroups', function($q) use ($evaluation) {
-            $q->where('group_id', $evaluation->group_id)
-              ->where('annee_scolaire_id', injectAnneeScolaireId());
-        })->get();
-        
-        // Récupérer toutes les questions avec leurs parties
-        $questions = ExamQuestion::whereHas('part', function($q) use ($evaluation) {
-            $q->where('evaluation_id', $evaluation->id);
-        })->with(['part', 'options'])->orderBy('order')->get();
-        
-        // Récupérer toutes les soumissions
-        $submissions = ExamSubmission::where('evaluation_id', $evaluation->id)
-                                    ->get()
-                                    ->groupBy('etudiant_id');
-        
+    public function allSubmissions(string $evaluationId): JsonResponse
+    {
+        try {
+            $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
+            
+            // S'assurer que les anonymats sont générés si nécessaire (ou pour les examens en ligne)
+            if ($evaluation->has_anonymat || $evaluation->is_online) {
+                $this->ensureAnonymatGenerated($evaluation);
+            }
+
+            $etudiants = Etudiant::with(['etudiantGroups' => function($q) use ($evaluation) {
+                $q->where('group_id', $evaluation->group_id)
+                  ->where('annee_scolaire_id', injectAnneeScolaireId());
+            }])->whereHas('etudiantGroups', function($q) use ($evaluation) {
+                $q->where('group_id', $evaluation->group_id)
+                  ->where('annee_scolaire_id', injectAnneeScolaireId());
+            })->get();
+            
+            $questions = ExamQuestion::whereHas('part', function($q) use ($evaluation) {
+                $q->where('evaluation_id', $evaluation->id);
+            })->with(['part', 'options'])->orderBy('order')->get();
+            
+            $submissions = ExamSubmission::where('evaluation_id', $evaluation->id)
+                                        ->get()
+                                        ->groupBy('etudiant_id');
+
+            $notes = Note::where('evaluation_id', $evaluation->id)->get()->keyBy('etudiant_id');
+            
+            $resultats = $this->formatResults($etudiants, $questions, $submissions, $notes);
+            
+            $stats = $this->calculateStats($resultats, $evaluation->id);
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'etudiants' => $resultats,
+                    'questions' => $questions,
+                    'stats' => $stats,
+                    'total_points' => $questions->sum('points'),
+                    'has_anonymat' => (bool)($evaluation->has_anonymat || $evaluation->is_online)
+                ]
+            ], 200);
+            
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function submittedOnlySubmissions(string $evaluationId): JsonResponse
+    {
+        try {
+            $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
+            
+            // S'assurer que les anonymats sont générés si nécessaire (ou pour les examens en ligne)
+            if ($evaluation->has_anonymat || $evaluation->is_online) {
+                $this->ensureAnonymatGenerated($evaluation);
+            }
+
+            // Uniquement ceux qui ont au moins une soumission
+            $etudiants = Etudiant::whereHas('examSubmissions', function($q) use ($evaluation) {
+                $q->where('evaluation_id', $evaluation->id);
+            })->with(['etudiantGroups' => function($q) use ($evaluation) {
+                $q->where('group_id', $evaluation->group_id)
+                  ->where('annee_scolaire_id', injectAnneeScolaireId());
+            }])->get();
+            
+            $questions = ExamQuestion::whereHas('part', function($q) use ($evaluation) {
+                $q->where('evaluation_id', $evaluation->id);
+            })->with(['part', 'options'])->orderBy('order')->get();
+            
+            $submissions = ExamSubmission::where('evaluation_id', $evaluation->id)
+                                        ->get()
+                                        ->groupBy('etudiant_id');
+            
+            $notes = Note::where('evaluation_id', $evaluation->id)->get()->keyBy('etudiant_id');
+
+            $resultats = $this->formatResults($etudiants, $questions, $submissions, $notes);
+            $stats = $this->calculateStats($resultats, $evaluation->id);
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'etudiants' => $resultats,
+                    'questions' => $questions,
+                    'stats' => $stats,
+                    'total_points' => $questions->sum('points'),
+                    'has_anonymat' => (bool)($evaluation->has_anonymat || $evaluation->is_online)
+                ]
+            ], 200);
+            
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    private function ensureAnonymatGenerated(Evaluation $evaluation)
+    {
+        $group = $evaluation->group;
+        $etudiants = $group->etudiants()
+            ->whereHas('etudiantGroups', function ($query) use ($group) {
+                $query->where('group_id', $group->id)
+                    ->where('annee_scolaire_id', injectAnneeScolaireId());
+            })->get();
+
+        $generated = false;
+        foreach ($etudiants as $etudiant) {
+            $note = Note::where('evaluation_id', $evaluation->id)
+                ->where('etudiant_id', $etudiant->id)
+                ->first();
+
+            if (!$note) {
+                Note::create([
+                    'evaluation_id' => $evaluation->id,
+                    'etudiant_id' => $etudiant->id,
+                    'note' => null,
+                    'unite_valeur_id' => $evaluation->unite_valeur_id,
+                    'anonymat' => $this->generateUniqueAnonymat($evaluation->id),
+                    'annee_scolaire_id' => $evaluation->annee_scolaire_id ?? injectAnneeScolaireId()
+                ]);
+                $generated = true;
+            } elseif (!$note->anonymat) {
+                $note->update(['anonymat' => $this->generateUniqueAnonymat($evaluation->id)]);
+                $generated = true;
+            }
+        }
+
+        if ($generated && !$evaluation->has_anonymat) {
+            $evaluation->update(['has_anonymat' => true]);
+        }
+    }
+
+    private function generateUniqueAnonymat($evaluationId)
+    {
+        do {
+            // Utiliser le format AB123 (2 lettres + 3 chiffres) pour cohérence avec NoteController
+            $letters = strtoupper(Str::random(2));
+            $digits = str_pad((string) random_int(0, 999), 3, '0', STR_PAD_LEFT);
+            $code = $letters . $digits;
+        } while (Note::where('evaluation_id', $evaluationId)->where('anonymat', $code)->exists());
+
+        return $code;
+    }
+
+    private function formatResults($etudiants, $questions, $submissions, $notes = null)
+    {
         $resultats = [];
-        
         foreach ($etudiants as $etudiant) {
             $etudiantSubmissions = $submissions[$etudiant->id] ?? collect();
+            $noteRecord = $notes ? ($notes[$etudiant->id] ?? null) : null;
             
             $totalPoints = 0;
             $questionsRepondues = 0;
@@ -486,15 +676,13 @@ public function allSubmissions(string $evaluationId): JsonResponse
                 $statut = $questionsCorrigees === $questionsRepondues ? 'Corrigé' : 'Partiellement corrigé';
             }
             
-            // Récupérer le groupe actuel de l'étudiant (pour information)
-            $groupeActuel = $etudiant->etudiantGroups()
-                ->where('annee_scolaire_id', injectAnneeScolaireId())
-                ->first();
+            $groupeActuel = $etudiant->etudiantGroups->first();
             
             $resultats[] = [
                 'id' => $etudiant->id,
                 'nom' => $etudiant->nom,
                 'prenom' => $etudiant->prenom,
+                'anonymat' => $noteRecord ? $noteRecord->anonymat : null,
                 'email' => $etudiant->email,
                 'matricule' => $etudiant->matricule,
                 'groupe_actuel' => $groupeActuel ? $groupeActuel->group->nom : null,
@@ -509,38 +697,87 @@ public function allSubmissions(string $evaluationId): JsonResponse
                 'derniereActivite' => $etudiantSubmissions->max('submitted_at') ?? $etudiantSubmissions->max('auto_saved_at'),
             ];
         }
-        
-        // Calculer les statistiques
+        return $resultats;
+    }
+
+    private function calculateStats($resultats, $evaluationId)
+    {
         $totalEtudiants = count($resultats);
         $etudiantsAvecReponses = collect($resultats)->filter(fn($e) => $e['progression']['repondues'] > 0)->count();
         $sommeNotes = collect($resultats)->sum('note');
         
-        $stats = [
+        return [
             'total_etudiants' => $totalEtudiants,
             'participation' => $totalEtudiants > 0 ? round(($etudiantsAvecReponses / $totalEtudiants) * 100) : 0,
             'moyenne' => $totalEtudiants > 0 ? round($sommeNotes / $totalEtudiants, 1) : 0,
-            'a_corriger' => ExamSubmission::where('evaluation_id', $evaluation->id)
+            'a_corriger' => ExamSubmission::where('evaluation_id', $evaluationId)
                                          ->whereNull('points_obtenus')
                                          ->count()
         ];
-        
-        return response()->json([
-            'success' => true,
-            'message' => 'Soumissions récupérées avec succès',
-            'data' => [
-                'etudiants' => $resultats,
-                'questions' => $questions,
-                'stats' => $stats,
-                'total_points' => $questions->sum('points')
-            ]
-        ], 200);
-        
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Erreur lors de la récupération',
-            'error' => $e->getMessage()
-        ], 500);
     }
-}
+
+    public function finalizeEtudiantGrade(Request $request, string $evaluationId, int $etudiantId): JsonResponse
+    {
+        try {
+            DB::beginTransaction();
+            $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
+            $totalPoints = ExamSubmission::where('evaluation_id', $evaluation->id)
+                                         ->where('etudiant_id', $etudiantId)
+                                         ->sum('points_obtenus');
+            $note = Note::updateOrCreate(
+                ['evaluation_id' => $evaluation->id, 'etudiant_id' => $etudiantId],
+                [
+                    'note' => $totalPoints, 
+                    'unite_valeur_id' => $evaluation->unite_valeur_id, 
+                    'annee_scolaire_id' => $evaluation->annee_scolaire_id ?? injectAnneeScolaireId()
+                ]
+            );
+            DB::commit();
+            return response()->json(['success' => true, 'data' => ['final_grade' => $totalPoints, 'note_id' => $note->id]]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function submitComplex(Request $request, string $evaluationId): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'question_id' => 'required|exists:exam_questions,id',
+            'etudiant_id' => 'required|exists:etudiants,id',
+            'reponse' => 'required|array'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+            $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
+            $submission = ExamSubmission::updateOrCreate(
+                ['evaluation_id' => $evaluation->id, 'etudiant_id' => $request->etudiant_id, 'question_id' => $request->question_id],
+                ['reponse' => $request->reponse, 'submitted_at' => now(), 'auto_saved_at' => now(), 'ip_address' => $request->ip(), 'user_agent' => $request->userAgent()]
+            );
+            DB::commit();
+            return response()->json(['success' => true, 'data' => $submission], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function details(ExamSubmission $examSubmission): JsonResponse
+    {
+        try {
+            $examSubmission->load(['question.part', 'etudiant', 'evaluation']);
+            $question = $examSubmission->question;
+            if (in_array($question->type, ['complex_data', 'structured_data', 'multi_parts', 'guided_writing'])) {
+                $question->load($question->type === 'complex_data' ? 'complexData' : ($question->type === 'structured_data' ? 'structuredData' : ($question->type === 'multi_parts' ? 'multiParts' : 'guidedWriting')));
+            }
+            return response()->json(['success' => true, 'data' => $examSubmission], 200);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
 }

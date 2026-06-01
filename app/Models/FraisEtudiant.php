@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Sluggable;
 
@@ -21,12 +22,18 @@ class FraisEtudiant extends Model
         'bourse_etudiant_id',
         'type_paiement',
         'frequence_paiement',
-        'statut'
+        'statut',
+        'est_en_abandon',
+        'date_abandon',
+        'montant_inscription_du',
+        'montant_scolarite_du'
     ];
 
     protected $casts = [
         'montant_initial' => 'decimal:0',
-        'montant_apres_bourse' => 'decimal:0'
+        'montant_apres_bourse' => 'decimal:0',
+        'est_en_abandon' => 'boolean',
+        'date_abandon' => 'date'
     ];
 
     const TYPE_PAIEMENT = [
@@ -36,15 +43,17 @@ class FraisEtudiant extends Model
 
     const FREQUENCE_PAIEMENT = [
         'annuel' => 'Paiement annuel (1 fois)',
-        'trimestriel' => 'Paiement trimestriel (4 fois)',
-        'bimestriel' => 'Paiement bimestriel (6 fois)',
-        'mensuel' => 'Paiement mensuel (12 fois)'
+        'trimestriel' => 'Paiement trimestriel (3 fois)',
+        'bimestriel' => 'Paiement bimestriel (4 fois)',
+        'mensuel' => 'Paiement mensuel (10 fois)'
     ];
 
     const STATUTS = [
-        'en_cours' => 'En cours',
-        'solde' => 'Soldé',
-        'en_retard' => 'En retard'
+        'en_cours' => 'À jour',
+        'solde' => 'Paiement soldé',
+        'en_retard' => 'Retard de paiement',
+        'avance' => 'Paiement en avance',
+        'abandon' => 'Abandon'
     ];
 
 
@@ -98,9 +107,9 @@ class FraisEtudiant extends Model
     {
         return match ($this->frequence_paiement) {
             'annuel' => 1,
-            'trimestriel' => 4,
-            'bimestriel' => 6,
-            'mensuel' => 12,
+            'trimestriel' => 3,
+            'bimestriel' => 4,
+            'mensuel' => 10,
             default => 1
         };
     }
@@ -169,17 +178,43 @@ class FraisEtudiant extends Model
     }
 
 
+    public function getEstEnAvanceAttribute()
+    {
+        if ($this->reste_a_payer <= 0) return false;
+        
+        $montantDuActuellement = $this->echeances()
+            ->where('date_limite', '<=', now())
+            ->sum('montant');
+            
+        $montantPaye = $this->montant_paye;
+        
+        return $montantPaye > $montantDuActuellement;
+    }
+
     public function updateStatut()
     {
-        if ($this->reste_a_payer <= 0) {
+        if ($this->est_en_abandon) {
+            $this->statut = 'abandon';
+        } elseif ($this->reste_a_payer <= 0) {
             $this->statut = 'solde';
         } elseif ($this->est_en_retard) {
             $this->statut = 'en_retard';
+        } elseif ($this->est_en_avance) {
+            $this->statut = 'avance';
         } else {
             $this->statut = 'en_cours';
         }
 
-        $this->saveQuietly();
+        try {
+            $this->saveQuietly();
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Erreur mise à jour statut: " . $e->getMessage());
+            // Fallback si ENUM limite
+            if (str_contains($e->getMessage(), 'Data truncated')) {
+                 $this->statut = 'en_cours';
+                 $this->saveQuietly();
+            }
+        }
 
         return $this;
     }
@@ -278,6 +313,57 @@ class FraisEtudiant extends Model
         };
     }
 
+
+    public function annoncerAbandon($date, $montantInscription, $montantScolarite, $commentaire = null)
+    {
+        $this->est_en_abandon = true;
+        $this->date_abandon = $date;
+        $this->montant_inscription_du = $montantInscription;
+        $this->montant_scolarite_du = $montantScolarite;
+        $this->statut = 'abandon';
+
+        try {
+            $this->save();
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Erreur abandon: " . $e->getMessage());
+            // Si l'id statut 'abandon' échoue à cause de l'ENUM
+            $this->statut = 'en_cours'; 
+            $this->save();
+        }
+
+        // Mettre à jour le statut dans la pédagogie (etudiant_group)
+        DB::table('etudiant_group')
+            ->where('etudiant_id', $this->etudiant_id)
+            ->where('annee_scolaire_id', $this->annee_scolaire_id)
+            ->update(['statut_scolaire' => 'abandon']);
+
+        return $this;
+    }
+
+    /**
+     * Recalcul automatique des échéances restantes.
+     * Si une échéance est supprimée ou modifiée, on répartit la différence sur les échéances non soldées.
+     */
+    public function recalculerEcheances()
+    {
+        $totalAttendu = $this->montant_apres_bourse;
+        $ecart = $totalAttendu - $this->echeances()->sum('montant');
+
+        if ($ecart == 0) return $this;
+
+        $echeancesRestantes = $this->echeances()
+            ->where('statut', '!=', 'paye')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        if ($echeancesRestantes->isNotEmpty()) {
+            // On ajoute l'écart à la dernière échéance non payée pour équilibrer
+            $derniere = $echeancesRestantes->first();
+            $derniere->update(['montant' => $derniere->montant + $ecart]);
+        }
+
+        return $this;
+    }
 
     public function scopeForEtudiant($query, $etudiantId)
     {

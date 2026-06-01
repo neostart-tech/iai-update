@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\TypeEvaluationEnum;
 use App\Models\Scopes\CurrentAnneeScolaireScope;
 use App\Traits\Routing\GenerateUniqueSlugTrait;
 use App\Traits\Routing\ModelsSlugKeyTrait;
@@ -30,7 +29,7 @@ class Evenement extends Model
 	}
 	use ModelsSlugKeyTrait, GenerateUniqueSlugTrait;
 
-	public $timestamps = false;
+	public $timestamps = true;
 
 	protected $guarded = false;
 
@@ -46,7 +45,6 @@ class Evenement extends Model
 	];
 
 	protected $casts = [
-		'type' => TypeEvaluationEnum::class,
 		'debut' => 'datetime',
 		'fin' => 'datetime',
 		'start_date' => 'datetime',
@@ -93,22 +91,7 @@ class Evenement extends Model
 		return $this->morphOne(FicheDePresence::class, 'controllable');
 	}
 
-	public function getDataAsString(): string
-	{
-		return
-			$this->getAttribute('type')->value . " de " . $this->matiere->getAttribute('nom') . " le " .
-			$this->getAttribute('debut')->translatedFormat('d F Y') . " de " .
-			$this->getAttribute('debut')->translatedFormat('H:i') . " à " . $this->getAttribute('fin')
-				->translatedFormat('H:i') . ' dans la salle ' . $this->salle->getAttribute('nom') .
-			'.';
-	}
 
-	public function getInformationsForMessaging(): string
-	{
-		return
-			$this->getAttribute('type')->value . " de " . $this->matiere->getAttribute('nom') . " qui s'est tenu aujourd'hui de " .
-			$this->getAttribute('debut')->format('H:i') . " à " . $this->getAttribute('fin')->format('H:i');
-	}
 
 	public function notes(): HasMany
 	{

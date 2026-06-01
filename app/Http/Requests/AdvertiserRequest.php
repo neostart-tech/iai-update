@@ -18,7 +18,7 @@ class AdvertiserRequest extends FormRequest
 			'nom' => ['required'],
 			// 'email' => ['required', 'email', Rule::unique('advertisers')->ignore($this->route()->parameter('advertiser'))],
 			'email' => ['required', 'email'],
-			'ville' => ['required', 'string'],
+			'ville' => ['nullable', 'string'],
 			'site' => ['nullable', 'url'],
 			'details' => ['required', 'string'],
 			'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048', 

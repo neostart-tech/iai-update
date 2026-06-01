@@ -9,6 +9,7 @@ use App\Http\Controllers\{
     ClubController,
     EtudiantController,
     EvaluationController,
+    FraisInscriptionController,
     GroupController,
     ConfigurationController,
     NiveauController,
@@ -16,6 +17,7 @@ use App\Http\Controllers\{
     ReclamationController,
     ReleveController,
     ReleveNoteController,
+    ReinscriptionController,
     StatistiquesController,
 };
 use App\Http\Controllers\Admin\{
@@ -56,6 +58,16 @@ Route::controller(ConfigurationController::class)->prefix('parametre')->name('co
     Route::get('configuration', 'index')->name('index');
 });
 
+// Gestion des informations urgentes (PUBLIC)
+Route::controller(UrgentInfoController::class)->prefix('informations-urgentes')->name('urgent_infos_public.')->group(function () {
+    Route::get('liste', 'index')->name('index');
+    Route::get('{urgent}/show', 'show')->name('show');
+});
+
+// Route publique pour la génération des cartes d'étudiants (Générateur Hybride)
+Route::get('student-cards/generate-pdf', [CarteEtudiantController::class, 'genererCartesPdf'])
+    ->name('student-cards.generate-pdf');
+
 Route::middleware('auth:sanctum')->group(function () {
 
 
@@ -64,6 +76,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('ajouter-une-filiere', 'create')->name('create');
         Route::get('{filiere}/a-propos', 'show')->name('show');
         Route::get('{filiere}/modifier', 'edit')->name('edit');
+        Route::get('{filiere}/programme', 'getProgramme')->name('programme');
         Route::post('ajouter-une-filiere', 'store')->name('store');
         Route::put('{filiere}/modifier', 'update')->name('update');
         Route::delete('{filiere}/supprimer', 'destroy')->name('delete');
@@ -117,6 +130,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('{salle}/supprimer-une-salle', 'destroy')->name('delete');
     });
 
+    // Gestion des Jours Fériés par l'administration
+    Route::controller(\App\Http\Controllers\Admin\JourFerieController::class)->prefix('jours-feries')->name('jours-feries.')->group(function () {
+        Route::get('liste', 'index')->name('index');
+        Route::post('ajouter', 'store')->name('store');
+        Route::get('{jourFerie}', 'show')->name('show');
+        Route::put('{jourFerie}/modifier', 'update')->name('update');
+        Route::delete('{jourFerie}/supprimer', 'destroy')->name('delete');
+    });
+
     Route::controller(EmploiDuTempController::class)->prefix('emploi-du-temps')->name('edt.')->group(function () {
         Route::post('store', 'store')->name('store');
         Route::put('update-dates', 'updateDates')->name('update-dates');
@@ -125,6 +147,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('{slug}/delete', 'destroy')->name('delete');
         Route::get('/matrice/export', 'exportMatrice');
         Route::get('/data', 'getEmploiDuTempsData');
+        Route::post('/import','importExcel');
     });
 
     // Gestion des Rôles par l'administration
@@ -143,9 +166,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('create', 'create')->name('create');
         Route::post('create', 'store')->name('store');
+         Route::post('create-enseignant', 'storeEnseignant');
         Route::get('{user}/edit', 'edit')->name('edit');
-        Route::put('{user}/update', 'update')->name('update');
+        Route::get('{user}/show', 'show');
+        Route::put('{user}/update', 'update');
+        Route::put('{user}/update-enseignant', 'updateEnseignant');
+        Route::put('{user}/update-fiscalite', 'updateFiscalite');
         Route::delete('{user}/delete', 'destroy')->name('delete');
+        
         Route::get('{user}/load-edt', 'loadEmploiDuTemps')->name('load-edt'); // charge les edt de l'utilisateur
         Route::get('{user}/emploi-du-temps', 'ShowEmploiDuTemps')->name('show-edt'); // charge les edt de l'utilisateur
         Route::post('{user}/add-edt', 'storeEmploiDuTemps')->name('store-edt'); // charge les edt de l'utilisateur
@@ -170,6 +198,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('creation-d-une-candidature', 'inscriptionIndexForm')->name('create');
         Route::post("store-by-admin", "storeByAdmin")->name("store-by-admin");
+        Route::post("{candidature}/update-by-admin", "updateByAdmin")->name("update-by-admin");
         Route::get('payement-des-frais-de-participation', 'payementCandidaturesIndex')->name('payement-des-frais-de-participation');
         Route::get('participation-au-concours', 'participantCandidaturesIndex')->name('participation-au-concours');
         Route::get('admission-a-' . Str::slug(env('APP_NAME')), 'admisCandidaturesIndex')->name('admission');
@@ -207,8 +236,22 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('{annee}/update', 'update')->name('update');
     });
 
+    Route::controller(FraisInscriptionController::class)->prefix('frais-inscription')->name('frais-inscription.')->group(function () {
+        Route::get('/index', 'index')->name('index');
+        Route::post('/payer', 'store')->name('store');
+        Route::get('/{id}/detail', 'show')->name('show');
+        Route::put('/update/{id}', 'update')->name('update');
+        Route::put('/activate/{id}', 'activate')->name('activate');
+        Route::delete('/destroy/{id}', 'destroy')->name('delete');
+    });
+
     Route::controller(NiveauController::class)->prefix('niveau')->name('niveau.')->group(function () {
         Route::get('/liste', 'index')->name('liste');
+        Route::post('/ajouter', 'store')->name('store');
+        Route::put('/{id}/modifier', 'update')->name('update');
+        Route::patch('/{id}/toggle-status', 'toggleStatus')->name('toggle-status');
+        Route::get('/{id}/periodes', 'getPeriodes')->name('get-periodes');
+        Route::post('/{id}/assign-periodes', 'assignPeriodes')->name('assign-periodes');
     });
 
 
@@ -228,6 +271,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{group}/load-calendar', 'loadCalendar')->name('load-calendar');
         Route::post('{group}/emploi-du-temps', 'updateCalendar')->name('update-calendar');
         Route::post('ajouter', 'store')->name('store');
+        Route::post('assign-delegue', 'assignDelegue')->name('assign-delegue');
         Route::post('{group}/attribution-aux-etudiants-enregistrement', 'storeGroupAssignment')->name('store-attribution');
         Route::delete('{groupe}/supprimer', 'destroy')->name('delete');
     });
@@ -256,6 +300,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('{etudiant}/details', 'show')->name('show');
         Route::put('{etudiant}/changer-de-groupe', 'changeGroup')->name('change-group');
+        Route::post('{etudiant}/reinscrire', [ReinscriptionController::class, 'store'])->name('reinscrire');
     });
 
 
@@ -406,19 +451,27 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('{contact}/lire', 'read')->name('read');
 
             Route::get('{contact}', 'show')->name('show');
-
             Route::delete('{contact}', 'destroy')->name('delete');
+        });
+
+    // Prospects / Brochures
+    Route::controller(\App\Http\Controllers\Admin\ProspectController::class)
+        ->prefix('prospects')
+        ->name('prospects.')
+        ->group(function () {
+            Route::get('count-unread', 'countUnread')->name('count-unread');
+            Route::get('', 'index')->name('index');
+            Route::get('{prospect}', 'show')->name('show');
+            Route::patch('{prospect}/toggle-status', 'toggleStatus')->name('toggle-status');
+            Route::delete('{prospect}', 'destroy')->name('delete');
         });
 
 
 
     // Gestion des informations urgentes
     Route::controller(UrgentInfoController::class)->prefix('informations-urgentes')->name('urgent_infos.')->group(function () {
-        Route::get('liste', 'index')->name('index');
         Route::post('ajouter', 'store')->name('store');
         Route::put('{urgent}/modifier', 'update')->name('update');
-        Route::get('{urgent}/show', 'show')->name('show');
-
         Route::post('{urgent}/publier', 'publish')->name('publish');
         Route::post('{urgent}/depublier', 'unpublish')->name('unpublish');
         Route::delete('{urgent}/supprimer', 'destroy')->name('destroy');
@@ -462,14 +515,22 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::controller(ReleveNoteController::class)->prefix('releves-de-note')->group(function () {
+        Route::get('liste', 'index');
         Route::post('{etudiant}/generer-releve-de-note', 'recalculate');
-        Route::get('{etudiant}/get-releve-de-note', 'show');
+        Route::get('{etudiant}/get-releve-de-note', 'showReleve');
+        Route::delete('{releve:id}/supprimer', 'destroy');
+        Route::post('bulk-generate', 'bulkGenerate');
+        Route::post('check-statuses', 'checkStatuses');
     });
 
     // Routes pour les cartes étudiants
     Route::controller(CarteEtudiantController::class)->prefix('carte')->name('carte.')->group(function () {
         Route::get('{etudiant}', 'genererCarteEtudiant')->name('index');
     });
+
+    // Données pour la génération de cartes HTML (multi-sélection)
+    Route::post('student-cards/selected-data', [CarteEtudiantController::class, 'selectedData'])
+        ->name('student-cards.selected-data');
 
     Route::controller(AdminEtudiantController::class)->prefix('etudiants')->name('etudiants.')->group(function () {
         Route::get('liste', 'index')->name('index');
@@ -481,6 +542,8 @@ Route::middleware('auth:sanctum')->group(function () {
             return Excel::download(new EtudiantsExport, 'liste_des_etudiants_' . $anneActive . '.xlsx');
         })->name('export');
         Route::get('{etudiant}', 'show')->name('show');
+        Route::put('{etudiant}', 'update')->name('update');
+        Route::delete('{etudiant}', 'destroy')->name('destroy');
     });
 
     Route::controller(NotificationController::class)->group(function () {
@@ -505,7 +568,40 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/statistiques/salles/utilisees', [StatistiquesController::class, 'NbreSallesUtilisees']);
     Route::get('/statistiques/salles/dispos', [StatistiquesController::class, 'NbreSallesDispos']);
 
+    // Communications (Admin)
+    Route::controller(\App\Http\Controllers\Admin\CommunicationController::class)->prefix('admin/communications')->group(function () {
+        Route::get('/', 'index');
+        Route::post('/', 'store');
+        Route::get('/{communication}', 'show');
+        Route::put('/{communication}', 'update');
+        Route::delete('/{communication}', 'destroy');
+        Route::post('/{communication}/attachments', 'uploadAttachments');
+        Route::delete('/attachments/{attachment}', 'deleteAttachment');
+    });
+
+    // Web Communications (Admin - Newsletter et Commentaires)
+    Route::controller(\App\Http\Controllers\Api\Admin\WebCommunicationController::class)->prefix('admin/web-communications')->group(function () {
+        Route::get('/comments', 'getComments');
+        Route::put('/comments/{id}/status', 'updateCommentStatus');
+        Route::delete('/comments/{id}', 'deleteComment');
+        
+        Route::get('/newsletter', 'getNewsletterSubscribers');
+        Route::delete('/newsletter/{id}', 'deleteNewsletterSubscriber');
+    });
+
     // Routes pour les statistiques du nombre total d'étudiants
     Route::get('/statistiques/etudiants/total', [StatistiquesController::class, 'NbreTotalEtudiants']);
     Route::get('/statistiques/etudiants/total/{anneeScolaireId}', [StatistiquesController::class, 'NbreTotalEtudiants']);
+
+    // Nouvelles routes de statistiques
+    Route::get('/statistiques/enseignants/nombre', [StatistiquesController::class, 'NbreEnseignants']);
+    Route::get('/statistiques/evaluations/nombre', [StatistiquesController::class, 'NbreEvaluations']);
+    Route::get('/statistiques/presences/taux', [StatistiquesController::class, 'TauxPresenceMoyen']);
+    Route::get('/statistiques/presences/tendance', [StatistiquesController::class, 'fetchPresenceTrend']);
+    Route::get('/statistiques/filieres/top', [StatistiquesController::class, 'fetchTopFilieres']);
+    Route::get('/statistiques/evaluations/stats', [StatistiquesController::class, 'fetchEvaluationsStats']);
+    Route::get('/statistiques/periodes/current', [StatistiquesController::class, 'fetchCurrentPeriode']);
+    Route::get('/statistiques/periodes', [StatistiquesController::class, 'fetchPeriodes']);
+    Route::get('/statistiques/candidatures/en-attente', [StatistiquesController::class, 'NbreCandidaturesEnAttente']);
+    Route::get('/statistiques/communication', [StatistiquesController::class, 'fetchCommunicationStats']);
 });

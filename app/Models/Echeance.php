@@ -117,6 +117,8 @@ class Echeance extends Model
     $paiement->montant = $montant;
     $paiement->mode_paiement = $data['mode_paiement'] ?? 'especes';
     $paiement->reference = $data['reference'] ?? null;
+    $paiement->commentaire = $data['commentaire'] ?? null;
+    $paiement->frais_retrait_mm = $data['frais_retrait_mm'] ?? 0;
     $paiement->justificatif = $data['justificatif'] ?? null;
     $paiement->status = 'valide';
     $paiement->date_paiement = $data['date_paiement'] ?? now();
