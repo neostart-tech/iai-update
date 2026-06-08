@@ -610,6 +610,7 @@ Route::prefix('tickets')->group(function(){
 Route::prefix('public')->group(function () {
     // Inscription routes (unauthenticated)
     Route::get('niveau/liste', [\App\Http\Controllers\NiveauController::class, 'index']);
+    Route::get('niveau/{id}/document-requirements', [\App\Http\Controllers\NiveauController::class, 'getDocumentRequirements']);
     Route::get('filieres/liste', [\App\Http\Controllers\Admin\FiliereController::class, 'index']);
     Route::post('candidature/soumettre', [\App\Http\Controllers\CandidatureController::class, 'storeByAdmin']);
 

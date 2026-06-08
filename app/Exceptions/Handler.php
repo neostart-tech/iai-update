@@ -29,11 +29,21 @@ class Handler extends ExceptionHandler
         });
 
         $this->renderable(function (PostTooLargeException $e, $request) {
+            $message = "Vos fichiers sont trop volumineux pour être envoyés. Réduisez la taille ou le nombre de fichiers.";
+            
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $message,
+                    'errors' => ['upload' => [$message]]
+                ], 413);
+            }
+
             // Retourne vers le formulaire avec un message clair et conserve les données saisies
             return back()
                 ->withInput()
                 ->withErrors([
-                    'upload' => "Vos fichiers sont trop volumineux pour être envoyés. Réduisez la taille ou le nombre de fichiers, ou réessayez après l'augmentation des limites du serveur (post_max_size / upload_max_filesize).",
+                    'upload' => $message,
                 ]);
         });
     }

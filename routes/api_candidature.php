@@ -19,9 +19,17 @@ Route::group([], function () {
 	Route::controller(MySpaceController::class)->name('my-space.')->prefix('mon-dossier')->group(function () {
 
 		Route::get('', 'show')->name('show');
+		Route::put('mes-informations', 'updateProfil')->name('profil.update');
+		Route::post('soumettre-rectification', 'submitRectification')->name('submit.rectification');
 		Route::get('mes-fichiers', 'myFiles')->name('files');
+		Route::post('mes-fichiers', 'uploadFile')->name('files.upload');
 		Route::get('constitution', 'constitution')->name('constitution');
 		Route::get('mes-payements', 'myPayements')->name('payments');
+		
+		// Notifications
+		Route::get('notifications', 'notifications')->name('notifications');
+		Route::post('notifications/{id}/lu', 'markNotificationAsRead')->name('notifications.read');
+		Route::post('notifications/supprimer-masse', 'deleteNotifications')->name('notifications.delete');
 	});
 
 	// Route::middleware('guest:web_candidatures')->group(function () {

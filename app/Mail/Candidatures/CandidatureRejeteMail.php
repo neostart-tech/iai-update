@@ -8,18 +8,18 @@ use Illuminate\Mail\Mailables\{Content, Envelope};
 use Illuminate\Queue\SerializesModels;
 use App\Helpers\ConfigHelper as AppGetters;
 
-class CandidatureValideMail extends Mailable
+class CandidatureRejeteMail extends Mailable
 {
 	use Queueable, SerializesModels;
 
-	public function __construct(private readonly string $greeting)
+	public function __construct(private readonly string $greeting, private readonly string $motif)
 	{
 	}
 
 	public function envelope(): Envelope
 	{
 		return new Envelope(
-			subject: 'Candidature Validée',
+			subject: 'Votre candidature a été rejetée',
 		);
 	}
 
@@ -28,9 +28,9 @@ class CandidatureValideMail extends Mailable
 		return new Content(
 			view: 'mails.candidatures.valide',
 			with: [
-				'mailTitle' => 'Validation de candidature',
+				'mailTitle' => 'Rejet de candidature',
 				'mailContent' => $this->getMainContent(),
-				'buttonText' => 'Cliquez-ici pour accéder à votre compte',
+				'buttonText' => 'Accéder à votre compte',
 				'buttonHref' => env('FRONTEND_CANDIDAT_URL', 'http://localhost:3000/candidat/login'),
 			]
 		);
@@ -39,8 +39,8 @@ class CandidatureValideMail extends Mailable
 	private function getMainContent(): string
 	{
 		return $this->greeting .
-			". Nous avons le plaisir de vous informer que, suite à l'étude approfondie de votre dossier par la commission d'admission, votre candidature pour " . AppGetters::getAppName() . " a été approuvée.
-			Connectez-vous régulièrement à votre espace numérique pour suivre les prochaines étapes de votre procédure d'admission.
+			". Nous sommes au regret de vous informer que votre dossier de candidature a été rejeté pour le motif suivant :<br><br><strong>" . $this->motif . "</strong><br><br>
+			Connectez-vous à votre espace numérique pour plus de détails.
 		";
 	}
 }

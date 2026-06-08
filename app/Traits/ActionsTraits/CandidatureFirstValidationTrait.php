@@ -44,6 +44,9 @@ trait CandidatureFirstValidationTrait
 			'motif' => $request->get('motif')
 		]);
 
+		$message = $candidature->greeting(true) . ". Votre dossier de candidature a été rejeté pour le motif suivant : " . $request->get('motif');
+		$candidature->notify(new \App\Notifications\Candidatures\CandidatRejeteNotification($message, $request->get('motif')));
+
 		if (request()->wantsJson() || request()->ajax()) {
 			return response()->json([
 				'success' => true,
@@ -64,6 +67,9 @@ trait CandidatureFirstValidationTrait
 			'motif' => $request->get('motif'),
 			'rectification_expected' => true
 		]);
+
+		$message = $candidature->greeting(true) . ". L'administration a examiné votre dossier et a demandé une rectification pour le motif suivant : " . $request->get('motif');
+		$candidature->notify(new \App\Notifications\Candidatures\CandidatRectificationNotification($message, $request->get('motif')));
 
 		if (request()->wantsJson() || request()->ajax()) {
 			return response()->json([

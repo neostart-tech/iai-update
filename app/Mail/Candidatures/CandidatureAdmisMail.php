@@ -31,7 +31,7 @@ class CandidatureAdmisMail extends Mailable
 				'mailTitle' => 'Résultats du concours '. AppGetters::getAppName(),
 				'mailContent' => $this->getMainContent(),
 				'buttonText' => 'Procéder à l\'inscription définitive',
-				'buttonHref' => route('officiel.my-space.constitution'),
+				'buttonHref' => env('FRONTEND_CANDIDAT_URL', 'http://localhost:3000/candidat/login'),
 			]
 		);
 	}

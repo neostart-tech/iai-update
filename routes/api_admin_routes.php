@@ -252,6 +252,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/{id}/toggle-status', 'toggleStatus')->name('toggle-status');
         Route::get('/{id}/periodes', 'getPeriodes')->name('get-periodes');
         Route::post('/{id}/assign-periodes', 'assignPeriodes')->name('assign-periodes');
+        
+        Route::get('/{id}/documents', 'getDocumentRequirementsAdmin');
+        Route::post('/{id}/documents', 'storeDocumentRequirement');
+        Route::put('/documents/{id}', 'updateDocumentRequirement');
+        Route::delete('/documents/{id}', 'destroyDocumentRequirement');
     });
 
 

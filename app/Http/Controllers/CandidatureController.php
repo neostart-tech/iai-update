@@ -23,6 +23,9 @@ use Illuminate\View\View;
 use Monarobase\CountryList\CountryListFacade;
 use Sabberworm\CSS\Rule\Rule;
 use Throwable;
+use App\Models\User;
+use Illuminate\Support\Facades\Notification;
+use App\Notifications\Candidatures\NewCandidatureSubmittedNotification;
 
 class CandidatureController extends Controller
 {
@@ -44,16 +47,33 @@ class CandidatureController extends Controller
 
 	public function show(Candidature $candidature)
 	{
-		$candidature->load(['documents', 'album', 'tuteur', 'responsable', 'niveau', 'filiere', 'advertiser']);
+		$candidature->load(['album', 'tuteur', 'responsable', 'niveau', 'filiere', 'advertiser', 'submittedDocuments']);
+
+		$requirements = [];
+		if ($candidature->niveau_id) {
+			$requirements = \App\Models\DocumentRequirement::where('niveau_id', $candidature->niveau_id)
+				->where(function($q) use ($candidature) {
+					$q->whereNull('filiere_id')->orWhere('filiere_id', $candidature->filiere_id);
+				})->get();
+		}
+
+		$album = [];
+		foreach ($candidature->submittedDocuments as $doc) {
+			$album[$doc->document_key] = $doc->file_path;
+		}
+		
+		unset($candidature->album);
+		$candidature->setAttribute('album', (object)$album);
 
 		if (request()->ajax() || request()->wantsJson()) {
 			return response()->json([
-				'data' => $candidature
+				'data' => $candidature,
+				'expected_docs' => $requirements
 			]);
 		}
 
 		return view('admin.candidatures.show', compact('candidature'))->with([
-			'album' => $candidature->album,
+			'album' => (object)$album,
 			'niveau' => $candidature->niveau,
 			'filiere' => $candidature->filiere,
 			'filieres' => Filiere::all(),
@@ -118,9 +138,10 @@ class CandidatureController extends Controller
 				'fax',
 				'niveau_id',
 				'filiere_id',
+				'adresse',
 			]),
 			...injectAnneeScolaireId(),
-			'password' => Hash::make('password'),
+			'password' => Hash::make($plainPassword = Str::random(8)),
 			'code' => fake()->unique()->numberBetween(9999, 100000)
 		]);
 
@@ -156,7 +177,7 @@ class CandidatureController extends Controller
 		}
 
 		// 4. Création de l'album (utilise la version corrigée ci-dessus)
-		$this->createAlbum($request, $candidat);
+		$this->updateOrCreateAlbum($request, $candidat);
 
 		// 5. Connexion et notification
 		Auth::guard('web_candidatures')->login($candidat);
@@ -164,7 +185,7 @@ class CandidatureController extends Controller
 		$message = $candidat->greeting(true);
 		$message .= ", votre dossier de candidature a été déposé avec succès.";
 
-		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message));
+		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message, $plainPassword));
 		
 		return response()->json([
 			'success' => true,
@@ -174,7 +195,7 @@ class CandidatureController extends Controller
 	}
 	public function storeByAdmin(Request $request)
 	{
-		$request->validate([
+		$validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
 			'email' => [
 				'nullable',
 				'email',
@@ -193,14 +214,21 @@ class CandidatureController extends Controller
 			],
 		]);
 
+		if ($validator->fails()) {
+			return response()->json([
+				'success' => false,
+				'errors' => $validator->errors()
+			], 422);
+		}
+
 		$candidat = Candidature::create([
 			...$request->only([
 				'nom', 'prenom', 'nom_jeune_fille', 'numero_table', 'annee_bac', 'serie',
 				'lettre_motivation', 'genre', 'date_naissance', 'lieu_naissance', 'email',
-				'nationalite', 'hobbit', 'tel', 'tel2', 'tel3', 'bp', 'fax', 'niveau_id', 'filiere_id',
+				'nationalite', 'hobbit', 'tel', 'tel2', 'tel3', 'bp', 'fax', 'niveau_id', 'filiere_id', 'adresse',
 			]),
 			...injectAnneeScolaireId(),
-			'password' => Hash::make('password'),
+			'password' => Hash::make($plainPassword = Str::random(8)),
 			'code' => fake()->unique()->numberBetween(9999, 100000)
 		]);
 
@@ -239,12 +267,31 @@ class CandidatureController extends Controller
 		$this->updateOrCreateAlbum($request, $candidat);
 
 		// 5. Connexion et notification
-		Auth::guard('web_candidatures')->login($candidat);
+		if ($request->hasSession()) {
+			Auth::guard('web_candidatures')->login($candidat);
+		}
 
 		$message = $candidat->greeting(true);
 		$message .= ", votre dossier de candidature a été déposé avec succès.";
 
-		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message));
+		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message, $plainPassword));
+
+		// Notifier les administrateurs
+		$responsables = User::whereHas('roles', function ($q) {
+			$q->whereIn('slug', [
+				'responsable-marketing', 
+				'responsable-du-site', 
+				'collaborateur-commercial'
+			])->orWhereIn('nom', [
+				'Responsable Marketing', 
+				'Responsable du site', 
+				'Collaborateur Commercial'
+			]);
+		})->get();
+
+		if ($responsables->count() > 0) {
+			Notification::send($responsables, new NewCandidatureSubmittedNotification($candidat));
+		}
 
 		return response()->json([
 			'success' => true,
@@ -277,7 +324,7 @@ class CandidatureController extends Controller
 		$candidature->update($request->only([
 			'nom', 'prenom', 'nom_jeune_fille', 'numero_table', 'annee_bac', 'serie',
 			'lettre_motivation', 'genre', 'date_naissance', 'lieu_naissance', 'email',
-			'nationalite', 'hobbit', 'tel', 'tel2', 'tel3', 'bp', 'fax', 'niveau_id', 'filiere_id',
+			'nationalite', 'hobbit', 'tel', 'tel2', 'tel3', 'bp', 'fax', 'niveau_id', 'filiere_id', 'adresse',
 		]));
 
 		// Update or Create Responsable
@@ -328,74 +375,72 @@ class CandidatureController extends Controller
 
 	private function updateOrCreateAlbum(Request $request, Candidature $candidat)
 	{
-		$filePrefix = Str::slug($candidat->nom . '_' . $candidat->prenom);
-		$album = $candidat->album;
+		$requirements = \App\Models\DocumentRequirement::where('niveau_id', $candidat->niveau_id)
+            ->where(function($q) use ($candidat) {
+                $q->whereNull('filiere_id')->orWhere('filiere_id', $candidat->filiere_id);
+            })->get();
 
-		$data = [];
+        $filePrefix = Str::slug($candidat->nom . '_' . $candidat->prenom);
 
-		// Files unique
-		$fileFields = [
-			'lettre_file' => 'lettre',
-			'naissance_file' => 'naissance',
-			'diplome_file' => 'diplome',
-			'nationalite_file' => 'nationalite',
-			'photo_identite_file' => 'photo',
-			'certificat_medical_file' => 'certificat_medical',
-			'coupon_file' => 'coupon',
-			'cv_file' => 'cv_path'
-		];
+        $mapKeyForUpload = function ($dbKey) {
+            $map = [
+                'lettre' => 'lettre_file',
+                'naissance' => 'naissance_file',
+                'diplome' => 'diplome_file',
+                'nationalite' => 'nationalite_file',
+                'photo' => 'photo_identite_file',
+                'certificat_medical' => 'certificat_medical_file',
+                'cv_path' => 'cv_file',
+                'cv' => 'cv_file',
+                'coupon' => 'coupon_file',
+                'releve_bac1_path' => 'releve_bac1',
+                'releve_bac2_path' => 'releve_bac2',
+            ];
+            return $map[$dbKey] ?? $dbKey;
+        };
 
-		foreach ($fileFields as $requestKey => $dbKey) {
-			if ($request->hasFile($requestKey)) {
-				// Store new file
-				$folder = match ($requestKey) {
-					'lettre_file' => static::LETTRE,
-					'naissance_file' => static::NAISSANCE,
-					'diplome_file' => static::DIPLOME,
-					'nationalite_file' => static::NATIONALITE,
-					'photo_identite_file' => static::PHOTO_IDENTITE,
-					'certificat_medical_file' => static::CERTIFICAT_MEDICAL,
-					'coupon_file' => static::COUPON,
-					'cv_file' => 'cv',
-					default => 'others'
-				};
-				$data[$dbKey] = $this->storeFile($request, $requestKey, $folder, $filePrefix);
-			}
-		}
+        foreach ($requirements as $req) {
+            $requestKey = $mapKeyForUpload($req->document_key);
+            $folder = 'documents/' . $req->document_key;
 
-		// Bulletins
-		$allBulletins = [];
-		$hasBulletins = false;
-		foreach (['seconde', 'premiere', 'terminale'] as $niveau) {
-			if ($request->hasFile("bulletins_{$niveau}")) {
-				$paths = $this->storeMultipleFiles($request, "bulletins_{$niveau}", 'bulletins', $niveau, $filePrefix);
-				$allBulletins[$niveau] = $paths;
-				$hasBulletins = true;
-			}
-		}
-		if ($hasBulletins) {
-			$data['bulletins_lycee_paths'] = json_encode($allBulletins);
-		}
+            $actualKey = null;
+            if ($request->hasFile($requestKey)) {
+                $actualKey = $requestKey;
+            } elseif ($request->hasFile($req->document_key)) {
+                $actualKey = $req->document_key;
+            } elseif ($request->hasFile($req->document_key . '_file')) {
+                $actualKey = $req->document_key . '_file';
+            }
 
-		// Relevés
-		if ($request->hasFile("releve_bac1")) {
-			$bac1Paths = $this->storeMultipleFiles($request, "releve_bac1", 'releves', 'bac1', $filePrefix);
-			if (!empty($bac1Paths)) $data['releve_bac1_path'] = $bac1Paths[0];
-		}
-		if ($request->hasFile("releve_bac2")) {
-			$bac2Paths = $this->storeMultipleFiles($request, "releve_bac2", 'releves', 'bac2', $filePrefix);
-			if (!empty($bac2Paths)) $data['releve_bac2_path'] = $bac2Paths[0];
-		}
-
+            if ($actualKey) {
+                $isMultiple = in_array($actualKey, ['releve_bac1', 'releve_bac2']) || str_contains($actualKey, 'bulletins') || $req->is_multiple;
+                
+                if ($isMultiple) {
+                    $paths = $this->storeMultipleFiles($request, $actualKey, $folder, 'files', $filePrefix);
+                    if (!empty($paths)) {
+                        $candidat->submittedDocuments()->updateOrCreate(
+                            ['document_key' => $req->document_key],
+                            ['file_path' => json_encode($paths), 'statut' => 'en_attente']
+                        );
+                    }
+                } else {
+                    $path = $this->storeFile($request, $actualKey, $folder, $filePrefix);
+                    $candidat->submittedDocuments()->updateOrCreate(
+                        ['document_key' => $req->document_key],
+                        ['file_path' => $path, 'statut' => 'en_attente']
+                    );
+                }
+            }
+        }
+        
 		// Type diplome
 		if ($request->has('type_diplome')) {
 			$data['type_diplome'] = $request->get('type_diplome');
-		}
-
-		if ($album) {
-			$album->update($data);
-		} else {
-			$candidat->album()->create($data);
+            if ($candidat->album) {
+                $candidat->album->update($data);
+            } else {
+                $candidat->album()->create($data);
+            }
 		}
 	}
 
@@ -656,6 +701,7 @@ class CandidatureController extends Controller
 				'owner_type' => Etudiant::class,
 			];
 			if ($candidature->album) $candidature->album->update($updatedData);
+			$candidature->submittedDocuments()->update($updatedData);
 			if ($candidature->responsable) $candidature->responsable->update($updatedData);
 			if ($candidature->tuteur) $candidature->tuteur->update($updatedData);
 
@@ -711,6 +757,11 @@ class CandidatureController extends Controller
 			'filiere_id' => $request->filiere_id,
 			'niveau_id' => $request->niveau_id
 		]);
+
+		$candidature->load(['filiere', 'niveau']);
+		
+		$message = $candidature->greeting(true) . ". Nous vous informons que votre dossier de candidature a été réorienté vers la filière " . $candidature->filiere->nom . " (Niveau: " . $candidature->niveau->libelle . ") pour le motif suivant : " . $request->motif;
+		$candidature->notify(new \App\Notifications\Candidatures\CandidatReorientationNotification($message, $request->motif, $candidature->filiere->nom, $candidature->niveau->libelle));
 
 		return response()->json([
 			'message' => 'Réorientation effectuée avec succès.'

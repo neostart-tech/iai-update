@@ -25,7 +25,7 @@ use Illuminate\Support\Str;
 // #[ScopedBy(CurrentAnneeScolaireScope::class)]
 class Candidature extends Authenticatable
 {
-	use Notifiable, HasFactory, ModelsSlugKeyTrait, GenerateUniqueSlugTrait, UserIdentityTrait;
+	use \Laravel\Sanctum\HasApiTokens, Notifiable, HasFactory, ModelsSlugKeyTrait, GenerateUniqueSlugTrait, UserIdentityTrait;
 
 	protected $guarded = false;
 
@@ -44,6 +44,11 @@ class Candidature extends Authenticatable
 	public function album(): MorphOne
 	{
 		return $this->morphOne(Album::class, 'owner');
+	}
+
+	public function submittedDocuments(): \Illuminate\Database\Eloquent\Relations\MorphMany
+	{
+		return $this->morphMany(Document::class, 'owner');
 	}
 
 

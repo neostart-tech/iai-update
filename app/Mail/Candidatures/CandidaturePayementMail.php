@@ -31,7 +31,7 @@ class CandidaturePayementMail extends Mailable
 				'mailTitle' => 'Payement de la quittance',
 				'mailContent' => $this->getMainContent(),
 				'buttonText' => 'Cliquez-ici pour accéder à votre compte',
-				'buttonHref' => route('officiel.login'),
+				'buttonHref' => env('FRONTEND_CANDIDAT_URL', 'http://localhost:3000/candidat/login'),
 			]
 		);
 	}

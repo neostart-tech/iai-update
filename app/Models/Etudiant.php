@@ -236,6 +236,11 @@ public function echeances()
 		return $this->morphOne(Album::class, 'owner');
 	}
 
+	public function submittedDocuments(): \Illuminate\Database\Eloquent\Relations\MorphMany
+	{
+		return $this->morphMany(Document::class, 'owner');
+	}
+
 	public function responsable(): MorphOne
 	{
 		return $this->morphOne(ResponsableFrais::class, 'owner');
