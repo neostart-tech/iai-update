@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Outfit', sans-serif; }
-        .card-size { width: 86mm; height: 54mm; }
+        .card-size { width: 96mm; height: 62mm; }
         .page-break { page-break-after: always; }
         
         .pattern-dots {
@@ -56,125 +56,119 @@
     <div id="rendering-zone" class="flex flex-col items-center gap-12">
         @foreach($etudiants as $card)
         <div class="flex flex-col gap-8 page-break">
-            <!-- RECTO ( EXACT COPY OF SCREENSHOTS) -->
+            <!-- RECTO (EXACT COPY OF SCREENSHOTS WITH LARGER HEIGHT & ENHANCED SPACING) -->
             <div class="card-size relative overflow-hidden rounded-[4mm] shadow-2xl bg-white flex flex-col border border-slate-200">
                 <!-- Header -->
-                <div class="h-16 bg-[#26215c] relative flex items-center px-4 gap-4">
-                    <div class="w-12 h-12 bg-black/30 rounded-xl p-1.5 border border-white/10 flex items-center justify-center shrink-0">
+                <div style="background-color: #26215c; height: 17mm; display: flex; align-items: center; padding: 0 5mm; color: #ffffff; position: relative;">
+                    <div style="width: 10mm; height: 10mm; background-color: #1a1640; border-radius: 5px; display: flex; align-items: center; justify-content: center; margin-right: 4mm; overflow: hidden; flex-shrink: 0;">
                         @if($logo)
                             <img src="{{ $logo }}" class="w-full h-full object-contain" alt="Logo">
                         @else
                             <div class="text-[8px] text-white font-bold">LOGO</div>
                         @endif
                     </div>
-                    <div class="flex-1">
-                        <h1 class="text-[10px] font-extrabold text-white uppercase leading-[1.1] pr-16">
+                    <div class="flex-1" style="flex: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; gap: 3px;">
+                        <h1 style="font-size: 8pt; font-weight: 800; color: #ffffff; text-transform: uppercase; line-height: 1.15; padding-right: 26mm; margin: 0;">
                             ÉCOLE SUPÉRIEURE DE COMMERCE ET D'ÉCONOMIE NUMÉRIQUE (ESCEN)
                         </h1>
-                        <p class="text-[8px] text-indigo-300 font-bold uppercase tracking-[0.2em] mt-0.5">Carte d'étudiant</p>
+                        <p style="font-size: 6pt; color: #a5b4fc; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; margin: 0;">Carte d'étudiant</p>
                     </div>
                     <!-- Year Badge (Pill) -->
-                    <div class="absolute right-4 top-1/2 -translate-y-1/2 border border-white/30 bg-white/10 rounded-full px-4 py-1.5">
-                        <span class="text-[9px] font-extrabold text-white tracking-wider">{{ $card['promotion'] }}</span>
+                    <div style="position: absolute; right: 5mm; top: 50%; transform: translateY(-50%); border: 1px solid rgba(255,255,255,0.3); background-color: rgba(255,255,255,0.15); border-radius: 14px; height: 7mm; display: inline-flex; align-items: center; justify-content: center; padding: 0 10px; box-sizing: border-box;">
+                        <span style="font-size: 7.5pt; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; line-height: 1; display: inline-block; text-align: center;">{{ $card['promotion'] }}</span>
                     </div>
                 </div>
 
                 <!-- Body (Dotted) -->
-                <div class="flex-1 pattern-dots relative flex items-center px-6 py-4 gap-6">
-                    <!-- Photo Capsule (Vertical Pill) -->
-                    <div class="photo-pill flex items-center justify-center shrink-0">
+                <div class="flex-1 pattern-dots relative" style="flex: 1; padding: 3mm 4mm; display: flex; align-items: center; gap: 5mm; background-color: #ffffff;">
+                    <!-- Photo Capsule -->
+                    <div style="width: 20mm; height: 25mm; background-color: #f8fafc; border-radius: 6px; overflow: hidden; border: 1px solid #eee; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
                         @if($card['image_url'])
                             <img src="{{ $card['image_url'] }}" class="w-full h-full object-cover">
                         @else
-                            <span class="text-[#8a82d4] font-bold text-2xl tracking-tighter opacity-80">
-                                {{ substr($card['nom_complet'], 0, 2) }}
+                            <span style="color: #8a82d4; font-weight: bold; font-size: 16pt;">
+                                {{ substr($card['nom_complet'], 0, 1) }}
                             </span>
                         @endif
                     </div>
 
                     <!-- Infos -->
-                    <div class="flex-1 flex flex-col justify-center space-y-3">
+                    <div style="flex: 1; display: flex; flex-direction: column; justify-content: space-between; height: 25mm; py: 1px; line-height: 1.2;">
                         <div>
-                            <p class="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Nom & Prénoms</p>
-                            <p class="text-[13px] font-black text-[#1e1b4b] uppercase leading-tight">{{ $card['nom_complet'] }}</p>
+                            <p style="font-size: 5.5pt; font-weight: 700; color: #94a3b8; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Nom & Prénoms</p>
+                            <p style="font-size: 9.5pt; font-weight: 800; color: #1e1b4b; text-transform: uppercase; margin: 0; margin-top: 1px;">{{ $card['nom_complet'] }}</p>
                         </div>
                         <div>
-                            <p class="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Matricule</p>
-                            <p class="text-[13px] font-extrabold text-[#534ab7] font-mono">{{ $card['matricule'] }}</p>
+                            <p style="font-size: 5.5pt; font-weight: 700; color: #94a3b8; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Matricule</p>
+                            <p style="font-size: 9.5pt; font-weight: 800; color: #534ab7; font-family: monospace; margin: 0; margin-top: 1px;">{{ $card['matricule'] }}</p>
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <p class="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Filière</p>
-                                <p class="text-[10px] font-black text-slate-800 truncate">{{ $card['filiere'] }}</p>
-                            </div>
-                            <div>
-                                <p class="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Niveau</p>
-                                <p class="text-[10px] font-black text-slate-800">{{ $card['niveau'] }}</p>
-                            </div>
+                        <div>
+                            <p style="font-size: 5.5pt; font-weight: 700; color: #94a3b8; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Filière / Niveau</p>
+                            <p style="font-size: 8.5pt; font-weight: 800; color: #1e1b4b; margin: 0; margin-top: 1px;">{{ $card['filiere'] }} ({{ $card['niveau'] }})</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Footer (Gray/White Bar) -->
-                <div class="h-12 bg-slate-50 border-t border-slate-100 flex items-center px-5 justify-between">
-                    <div class="flex items-center gap-4">
-                        <div class="w-9 h-9 bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
-                            <img src="data:image/svg+xml;base64, {!! base64_encode(QrCode::format('svg')->size(100)->margin(0)->generate($card['qr_data'])) !!}" class="w-full h-full">
+                <div style="height: 10mm; background-color: #f8fafc; border-top: 1px solid #f1f5f9; display: flex; align-items: center; padding: 0 4mm;">
+                    <div style="display: flex; align-items: center; gap: 3mm; width: 100%;">
+                        <div style="width: 8mm; height: 8mm; background-color: #ffffff; padding: 1px; border: 1px solid #e2e8f0; border-radius: 2px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <img src="data:image/svg+xml;base64, {!! base64_encode(QrCode::format('svg')->size(100)->margin(0)->generate($card['qr_data'])) !!}" style="width: 100%; height: 100%;">
                         </div>
-                        <p class="text-[8px] font-extrabold text-slate-400 uppercase tracking-widest">
+                        <p style="font-size: 7pt; color: #94a3b8; font-weight: 800; margin: 0; text-transform: uppercase; letter-spacing: 0.3px;">
                             Valide pour l'année scolaire {{ $card['promotion'] }}
                         </p>
-                    </div>
-                    <div class="flex gap-2">
-                        <div class="w-2.5 h-2.5 bg-indigo-200 rounded-full border border-indigo-300"></div>
-                        <div class="w-2.5 h-2.5 bg-indigo-500 rounded-full border border-indigo-600"></div>
+                        <div style="margin-left: auto; display: flex; gap: 4px; flex-shrink: 0;">
+                            <div style="width: 5px; height: 5px; background-color: #e0e7ff; border-radius: 50%;"></div>
+                            <div style="width: 5px; height: 5px; background-color: #818cf8; border-radius: 50%;"></div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- VERSO (EXACT COPY) -->
+            <!-- VERSO -->
             <div class="card-size relative overflow-hidden rounded-[4mm] shadow-2xl bg-[#1e1b4b] text-white flex flex-col border border-indigo-900">
                 <!-- Background Pattern -->
                 <div class="absolute inset-0 pattern-circles opacity-60"></div>
                 
-                <div class="relative z-10 flex-1 p-8 flex flex-col items-center justify-center">
+                <div class="relative z-10 flex-1 flex flex-col items-center animate-fade-in" style="padding: 5mm 6mm 2mm;">
                     <!-- Title -->
-                    <div class="flex items-center gap-4 mb-8">
+                    <div class="flex items-center gap-4" style="display: flex; align-items: center; gap: 4px; margin-bottom: 2mm;">
                         <div class="w-2 h-2 bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.8)]"></div>
-                        <h2 class="text-[11px] font-black tracking-[0.3em] uppercase text-indigo-100">Conditions d'utilisation</h2>
+                        <h2 class="text-[10px] font-black tracking-[0.3em] uppercase text-indigo-100" style="margin: 0;">Conditions d'utilisation</h2>
                         <div class="w-2 h-2 bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.8)]"></div>
                     </div>
-
+                    <div style="width: 25mm; height: 1px; background-color: #3d3694; margin-bottom: 3mm;"></div>
+ 
                     <!-- List -->
-                    <ul class="space-y-4 text-[9.5px] text-indigo-50 font-semibold max-w-[90%]">
-                        <li class="flex items-start gap-4">
-                            <span class="w-2 h-2 bg-indigo-600 rounded-full mt-1.5 shrink-0 shadow-lg"></span>
+                    <ul class="text-[9px] text-indigo-50 font-semibold max-w-[95%]" style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 5px; line-height: 1.4;">
+                        <li class="flex items-start" style="position: relative; padding-left: 4mm;">
+                            <span style="position: absolute; left: 0; top: 1px; color: #818cf8; font-size: 10pt; line-height: 1;">•</span>
                             <span>Cette carte est strictement personnelle et incessible.</span>
                         </li>
-                        <li class="flex items-start gap-4">
-                            <span class="w-2 h-2 bg-indigo-600 rounded-full mt-1.5 shrink-0 shadow-lg"></span>
+                        <li class="flex items-start" style="position: relative; padding-left: 4mm;">
+                            <span style="position: absolute; left: 0; top: 1px; color: #818cf8; font-size: 10pt; line-height: 1;">•</span>
                             <span>Elle doit être présentée lors de tout contrôle administratif ou académique.</span>
                         </li>
-                        <li class="flex items-start gap-4">
-                            <span class="w-2 h-2 bg-indigo-600 rounded-full mt-1.5 shrink-0 shadow-lg"></span>
+                        <li class="flex items-start" style="position: relative; padding-left: 4mm;">
+                            <span style="position: absolute; left: 0; top: 1px; color: #818cf8; font-size: 10pt; line-height: 1;">•</span>
                             <span>En cas de perte, l'étudiant doit informer l'administration sans délai.</span>
                         </li>
-                        <li class="flex items-start gap-4">
-                            <span class="w-2 h-2 bg-indigo-600 rounded-full mt-1.5 shrink-0 shadow-lg"></span>
+                        <li class="flex items-start" style="position: relative; padding-left: 4mm;">
+                            <span style="position: absolute; left: 0; top: 1px; color: #818cf8; font-size: 10pt; line-height: 1;">•</span>
                             <span>Toute falsification expose son auteur à des sanctions disciplinaires.</span>
                         </li>
                     </ul>
                 </div>
-
+ 
                 <!-- Footer -->
-                <div class="relative z-10 px-8 py-6 pt-0 flex justify-between items-end">
-                    <div class="text-left">
-                        <p class="text-[9px] font-black text-indigo-200 uppercase mb-2 tracking-widest">Le Directeur Général</p>
-                        <div class="w-32 h-1 bg-gradient-to-right from-indigo-500 to-transparent rounded-full opacity-40"></div>
+                <div class="relative z-10 flex justify-between items-end" style="padding: 0 6mm 4mm; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div class="text-left" style="text-align: left;">
+                        <p class="text-[8.5px] font-black text-indigo-200 uppercase tracking-widest" style="margin: 0; margin-bottom: 2px;">Le Directeur Général</p>
+                        <div style="width: 20mm; height: 1px; background-color: #3d3694;"></div>
                     </div>
-                    <div class="text-right space-y-1">
-                        <p class="text-[7px] text-indigo-300 font-bold opacity-80 uppercase tracking-widest">BP 12471 Lomé - Togo</p>
-                        <p class="text-[7px] text-indigo-300 font-bold opacity-80">+228 22 20 47 00 • www.iai-togo.tg</p>
+                    <div class="text-right" style="text-align: right;">
+                        <p class="text-[7px] text-indigo-300 font-bold opacity-80 uppercase tracking-widest" style="margin: 0;">BP 12471 Lomé - Togo</p>
                     </div>
                 </div>
             </div>

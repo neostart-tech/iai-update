@@ -20,4 +20,9 @@ class DocumentRequirement extends Model
     {
         return $this->belongsTo(Filiere::class);
     }
+
+    public function documentType()
+    {
+        return $this->belongsTo(DocumentType::class);
+    }
 }

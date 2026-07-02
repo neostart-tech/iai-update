@@ -16,7 +16,7 @@ class MySpaceController extends Controller
 
 		if (request()->wantsJson() || request()->is('api/*')) {
 			if ($candidature) {
-				$candidature->load(['tuteur', 'responsable', 'niveau', 'filiere']);
+				$candidature->load(['tuteur', 'responsable', 'niveau', 'filiere', 'album']);
 			}
 			return response()->json([
 				'candidature' => $candidature
@@ -34,22 +34,42 @@ class MySpaceController extends Controller
 
 		$requirements = [];
 		if ($user && $user->niveau_id) {
-			$requirements = \App\Models\DocumentRequirement::where('niveau_id', $user->niveau_id)
+			$requirements = \App\Models\DocumentRequirement::with('documentType')
+				->where('niveau_id', $user->niveau_id)
 				->where(function($q) use ($user) {
 					$q->whereNull('filiere_id')->orWhere('filiere_id', $user->filiere_id);
 				})->get();
 		}
 
 		$album = [];
+		$metadata = [];
 		if ($user) {
+			if ($user->album) {
+				$album = $user->album->toArray();
+			}
 			foreach ($user->submittedDocuments as $doc) {
 				$album[$doc->document_key] = $doc->file_path;
+			}
+			foreach ($album as $key => $path) {
+				if ($path && is_string($path) && \Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+					$metadata[$key] = [
+						'size' => \Illuminate\Support\Facades\Storage::disk('public')->size($path),
+						'date' => null,
+					];
+				}
+			}
+			foreach ($user->submittedDocuments as $doc) {
+				if (isset($metadata[$doc->document_key])) {
+					$metadata[$doc->document_key]['date'] = $doc->created_at;
+				}
 			}
 		}
 
 		if (request()->wantsJson() || request()->is('api/*')) {
+			\Illuminate\Support\Facades\Log::info('MyFiles API Response:', ['user_id' => $user ? $user->id : null, 'album' => $album, 'req_count' => count($requirements)]);
 			return response()->json([
 				'documents' => $album,
+				'documents_metadata' => $metadata,
 				'candidature' => $user,
 				'expected_docs' => $requirements
 			]);
@@ -91,6 +111,27 @@ class MySpaceController extends Controller
 		]);
 
 		$type = $request->input('type');
+
+		// Format validation
+		$docType = \App\Models\DocumentType::where('document_key', $type)->first();
+		if ($docType) {
+			if ($docType->accepted_formats === 'image') {
+				$request->validate([
+					'document' => 'image|mimes:jpeg,png,jpg,gif,webp',
+					'document.*' => 'image|mimes:jpeg,png,jpg,gif,webp',
+				], [
+					'document.image' => "Le document {$docType->nom_affichage} doit être une image.",
+					'document.mimes' => "Le document {$docType->nom_affichage} doit être au format jpeg, png, jpg, gif ou webp."
+				]);
+			} elseif ($docType->accepted_formats === 'pdf') {
+				$request->validate([
+					'document' => 'mimes:pdf',
+					'document.*' => 'mimes:pdf',
+				], [
+					'document.mimes' => "Le document {$docType->nom_affichage} doit être un fichier PDF."
+				]);
+			}
+		}
 		$filePrefix = \Illuminate\Support\Str::slug($user->nom . '_' . $user->prenom);
 		
 		$folder = 'documents/' . $type;
@@ -136,11 +177,20 @@ class MySpaceController extends Controller
 			]
 		]);
 
-		$candidature->update($request->only([
+		$data = $request->only([
 			'nom', 'prenom', 'nom_jeune_fille', 'numero_table', 'annee_bac', 'serie',
 			'lettre_motivation', 'genre', 'date_naissance', 'lieu_naissance', 'email',
 			'nationalite', 'hobbit', 'tel', 'tel2', 'tel3', 'bp', 'fax', 'niveau_id', 'filiere_id', 'adresse', 'quartier'
-		]));
+		]);
+		
+		if ($request->has('type_diplome')) {
+			$data['dernier_diplome'] = $request->get('type_diplome');
+		}
+		if ($request->has('etablissement_diplome')) {
+			$data['etablissement_diplome'] = $request->get('etablissement_diplome');
+		}
+
+		$candidature->update($data);
 
 		// Update or Create Responsable
 		if ($request->filled('nom_resp')) {

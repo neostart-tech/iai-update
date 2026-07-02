@@ -42,6 +42,7 @@ class EtudiantController extends Controller
             'etudiantGroups.group',
             'etudiantGroups.filiere',
             'etudiantGroups.niveau',
+            'submittedDocuments',
         ])->orderBy('nom')->orderBy('prenom')->get();
 
         return EtudiantRessource::collection($etudiants);
@@ -101,15 +102,174 @@ class EtudiantController extends Controller
                 'etudiantGroups.group',
                 'etudiantGroups.filiere',
                 'etudiantGroups.niveau',
-                'album',
                 'tuteur',
-                'responsable'
+                'responsable',
+                'submittedDocuments'
             ])
             ->firstOrFail(); // renvoie 404 si non trouvé
 
         return new EtudiantRessource($etudiant);
     }
 
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'nom' => 'required|string|max:255',
+            'prenom' => 'required|string|max:255',
+            'matricule' => 'required|string|unique:etudiants,matricule',
+            'filiere_id' => 'required|exists:filieres,id',
+            'niveau_id' => 'required|exists:niveaux,id',
+            'group_id' => 'required|exists:groups,id',
+            'mode_formation' => 'nullable|string',
+            'email' => 'required|email|unique:etudiants,email',
+            'tel' => 'nullable|string|max:20',
+            'genre' => 'nullable|string',
+            'nationalite' => 'nullable|string|max:100',
+            'date_naissance' => 'nullable|date',
+            'document' => 'nullable|array',
+            'document.*' => 'nullable|file',
+            'document_requirement' => 'nullable|array',
+            'document_requirement.*' => 'nullable|exists:document_requirements,id',
+        ]);
+
+        $anneeScolaireId = $request->annee_scolaire_id ?: getAnneeScolaireId();
+
+        return DB::transaction(function () use ($request, $anneeScolaireId) {
+            // 1. Définir l'email
+            $email = $request->email;
+            if (empty($email)) {
+                $prenomClean = strtolower(preg_replace('/[^a-z0-9]/', '.', iconv('UTF-8', 'ASCII//TRANSLIT', $request->prenom)));
+                $nomClean = strtolower(preg_replace('/[^a-z0-9]/', '.', iconv('UTF-8', 'ASCII//TRANSLIT', $request->nom)));
+                $email = $prenomClean . '.' . $nomClean . '.' . $request->matricule . '@etudiant.exemple.com';
+            }
+
+            // 2. Créer l'étudiant
+            $etudiant = Etudiant::create([
+                'nom' => $request->nom,
+                'prenom' => $request->prenom,
+                'matricule' => $request->matricule,
+                'email' => $email,
+                'tel' => $request->tel,
+                'genre' => $request->genre ?? 'Féminin',
+                'nationalite' => $request->nationalite,
+                'date_naissance' => $request->date_naissance,
+                'annee_admission' => now()->year,
+                'slug' => (string) Str::uuid(),
+                'password' => \Illuminate\Support\Facades\Hash::make('password'),
+            ]);
+
+            // 3. Assigner le rôle étudiant
+            $roleEtudiantId = \App\Models\Role::where('slug', 'etudiant')->value('id');
+            if ($roleEtudiantId) {
+                $etudiant->roles()->attach($roleEtudiantId);
+            }
+
+            // 3b. Tuteur et Responsable
+            if ($request->filled('nom_tuteur') || $request->filled('prenom_tuteur')) {
+                $etudiant->tuteur()->create([
+                    'nom' => $request->nom_tuteur,
+                    'prenom' => $request->prenom_tuteur ?? $request->nom_tuteur, // Fallback
+                    'tel' => $request->contact_tuteur,
+                    'profession' => $request->profession_tuteur,
+                    'email' => $request->email_tuteur,
+                    'adresse' => $request->adresse_tuteur,
+                ]);
+            }
+
+            if ($request->filled('nom_responsable') || $request->filled('prenom_responsable')) {
+                $etudiant->responsable()->create([
+                    'nom' => $request->nom_responsable,
+                    'prenom' => $request->prenom_responsable ?? $request->nom_responsable, // Fallback
+                    'tel' => $request->contact_responsable,
+                    'profession' => $request->profession_responsable,
+                    'email' => $request->email_responsable,
+                    'adresse' => $request->adresse_responsable,
+                ]);
+            }
+
+            // 4. Trouver le groupe correspondant
+            $groupId = $request->group_id;
+
+            // 5. Liaison avec le groupe/filière via Eloquent
+            if ($groupId) {
+                $etudiant->groups()->attach($groupId, [
+                    'filiere_id' => $request->filiere_id,
+                    'niveau_id' => $request->niveau_id,
+                    'annee_scolaire_id' => $anneeScolaireId,
+                    'mode_formation' => $request->mode_formation ?? 'Présentiel',
+                ]);
+            }
+
+            // 6. Frais d'inscription automatique
+            $fraisInscriptionActif = \App\Models\FraisInscription::where('active', true)
+                ->where('annee_scolaire_id', $anneeScolaireId)
+                ->first();
+            
+            if ($fraisInscriptionActif) {
+                DB::table('paiements')->insert([
+                    'etudiant_id'   => $etudiant->id,
+                    'montant'       => $fraisInscriptionActif->montant,
+                    'mode_paiement' => 'especes',
+                    'nature_paiement' => 'inscription',
+                    'reference'     => 'INS-' . $etudiant->matricule . '-' . time(),
+                    'status'        => 'valide',
+                    'payable_type'  => 'App\\Models\\FraisInscription',
+                    'payable_id'    => $fraisInscriptionActif->id,
+                    'date_paiement' => now(),
+                    'created_at'    => now(),
+                    'updated_at'    => now(),
+                ]);
+            }
+
+            // 7. Enregistrement des documents fournis
+            if ($request->hasFile('document')) {
+                $documents = $request->file('document');
+                $requirementIds = $request->input('document_requirement', []);
+
+                foreach ($documents as $index => $file) {
+                    $reqId = $requirementIds[$index] ?? null;
+                    if ($reqId) {
+                        $requirement = \App\Models\DocumentRequirement::find($reqId);
+                        if ($requirement) {
+                            $path = $file->store('etudiants/documents', 'public');
+                            $etudiant->submittedDocuments()->create([
+                                'document_key' => $requirement->documentType->document_key ?? 'inconnu',
+                                'file_path' => $path,
+                                'statut' => 'valide',
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            // 8. Attribuer les frais de scolarité par défaut
+            $etudiantComplet = Etudiant::with(['etudiantGroups' => function($q) use ($anneeScolaireId) {
+                $q->where('annee_scolaire_id', $anneeScolaireId);
+            }])->find($etudiant->id);
+
+            $fraisService = new \App\Services\FraisEtudiantService();
+            $fraisService->assignDefaultFrais($etudiantComplet, $anneeScolaireId);
+
+            // 8. Envoyer l'email de bienvenue avec les identifiants
+            try {
+                \Illuminate\Support\Facades\Mail::to($email)->send(
+                    new \App\Mail\Etudiants\WelcomeEtudiantMail(
+                        'Bonjour ' . $etudiantComplet->prenom,
+                        $email,
+                        'password'
+                    )
+                );
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error("Erreur envoi email étudiant (Admin): " . $e->getMessage());
+            }
+
+            return response()->json([
+                'message' => 'Étudiant enregistré avec succès',
+                'etudiant' => new EtudiantRessource($etudiantComplet->load(['etudiantGroups.group', 'etudiantGroups.filiere', 'etudiantGroups.niveau']))
+            ]);
+        });
+    }
 
     // public function importEtudiant(Request $request)
     // {
@@ -237,77 +397,112 @@ class EtudiantController extends Controller
         // Mettre à jour l'album (fichiers)
         $this->updateEtudiantAlbum($request, $etudiant);
 
-        return new EtudiantRessource($etudiant->load(['etudiantGroups.group', 'etudiantGroups.filiere', 'etudiantGroups.niveau', 'tuteur', 'responsable', 'album']));
+        return new EtudiantRessource($etudiant->load(['etudiantGroups.group', 'etudiantGroups.filiere', 'etudiantGroups.niveau', 'tuteur', 'responsable', 'submittedDocuments']));
     }
 
     private function updateEtudiantAlbum(Request $request, Etudiant $etudiant)
     {
+        $etudiantGroup = $etudiant->etudiantGroups()->first();
+        if (!$etudiantGroup) return;
+
+        $requirements = \App\Models\DocumentRequirement::with('documentType')
+            ->where('niveau_id', $etudiantGroup->niveau_id)
+            ->where(function ($q) use ($etudiantGroup) {
+                $q->whereNull('filiere_id')->orWhere('filiere_id', $etudiantGroup->filiere_id);
+            })->get();
+
         $filePrefix = Str::slug($etudiant->nom . '_' . $etudiant->prenom);
-        $album = $etudiant->album;
-        $data = [];
 
-        // Fichiers uniques
-        $fileFields = [
-            'lettre_file' => 'lettre',
-            'naissance_file' => 'naissance',
-            'diplome_file' => 'diplome',
-            'nationalite_file' => 'nationalite',
-            'photo_identite_file' => 'photo',
-            'certificat_medical_file' => 'certificat_medical',
-            'coupon_file' => 'coupon',
-            'cv_file' => 'cv'
-        ];
+		$mapKeyForUpload = function ($dbKey) {
+			$map = [
+				'lettre' => 'lettre_file',
+				'naissance' => 'naissance_file',
+				'diplome' => 'diplome_file',
+				'nationalite' => 'nationalite_file',
+				'photo' => 'photo_identite_file',
+				'certificat_medical' => 'certificat_medical_file',
+				'cv_path' => 'cv_file',
+				'cv' => 'cv_file',
+				'coupon' => 'coupon_file',
+				'releve_bac1_path' => 'releve_bac1',
+				'releve_bac2_path' => 'releve_bac2',
+			];
+			return $map[$dbKey] ?? $dbKey;
+		};
 
-        foreach ($fileFields as $requestKey => $dbKey) {
-            if ($request->hasFile($requestKey)) {
-                $folder = match ($requestKey) {
-                    'lettre_file' => static::LETTRE,
-                    'naissance_file' => static::NAISSANCE,
-                    'diplome_file' => static::DIPLOME,
-                    'nationalite_file' => static::NATIONALITE,
-                    'photo_identite_file' => static::PHOTO_IDENTITE,
-                    'certificat_medical_file' => static::CERTIFICAT_MEDICAL,
-                    'coupon_file' => static::COUPON,
-                    'cv_file' => 'cv',
-                    default => 'others'
-                };
-                $data[$dbKey] = $this->storeFile($request, $requestKey, $folder, $filePrefix);
+        // 1. Validation dynamique des formats
+        $rules = [];
+        $messages = [];
+
+        foreach ($requirements as $req) {
+            $type = $req->documentType;
+            if (!$type) continue;
+            
+            $docKey = $type->document_key;
+            $requestKey = $mapKeyForUpload($docKey);
+            $actualKey = null;
+			if ($request->hasFile($requestKey)) {
+				$actualKey = $requestKey;
+			} elseif ($request->hasFile($docKey)) {
+				$actualKey = $docKey;
+			} elseif ($request->hasFile($docKey . '_file')) {
+				$actualKey = $docKey . '_file';
+			}
+
+            if ($actualKey && $request->hasFile($actualKey)) {
+                if ($type->accepted_formats === 'image') {
+                    $rules[$actualKey] = 'image|mimes:jpeg,png,jpg,gif,webp';
+                    $rules["{$actualKey}.*"] = 'image|mimes:jpeg,png,jpg,gif,webp';
+                    $messages["{$actualKey}.image"] = "Le document {$type->nom_affichage} doit être une image.";
+                    $messages["{$actualKey}.mimes"] = "Le document {$type->nom_affichage} doit être au format jpeg, png, jpg, gif ou webp.";
+                } elseif ($type->accepted_formats === 'pdf') {
+                    $rules[$actualKey] = 'mimes:pdf';
+                    $rules["{$actualKey}.*"] = 'mimes:pdf';
+                    $messages["{$actualKey}.mimes"] = "Le document {$type->nom_affichage} doit être un fichier PDF.";
+                }
             }
         }
 
-        // Bulletins
-        $allBulletins = [];
-        if ($album && $album->bulletins_lycee_paths) {
-            $allBulletins = json_decode($album->bulletins_lycee_paths, true) ?: [];
+        if (!empty($rules)) {
+            \Illuminate\Support\Facades\Validator::make($request->all(), $rules, $messages)->validate();
         }
 
-        $hasNewBulletins = false;
-        foreach (['seconde', 'premiere', 'terminale'] as $niveau) {
-            if ($request->hasFile("bulletins_{$niveau}")) {
-                $paths = $this->storeMultipleFiles($request, "bulletins_{$niveau}", 'bulletins', $niveau, $filePrefix);
-                $allBulletins[$niveau] = $paths;
-                $hasNewBulletins = true;
-            }
-        }
-        if ($hasNewBulletins) {
-            $data['bulletins_lycee_paths'] = json_encode($allBulletins);
-        }
+		foreach ($requirements as $req) {
+			$docKey = $req->documentType->document_key ?? null;
+			if (!$docKey) continue;
 
-        // Relevés
-        if ($request->hasFile("releve_bac1")) {
-            $bac1Paths = $this->storeMultipleFiles($request, "releve_bac1", 'releves', 'bac1', $filePrefix);
-            if (!empty($bac1Paths)) $data['releve_bac1_path'] = $bac1Paths[0];
-        }
-        if ($request->hasFile("releve_bac2")) {
-            $bac2Paths = $this->storeMultipleFiles($request, "releve_bac2", 'releves', 'bac2', $filePrefix);
-            if (!empty($bac2Paths)) $data['releve_bac2_path'] = $bac2Paths[0];
-        }
+			$requestKey = $mapKeyForUpload($docKey);
+			$folder = 'documents/' . $docKey;
 
-        if ($album) {
-            $album->update($data);
-        } else {
-            $etudiant->album()->create($data);
-        }
+			$actualKey = null;
+			if ($request->hasFile($requestKey)) {
+				$actualKey = $requestKey;
+			} elseif ($request->hasFile($docKey)) {
+				$actualKey = $docKey;
+			} elseif ($request->hasFile($docKey . '_file')) {
+				$actualKey = $docKey . '_file';
+			}
+
+			if ($actualKey) {
+				$isMultiple = in_array($actualKey, ['releve_bac1', 'releve_bac2']) || str_contains($actualKey, 'bulletins') || ($req->documentType->is_multiple ?? false);
+
+				if ($isMultiple) {
+					$paths = $this->storeMultipleFiles($request, $actualKey, $folder, 'files', $filePrefix);
+					if (!empty($paths)) {
+						$etudiant->submittedDocuments()->updateOrCreate(
+							['document_key' => $docKey],
+							['file_path' => json_encode($paths), 'statut' => 'en_attente']
+						);
+					}
+				} else {
+					$path = $this->storeFile($request, $actualKey, $folder, $filePrefix);
+					$etudiant->submittedDocuments()->updateOrCreate(
+						['document_key' => $docKey],
+						['file_path' => $path, 'statut' => 'en_attente']
+					);
+				}
+			}
+		}
     }
 
     public function destroy(Etudiant $etudiant)

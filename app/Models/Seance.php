@@ -20,7 +20,9 @@ class Seance extends Model
         'remplacant_id',
         'salle_reelle_id',
         'notes_seance',
-        'metadata'
+        'metadata',
+        'qr_token',
+        'qr_expires_at'
     ];
 
     protected $casts = [
@@ -29,7 +31,8 @@ class Seance extends Model
         'heure_fin_prevue' => 'datetime',
         'heure_debut_reelle' => 'datetime',
         'heure_fin_reelle' => 'datetime',
-        'metadata' => 'array'
+        'metadata' => 'array',
+        'qr_expires_at' => 'datetime'
     ];
 
     public function emploiDuTemps(): BelongsTo

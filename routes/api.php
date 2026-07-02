@@ -182,6 +182,10 @@ Route::middleware('auth:sanctum')->group(function () {
         // Enregistrer les présences étudiants
         Route::post('/save-student-presence', 'enregistrerAbsences');
 
+        // Nouvelles routes pour le système QR Code
+        Route::post('/cours/{emploiId}/generate-qr', 'generateQrCode');
+        Route::post('/scan-qr', 'scanQrCode');
+
         // Enregistrer présence enseignant
         Route::post('/save-enseignant-presence', 'enregistrerPresenceEnseignant');
 
@@ -522,6 +526,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Statistiques
         Route::get('/statistics', [ExamSubmissionController::class, 'statistics']);
+
+        // Validation et déverrouillage des notes
+        Route::post('/validate-corrections', [ExamSubmissionController::class, 'validateCorrections']);
+        Route::post('/unlock-corrections', [ExamSubmissionController::class, 'unlockCorrections']);
     });
 
     Route::get('/exam/{evaluationId}/submissions/all', [ExamSubmissionController::class, 'allSubmissions']);
@@ -621,6 +629,9 @@ Route::prefix('public')->group(function () {
     
     // Configurations publiques
     Route::get('configurations', [\App\Http\Controllers\ConfigurationController::class, 'index']);
+    
+    // Vérification de carte d'étudiant publique
+    Route::get('verif/{matricule}', [\App\Http\Controllers\CarteEtudiantController::class, 'verifEtudiant']);
     
     // Blogs
     Route::get('blogs', [\App\Http\Controllers\Api\PublicBlogController::class, 'index']);

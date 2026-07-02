@@ -58,6 +58,8 @@ Route::controller(ConfigurationController::class)->prefix('parametre')->name('co
     Route::get('configuration', 'index')->name('index');
 });
 
+Route::apiResource('document-types', \App\Http\Controllers\DocumentTypeController::class)->middleware('auth:sanctum');
+
 // Gestion des informations urgentes (PUBLIC)
 Route::controller(UrgentInfoController::class)->prefix('informations-urgentes')->name('urgent_infos_public.')->group(function () {
     Route::get('liste', 'index')->name('index');
@@ -67,6 +69,10 @@ Route::controller(UrgentInfoController::class)->prefix('informations-urgentes')-
 // Route publique pour la génération des cartes d'étudiants (Générateur Hybride)
 Route::get('student-cards/generate-pdf', [CarteEtudiantController::class, 'genererCartesPdf'])
     ->name('student-cards.generate-pdf');
+
+// Route publique pour la vérification des informations d'un étudiant par son matricule
+Route::get('student-cards/verify/{matricule}', [CarteEtudiantController::class, 'verifyStudent'])
+    ->name('student-cards.verify');
 
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -330,6 +336,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('{slug}/publier', 'publish')->name('publish');
             Route::get('{evaluation}/fiche-de-note', 'getNoteFiche')->name(name: 'fiche-de-note');
             Route::get('/get-liste-enseignant-evaluations', 'getListEvaluationForTeacher');
+            Route::get('/get-mes-evaluations', 'getMyEvaluations');
             Route::get('/get-liste-etudiant-evaluations', 'getListEvaluationForStudent');
         });
 
@@ -464,6 +471,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ->prefix('prospects')
         ->name('prospects.')
         ->group(function () {
+            Route::get('export', 'export')->name('export');
             Route::get('count-unread', 'countUnread')->name('count-unread');
             Route::get('', 'index')->name('index');
             Route::get('{prospect}', 'show')->name('show');
@@ -541,6 +549,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('get-etudiant-non-boursier', "getNonBoursiers");
 
+        Route::post('store', 'store')->name('store');
         Route::post('import', 'importEtudiant')->name('import');
         $anneActive = AnneeScolaire::where('active', true)->first()->nom ?? null;
         Route::get('export', function () use ($anneActive) {

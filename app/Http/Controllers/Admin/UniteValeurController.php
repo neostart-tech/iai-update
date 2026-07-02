@@ -50,64 +50,90 @@ class UniteValeurController extends Controller
 
 	public function store(UnitValeurRequest $request)
 	{
-		/**
-		 * @var Uv $uv
-		 */
-		$anneeScolaireId = AnneeScolaire::where('active', true)->first(); // Ou récupère-la d'une autre manière
+		$anneeScolaireId = AnneeScolaire::where('active', true)->first();
 
 		$enseignantIds = $request->collect('enseignant_id')->toArray();
+		
+		$filiereIds = $request->input('filiere_ids', []);
+		$niveauIds = $request->input('niveau_ids', []);
+		$periodeIds = $request->input('periode_ids', []);
 
-		$uv = Uv::query()->create($request->except([
-			'_token',
-			'ue_id',
-			'enseignant_id',
-			'search_terms',
-			'poids_devoir',
-			'poids_interrogation',
-			'poids_examen',
-			'poids_tp',
-			'poids_expose'
-		]));
-		//  $uv = Uv::query()->create($request->except(['_token', 'ue_id', 'search_terms']));
-
-
-		foreach ($enseignantIds as $enseignantId) {
-			UserUniteValeur::query()->create([
-				'user_id' => $enseignantId,
-				'unite_valeur_id' => $uv->id,
-				'annee_scolaire_id' => $uv->annee_scolaire_id,
-			]);
+		if (empty($filiereIds) && $request->filled('filiere_id')) {
+			$filiereIds = [$request->input('filiere_id')];
 		}
+		if (empty($niveauIds) && $request->filled('niveau_id')) {
+			$niveauIds = [$request->input('niveau_id')];
+		}
+		if (empty($periodeIds) && $request->filled('periode_id')) {
+			$periodeIds = [$request->input('periode_id')];
+		}
+		
+		$createdUvs = [];
 
-		// Save optional weightings per filiere (niveau via filiere of UE)
-		$ue = Ue::find($request->integer('ue_id'));
-		if ($ue) {
-			$weights = [
-				'devoir' => (int) $request->input('poids_devoir', 0),
-				'interrogation' => (int) $request->input('poids_interrogation', 0),
-				'examen' => (int) $request->input('poids_examen', 0),
-				'tp' => (int) $request->input('poids_tp', 0),
-				'expose' => (int) $request->input('poids_expose', 0),
-			];
-			$sum = array_sum($weights);
-			if ($sum === 0 || $sum === 100) {
-				UVWeighting::updateOrCreate([
-					'unite_valeur_id' => $uv->id,
-					'filiere_id' => $ue->filiere_id,
-				], $weights);
+		foreach ($filiereIds as $filiereId) {
+			foreach ($niveauIds as $niveauId) {
+				foreach ($periodeIds as $periodeId) {
+					$data = $request->except([
+						'_token',
+						'ue_id',
+						'enseignant_id',
+						'filiere_ids',
+						'niveau_ids',
+						'periode_ids',
+						'filiere_id',
+						'niveau_id',
+						'periode_id',
+						'search_terms',
+						'poids_devoir',
+						'poids_interrogation',
+						'poids_examen',
+						'poids_tp',
+						'poids_expose'
+					]);
+					
+					$data['filiere_id'] = $filiereId;
+					$data['niveau_id'] = $niveauId;
+					$data['periode_id'] = $periodeId;
+					
+					// Force the trait to generate a new slug for each instance
+					$data['slug'] = null; 
+
+					$uv = Uv::query()->create($data);
+
+					foreach ($enseignantIds as $enseignantId) {
+						UserUniteValeur::query()->create([
+							'user_id' => $enseignantId,
+							'unite_valeur_id' => $uv->id,
+							'annee_scolaire_id' => $uv->annee_scolaire_id,
+						]);
+					}
+
+					// Save optional weightings per filiere
+					$ue = Ue::find($request->integer('ue_id'));
+					if ($ue) {
+						$weights = [
+							'devoir' => (int) $request->input('poids_devoir', 0),
+							'interrogation' => (int) $request->input('poids_interrogation', 0),
+							'examen' => (int) $request->input('poids_examen', 0),
+							'tp' => (int) $request->input('poids_tp', 0),
+							'expose' => (int) $request->input('poids_expose', 0),
+						];
+						$sum = array_sum($weights);
+						if ($sum === 0 || $sum === 100) {
+							UVWeighting::updateOrCreate([
+								'unite_valeur_id' => $uv->id,
+								'filiere_id' => $filiereId,
+							], $weights);
+						}
+					}
+
+					$createdUvs[] = $uv;
+				}
 			}
 		}
 
-		// $uv->enseignants()->sync($request->collect('enseignant_id')->toArray());
-		// $uv->enseignants()->syncWithPivotValues(
-		// 	$enseignantIds,
-		// 	['annee_scolaire_id' => $anneeScolaireId]
-		// );
-
-		// successMsg('Unité de valeur ajoutée avec succès.');
-
-		return new UvResource($uv);
-		// return to_route('admin.uvs.index');
+		// Retourne la première UV créée pour que le front ne plante pas (bien qu'on recharge la liste ensuite)
+		return new UvResource($createdUvs[0] ?? new Uv());
 	}
 
 	public function show(Uv $uniteValeur): View

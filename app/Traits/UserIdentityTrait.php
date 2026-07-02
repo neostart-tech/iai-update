@@ -6,8 +6,10 @@ trait UserIdentityTrait
 {
 	public function greeting(bool $basedOnTime = false): string
 	{
+		$genre = $this->getAttribute('genre');
+		$genreGreeting = $genre ? $genre->greeting() : '';
 		return ($basedOnTime ? getGreetingTime() : "Bonjour ") .
-			$this->getAttribute('genre')->greeting() . ' ' . $this->completName();
+			trim($genreGreeting . ' ' . $this->completName());
 	}
 
 	public function completName(): string

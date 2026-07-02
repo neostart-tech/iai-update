@@ -38,4 +38,23 @@ class ProspectController extends Controller
             'count' => Prospect::query()->where('status', false)->count()
         ]);
     }
+
+    public function export(Request $request)
+    {
+        $statusFilter = $request->query('status', 'all');
+
+        $query = Prospect::query()->orderByDesc('created_at');
+
+        if ($statusFilter === 'contacted') {
+            $query->where('status', true);
+        } elseif ($statusFilter === 'not_contacted') {
+            $query->where('status', false);
+        }
+
+        $prospects = $query->get();
+
+        $fileName = 'prospects_' . $statusFilter . '_' . date('Y-m-d') . '.xlsx';
+        
+        return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\ProspectsExport($prospects), $fileName);
+    }
 }

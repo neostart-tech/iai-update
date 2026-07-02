@@ -328,6 +328,22 @@ class EvaluationController extends Controller
         return EvaluationResource::collection($evaluations);
     }
 
+    public function getMyEvaluations()
+    {
+        $user = auth()->user();
+
+        // Get evaluations where the connected teacher is assigned to the subject (uniteValeur)
+        $evaluations = Evaluation::with(['salle', 'group', 'group.niveau', 'matiere'])
+            ->whereHas('matiere.user', function ($query) use ($user) {
+                $query->where('users.id', $user->id);
+            })
+            ->where('is_online', true)
+            ->orderBy('date', 'asc')
+            ->get();
+
+        return EvaluationResource::collection($evaluations);
+    }
+
     /**
      * Suggérer des questions via l'IA
      */

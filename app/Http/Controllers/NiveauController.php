@@ -94,7 +94,8 @@ class NiveauController extends Controller
     public function getDocumentRequirements(Request $request, $id)
     {
         $filiereId = $request->query('filiere_id');
-        $requirements = \App\Models\DocumentRequirement::where('niveau_id', $id)
+        
+        $requirements = \App\Models\DocumentRequirement::with('documentType')->where('niveau_id', $id)
             ->where(function($q) use ($filiereId) {
                 $q->whereNull('filiere_id');
                 if ($filiereId) {
@@ -102,31 +103,68 @@ class NiveauController extends Controller
                 }
             })->get();
 
-        return response()->json($requirements);
+        $formatted = $requirements->map(function($req) {
+            return [
+                'id' => $req->id,
+                'niveau_id' => $req->niveau_id,
+                'filiere_id' => $req->filiere_id,
+                'document_type_id' => $req->document_type_id,
+                'is_obligatoire' => $req->is_obligatoire,
+                'nom_affichage' => $req->documentType->nom_affichage ?? '',
+                'document_key' => $req->documentType->document_key ?? '',
+                'is_multiple' => $req->documentType->is_multiple ?? false,
+                'is_photo' => $req->documentType->is_photo ?? false,
+                'accepted_formats' => $req->documentType->accepted_formats ?? 'all',
+            ];
+        });
+
+        return response()->json($formatted);
     }
 
     public function getDocumentRequirementsAdmin($id)
     {
-        $requirements = \App\Models\DocumentRequirement::where('niveau_id', $id)->with('filiere')->get();
-        return response()->json($requirements);
+        $requirements = \App\Models\DocumentRequirement::where('niveau_id', $id)->with(['filiere', 'documentType'])->get();
+        
+        $formatted = $requirements->map(function($req) {
+            return [
+                'id' => $req->id,
+                'niveau_id' => $req->niveau_id,
+                'filiere_id' => $req->filiere_id,
+                'document_type_id' => $req->document_type_id,
+                'is_obligatoire' => $req->is_obligatoire,
+                'nom_affichage' => $req->documentType->nom_affichage ?? '',
+                'document_key' => $req->documentType->document_key ?? '',
+                'is_multiple' => $req->documentType->is_multiple ?? false,
+                'is_photo' => $req->documentType->is_photo ?? false,
+                'accepted_formats' => $req->documentType->accepted_formats ?? 'all',
+                'filiere' => $req->filiere,
+            ];
+        });
+
+        return response()->json($formatted);
     }
 
     public function storeDocumentRequirement(Request $request, $id)
     {
         $request->validate([
-            'nom_affichage' => 'required|string',
-            'document_key' => 'required|string',
+            'document_type_id' => [
+                'required',
+                'exists:document_types,id',
+                \Illuminate\Validation\Rule::unique('document_requirements')->where(function ($query) use ($id, $request) {
+                    return $query->where('niveau_id', $id)
+                                 ->where('filiere_id', $request->filiere_id);
+                })
+            ],
             'is_obligatoire' => 'boolean',
-            'is_multiple' => 'boolean',
             'filiere_id' => 'nullable|exists:filieres,id'
+        ], [
+            'document_type_id.unique' => 'Ce document est déjà exigé pour ce niveau/filière.'
         ]);
 
         $req = \App\Models\DocumentRequirement::create([
             'niveau_id' => $id,
-            'nom_affichage' => $request->nom_affichage,
-            'document_key' => \Illuminate\Support\Str::slug($request->document_key, '_'),
+            'document_type_id' => $request->document_type_id,
             'is_obligatoire' => $request->is_obligatoire ?? true,
-            'is_multiple' => $request->is_multiple ?? false,
             'filiere_id' => $request->filiere_id
         ]);
 
@@ -136,19 +174,15 @@ class NiveauController extends Controller
     public function updateDocumentRequirement(Request $request, $docId)
     {
         $request->validate([
-            'nom_affichage' => 'required|string',
-            'document_key' => 'required|string',
+            'document_type_id' => 'required|exists:document_types,id',
             'is_obligatoire' => 'boolean',
-            'is_multiple' => 'boolean',
             'filiere_id' => 'nullable|exists:filieres,id'
         ]);
 
         $req = \App\Models\DocumentRequirement::findOrFail($docId);
         $req->update([
-            'nom_affichage' => $request->nom_affichage,
-            'document_key' => \Illuminate\Support\Str::slug($request->document_key, '_'),
+            'document_type_id' => $request->document_type_id,
             'is_obligatoire' => $request->is_obligatoire ?? true,
-            'is_multiple' => $request->is_multiple ?? false,
             'filiere_id' => $request->filiere_id
         ]);
 
