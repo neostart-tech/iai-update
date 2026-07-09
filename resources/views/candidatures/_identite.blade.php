@@ -111,7 +111,7 @@
 		</div>
 
 		<div class="step-actions">
-			<button class="btn-refined btn-refined--ghost" type="button" onclick="document.getElementById('depot-hero').scrollIntoView({behavior:'smooth'})">← Retour à l'accueil</button>
+			<button class="btn-refined btn-refined--ghost" type="button" onclick="window.location.href='{{ $publicFrontendUrl }}'">← Retour à l'accueil</button>
 			<button class="btn-refined btn-refined--primary" type="button" onclick="change_tab('#auth-3')">Continuer →</button>
 		</div>
 	</div>

@@ -13,12 +13,16 @@
 		<div class="consent-row" style="margin-top: 30px;">
 			<input type="checkbox" value="1" id="accept_cgu" name="accept_cgu" {{ old('accept_cgu') ? 'checked' : '' }}>
 			<label for="accept_cgu" style="text-transform:none; font-weight:500; letter-spacing:normal; color:var(--muted);">
-				J'ai lu et j'accepte les <a href="{{ route('cgu') }}" target="_blank" style="color:var(--navy-deep); text-decoration:underline;">conditions générales d'utilisation</a> <x-forms.required-field/>
+				J'ai lu et j'accepte les <a href="{{ route('cgu') }}" target="_blank" rel="noopener noreferrer" style="color:var(--brand-700); text-decoration:underline;">conditions générales d'utilisation</a> <x-forms.required-field/>
 			</label>
 		</div>
 		{!! errorAlert($errors->first('accept_cgu'), 'accept_cgu') !!}
 
-		<div class="step-actions">
+		<p id="submit-help" class="submit-help" role="status" aria-live="polite">
+                        Complétez tous les champs obligatoires, ajoutez les pièces demandées et acceptez les conditions pour soumettre le dossier.
+                </p>
+
+                <div class="step-actions">
 			<button class="btn-refined btn-refined--ghost" type="button" onclick="change_tab('#auth-4')">← Retour</button>
 			<button class="btn-refined btn-refined--gold auth-conf" type="button">Soumettre ma candidature</button>
 		</div>
