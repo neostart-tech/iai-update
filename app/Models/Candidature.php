@@ -38,7 +38,12 @@ class Candidature extends Authenticatable
 		'date_naissance' => 'datetime',
 		'acceptation_date' => 'datetime',
 		'end_accessibility_date' => 'datetime',
-		'genre' => GenreEnum::class
+		'genre' => GenreEnum::class,
+		'dossier_valide' => 'boolean',
+		'frais_paye' => 'boolean',
+		'participation' => 'boolean',
+		'admission' => 'boolean',
+		'rectification_expected' => 'boolean',
 	];
 
 	public function album(): MorphOne
@@ -63,17 +68,14 @@ class Candidature extends Authenticatable
 		return $this->morphOne(Tuteur::class, 'owner');
 	}
 
+	public function tuteurs(): \Illuminate\Database\Eloquent\Relations\MorphMany
+	{
+		return $this->morphMany(Tuteur::class, 'owner');
+	}
+
 	public function responsable(): MorphOne
 	{
 		return $this->morphOne(ResponsableFrais::class, 'owner');
-	}
-
-	/**
-	 * Documents multiples (bulletins/relevés) liés à la candidature
-	 */
-	public function documents(): HasMany
-	{
-		return $this->hasMany(CandidatureDocument::class);
 	}
 
 	public function Reorientations()
@@ -134,5 +136,56 @@ class Candidature extends Authenticatable
 	public function advertiser(): BelongsTo
 	{
 		return $this->belongsTo(Advertiser::class);
+	}
+
+	public function concoursSession(): BelongsTo
+	{
+		return $this->belongsTo(ConcoursSession::class);
+	}
+
+	/**
+	 * Moyenne pondérée par coefficient sur les matières de la session de concours
+	 * (niveau/filière du candidat). Retourne null si aucune note n'a été saisie.
+	 */
+	public function moyenneConcours(): ?float
+	{
+		if (!$this->concours_session_id) {
+			return null;
+		}
+
+		$sessionMatieres = ConcoursSessionMatiere::where('concours_session_id', $this->concours_session_id)
+			->where('niveau_id', $this->niveau_id)
+			->where(function ($q) {
+				$q->whereNull('filiere_id')->orWhere('filiere_id', $this->filiere_id);
+			})
+			->pluck('coefficient', 'id');
+
+		if ($sessionMatieres->isEmpty()) {
+			return null;
+		}
+
+		$notes = ConcoursNote::where('candidature_id', $this->id)
+			->whereIn('concours_session_matiere_id', $sessionMatieres->keys())
+			->whereNotNull('note')
+			->get();
+
+		if ($notes->isEmpty()) {
+			return null;
+		}
+
+		$totalPoints = 0;
+		$totalCoefficients = 0;
+
+		foreach ($notes as $note) {
+			$coefficient = (float) $sessionMatieres->get($note->concours_session_matiere_id, 0);
+			$totalPoints += ((float) $note->note) * $coefficient;
+			$totalCoefficients += $coefficient;
+		}
+
+		if ($totalCoefficients <= 0) {
+			return null;
+		}
+
+		return round($totalPoints / $totalCoefficients, 2);
 	}
 }

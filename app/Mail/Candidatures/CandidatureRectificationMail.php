@@ -30,8 +30,9 @@ class CandidatureRectificationMail extends Mailable
 			with: [
 				'mailTitle' => 'Rectification requise',
 				'mailContent' => $this->getMainContent(),
-				'buttonText' => 'Modifier mon dossier',
-				'buttonHref' => env('FRONTEND_CANDIDAT_URL', 'http://localhost:3000/candidat/login'),
+				// Pas encore d'espace candidat fonctionnel : bouton désactivé pour le moment (à réactiver plus tard).
+				// 'buttonText' => 'Modifier mon dossier',
+				// 'buttonHref' => env('FRONTEND_CANDIDAT_URL', 'http://localhost:3000/candidat/login'),
 			]
 		);
 	}
@@ -40,7 +41,7 @@ class CandidatureRectificationMail extends Mailable
 	{
 		return $this->greeting .
 			". L'administration a examiné votre dossier et a demandé une rectification pour le motif suivant :<br><br><strong>" . $this->motif . "</strong><br><br>
-			Merci de vous connecter au plus vite à votre espace candidat pour apporter les modifications demandées.
+			<!-- Merci de vous connecter au plus vite à votre espace candidat pour apporter les modifications demandées. -->
 		";
 	}
 }

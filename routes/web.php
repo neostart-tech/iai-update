@@ -19,7 +19,7 @@ use App\Http\Controllers\UrgentInfoPublicController;
 
 // Route::get('', fn() => to_route('home'));
 // Route::get('', fn() =>  redirect()->intended(to_route('login')));
-Route::get('/', fn() => view('auth.login'));
+Route::get('/', fn() => redirect('/officiel'));
 
 
 // Informations urgentes (page publique)
@@ -50,7 +50,11 @@ Route::get('dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
-	Route::get('', fn() =>  redirect()->intended(to_route('login')));
+	// La route racine '/' est gérée une seule fois, en haut de ce fichier
+	// (redirection vers /officiel). La redéfinir ici l'écrasait silencieusement
+	// (même méthode + même URI => la dernière déclaration gagne), ce qui causait
+	// en plus une erreur "Header may not contain..." quand un utilisateur déjà
+	// connecté déclenchait redirect()->intended() sur une session corrompue.
 
 	Route::controller(ProfileController::class)->prefix('profile')->name('profile.')->group(function () {
 		Route::get('', 'edit')->name('edit');
@@ -72,6 +76,7 @@ Route::middleware('auth')
 Route::controller(CandidatureController::class)->prefix('candidatures')->name('candidatures.')->group(function () {
 	Route::get('faire-mon-depot', 'create')->name('create');
 	Route::post('faire-mon-depot', 'store')->name('store');
+	Route::get('dossier-depose', 'merci')->name('merci');
 });
 
 Route::middleware('auth:web,etudiants')->group(function () {

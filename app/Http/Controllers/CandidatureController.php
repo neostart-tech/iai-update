@@ -47,7 +47,7 @@ class CandidatureController extends Controller
 
 	public function show(Candidature $candidature)
 	{
-		$candidature->load(['album', 'tuteur', 'responsable', 'niveau', 'filiere', 'advertiser', 'submittedDocuments']);
+		$candidature->load(['album', 'tuteur', 'responsable', 'niveau', 'filiere', 'advertiser', 'submittedDocuments', 'concoursSession']);
 
 		$requirements = [];
 		if ($candidature->niveau_id) {
@@ -84,11 +84,35 @@ class CandidatureController extends Controller
 
 	public function create(): View
 	{
+		$documentRequirements = \App\Models\DocumentRequirement::with('documentType')
+			->get()
+			->map(fn ($req) => [
+				'niveau_id' => $req->niveau_id,
+				'filiere_id' => $req->filiere_id,
+				'is_obligatoire' => (bool) $req->is_obligatoire,
+				'document_key' => $req->documentType?->document_key,
+				'nom_affichage' => $req->documentType?->nom_affichage,
+				'is_multiple' => (bool) ($req->documentType?->is_multiple ?? false),
+				'accepted_formats' => $req->documentType?->accepted_formats ?? 'all',
+				'description' => $req->description,
+			])
+			->filter(fn ($req) => $req['document_key'] !== null)
+			->values();
+
+		// Le concours d'admission ne concerne actuellement que la Licence 1 : le candidat
+		// ne choisit ni son niveau ni sa filière, ils sont déduits automatiquement ici
+		// (Licence 1 -> son groupe -> l'unique filière rattachée à ce groupe).
+		$niveauCandidature = Niveau::where('libelle', 'Licence 1')->first();
+		$filiereCandidature = $niveauCandidature
+			? Filiere::whereHas('groups', fn ($q) => $q->where('niveau_id', $niveauCandidature->id))->first()
+			: null;
+
 		return view('candidatures.create')->with([
 			'candidature' => new Candidature(),
-			'niveaux' => $this->getNiveaux(),
-			'filieres' => $this->getFilieres(),
-			'countries' => CountryListFacade::getList(config('app.locale'))
+			'countries' => CountryListFacade::getList(config('app.locale')),
+			'documentRequirements' => $documentRequirements,
+			'niveauCandidatureId' => $niveauCandidature?->id,
+			'filiereCandidatureId' => $filiereCandidature?->id,
 		]);
 	}
 
@@ -116,70 +140,95 @@ class CandidatureController extends Controller
 			], 422);
 		}
 
-		// 3. Création du candidat
-		$candidat = Candidature::create([
-			...$request->only([
-				'nom',
-				'prenom',
-				'nom_jeune_fille',
-				'numero_table',
-				'annee_bac',
-				'serie',
-				'etablissement_diplome',
-				'lettre_motivation',
-				'genre',
-				'date_naissance',
-				'lieu_naissance',
-				'email',
-				'nationalite',
-				'hobbit',
-				'tel',
-				'tel2',
-				'tel3',
-				'bp',
-				'fax',
-				'niveau_id',
-				'filiere_id',
-				'adresse',
-			]),
-			...injectAnneeScolaireId(),
-			'password' => Hash::make($plainPassword = Str::random(8)),
-			'code' => fake()->unique()->numberBetween(9999, 100000)
+		// 2bis. Vérification des champs obligatoires du dossier
+		$request->validate([
+			'nom' => ['required', 'string', 'max:255'],
+			'prenom' => ['required', 'string', 'max:255'],
+			'genre' => ['required', 'string'],
+			'date_naissance' => ['required', 'date'],
+			'lieu_naissance' => ['required', 'string', 'max:255'],
+			'nationalite' => ['required', 'string'],
+			'numero_table' => ['required', 'string', 'max:50'],
+			'annee_bac' => ['required', 'integer', 'min:1990', 'max:' . date('Y')],
+			'serie' => ['required', 'string'],
+			'mention_bac' => ['required', 'string'],
+			'tel' => ['required', 'string'],
+			'email' => ['required', 'email', 'max:255'],
+			'accept_cgu' => ['accepted'],
+		], [
+			'annee_bac.max' => "L'année du BAC ne peut pas être postérieure à l'année en cours (" . date('Y') . ").",
+			'accept_cgu.accepted' => "Vous devez accepter les conditions générales d'utilisation.",
 		]);
 
-		// 2. Création du responsable
-		if ($request->filled('nom_resp')) {
-			$candidat->responsable()->create([
-				'nom' => $request->get('nom_resp'),
-				'prenom' => $request->get('prenom_resp'),
-				'profession' => $request->get('profession_resp'),
-				'employeur' => $request->get('employeur_resp'),
-				'email' => $request->get('email_resp'),
-				'tel' => $request->get('tel_resp'),
-				'adresse' => $request->get('adresse_resp'),
-				'fax' => $request->get('fax_resp'),
-				'bp' => $request->get('bp_resp'),
+		// 3. Création du candidat, de ses tuteurs/responsable et de ses documents dans une
+		// même transaction : si la validation des pièces jointes (dans updateOrCreateAlbum)
+		// échoue, tout est annulé plutôt que de laisser une candidature orpheline sans
+		// documents en base (ce qui bloquait ensuite tout nouveau dépôt avec le même email).
+		$candidat = DB::transaction(function () use ($request, &$plainPassword) {
+			$candidat = Candidature::create([
+				...$request->only([
+					'nom',
+					'prenom',
+					'nom_jeune_fille',
+					'numero_table',
+					'annee_bac',
+					'mention_bac',
+					'serie',
+					'etablissement_diplome',
+					'genre',
+					'date_naissance',
+					'lieu_naissance',
+					'email',
+					'nationalite',
+					'hobbit',
+					'tel',
+					'tel2',
+					'tel3',
+					'bp',
+					'fax',
+					'niveau_id',
+					'filiere_id',
+					'adresse',
+				]),
+				...injectAnneeScolaireId(),
+				'concours_session_id' => \App\Models\ConcoursSession::where('annee_scolaire_id', getAnneeScolaireId())->value('id'),
+				'password' => Hash::make($plainPassword = Str::random(8)),
+				'code' => fake()->unique()->numberBetween(9999, 100000)
 			]);
-		}
 
-		// 3. Création du tuteur
-		if ($request->filled('nom_tuteur')) {
-			$candidat->tuteur()->create([
-				'nom' => $request->get('nom_tuteur'),
-				'prenom' => $request->get('prenom_tuteur'),
-				'profession' => $request->get('profession_tuteur'),
-				'employeur' => $request->get('employeur_tuteur'),
-				'email' => $request->get('email_tuteur'),
-				'tel' => $request->get('tel_tuteur'),
-				'adresse' => $request->get('adresse_tuteur'),
-				'fax' => $request->get('fax_tuteur'),
-				'bp' => $request->get('bp_tuteur'),
-				'candidature_id' => $candidat->getAttribute('id')
-			]);
-		}
+			// Création des tuteurs/parents (un ou plusieurs) et, pour compatibilité avec le
+			// reste de l'application (espace candidat, admission), du responsable des frais.
+			$tuteursValides = [];
+			foreach ($request->input('tuteurs', []) as $tuteurEntry) {
+				if (blank($tuteurEntry['nom'] ?? null) && blank($tuteurEntry['prenom'] ?? null)) {
+					continue;
+				}
 
-		// 4. Création de l'album (utilise la version corrigée ci-dessus)
-		$this->updateOrCreateAlbum($request, $candidat);
+				$donneesTuteur = [
+					'nom' => $tuteurEntry['nom'] ?? null,
+					'prenom' => $tuteurEntry['prenom'] ?? null,
+					'profession' => $tuteurEntry['profession'] ?? null,
+					'employeur' => $tuteurEntry['employeur'] ?? null,
+					'email' => $tuteurEntry['email'] ?? null,
+					'tel' => $tuteurEntry['tel'] ?? null,
+					'adresse' => $tuteurEntry['adresse'] ?? null,
+					'responsable_des_frais' => filter_var($tuteurEntry['responsable_des_frais'] ?? false, FILTER_VALIDATE_BOOLEAN),
+				];
+
+				$candidat->tuteurs()->create($donneesTuteur);
+				$tuteursValides[] = $donneesTuteur;
+			}
+
+			if (!empty($tuteursValides)) {
+				$responsableData = collect($tuteursValides)->firstWhere('responsable_des_frais', true) ?? $tuteursValides[0];
+				$candidat->responsable()->create(collect($responsableData)->except('responsable_des_frais')->all());
+			}
+
+			// Création de l'album (utilise la version corrigée ci-dessus)
+			$this->updateOrCreateAlbum($request, $candidat);
+
+			return $candidat;
+		});
 
 		// 5. Connexion et notification
 		Auth::guard('web_candidatures')->login($candidat);
@@ -189,12 +238,25 @@ class CandidatureController extends Controller
 
 		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message, $plainPassword));
 
-		return response()->json([
-			'success' => true,
-			'message' => 'Le dossier a été déposé avec succès.',
-			'candidat' => $candidat
-		], 201);
+		if ($request->wantsJson()) {
+			return response()->json([
+				'success' => true,
+				'message' => 'Le dossier a été déposé avec succès.',
+				'candidat' => $candidat
+			], 201);
+		}
+
+		return redirect()->route('candidatures.merci', ['prenom' => $candidat->prenom, 'email' => $candidat->email]);
 	}
+
+	public function merci(Request $request): View
+	{
+		return view('candidatures.merci', [
+			'prenom' => $request->query('prenom'),
+			'email' => $request->query('email'),
+		]);
+	}
+
 	public function storeByAdmin(Request $request)
 	{
 		$validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
@@ -264,6 +326,7 @@ class CandidatureController extends Controller
 				'adresse',
 			]),
 			...injectAnneeScolaireId(),
+			'concours_session_id' => \App\Models\ConcoursSession::where('annee_scolaire_id', getAnneeScolaireId())->value('id'),
 			'password' => Hash::make($plainPassword = Str::random(8)),
 			'code' => fake()->unique()->numberBetween(9999, 100000)
 		]);
@@ -597,47 +660,7 @@ class CandidatureController extends Controller
 	public function presenceControlStore(Request $request): Response
 	{
 		try {
-			$absentesCandidats = $request->collect('candidats');
-			$absentCandidats = Candidature::query()->whereIn('slug', $absentesCandidats)->get();
-
-			$absentCandidats->map(function (Candidature $candidat) {
-				$candidat->update([
-					'participation' => false,
-					'participation_date' => now()
-				]);
-
-				$message = $candidat->greeting();
-				$message .= '. Nous avons remarqué que vous n\'avez pas pu participer à l\'épreuve du concours  qui a eu
-			 lieu . Nous regrettons sincèrement votre absence et comprenons que des imprévus peuvent survenir. 
-			 Nous espérons vous voir participer à nos futurs événements et concours';
-
-				$candidat->notify(new CandidatAbsentNotification($message));
-				// dump($candidat->notifications()->get());
-				// TODO effectuer la tâche sans le dump
-			});
-
-			Candidature::query()
-				->where('dossier_valide', true)
-				->where('frais_paye', true)
-				->where('participation', false)
-				->whereNull('participation_date')
-				->where('admission', false)
-				->whereNull('motif')
-				->whereNotIn('slug', $absentesCandidats)
-				->get()
-				->map(function (Candidature $candidat) {
-					$message = $candidat->greeting();
-
-					$candidat->update([
-						'participation' => true,
-						'participation_date' => now()
-					]);
-
-					$message .= ' . Nous tenons à vous remercier pour votre participation au concours . Nous tenons à vous informer que 
-				les résultats seront annoncés le [Date prévue]. Nous vous prions de bien vouloir patienter jusqu\'à cette date.';
-
-					$candidat->notify(new CandidatPresentNotification($message));
-				});
+			app(\App\Services\CandidaturePresenceService::class)->processPresence($request->collect('candidats'));
 		} catch (Throwable $throwable) {
 			return __500($throwable->getMessage());
 		}
@@ -646,7 +669,32 @@ class CandidatureController extends Controller
 
 	public function storeGroupClassAssignment(Request $request)
 	{
-		$request->dd();
+		$request->validate([
+			'group_id' => ['required', 'exists:groups,id'],
+			'candidats' => ['required', 'array', 'min:1'],
+			'candidats.*' => ['string'],
+		]);
+
+		$group = Group::findOrFail($request->input('group_id'));
+
+		$candidatures = Candidature::query()
+			->where('dossier_valide', true)
+			->where('frais_paye', true)
+			->where('participation', true)
+			->where('admission', true)
+			->whereNull('motif')
+			->whereIn('slug', $request->input('candidats'))
+			->get();
+
+		$candidatures->each(fn (Candidature $candidature) => $candidature->update([
+			'niveau_id' => $group->niveau_id,
+			'filiere_id' => $group->filiere_id,
+		]));
+
+		return response()->json([
+			'success' => true,
+			'message' => 'Groupe attribué avec succès à ' . $candidatures->count() . ' candidat(s).'
+		]);
 	}
 
 	public function admissionControl(Request $request): JsonResponse

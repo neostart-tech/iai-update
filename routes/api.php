@@ -633,6 +633,9 @@ Route::prefix('public')->group(function () {
     // Vérification de carte d'étudiant publique
     Route::get('verif/{matricule}', [\App\Http\Controllers\CarteEtudiantController::class, 'verifEtudiant']);
     
+    // Informations publiques du concours d'admission en cours
+    Route::get('concours/informations-publiques', [\App\Http\Controllers\Api\PublicConcoursController::class, 'index']);
+
     // Blogs
     Route::get('blogs', [\App\Http\Controllers\Api\PublicBlogController::class, 'index']);
     Route::get('blogs/{idOrSlug}', [\App\Http\Controllers\Api\PublicBlogController::class, 'show']);

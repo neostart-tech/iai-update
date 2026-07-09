@@ -42,6 +42,13 @@ class UrgentInfoController extends Controller
             'is_published' => ['nullable', 'boolean'],
         ]);
 
+        // Le résumé est affiché en texte brut sur la page publique : on retire toute
+        // balise HTML à l'enregistrement pour éviter qu'elle s'affiche littéralement
+        // (et pour ne pas rouvrir de faille XSS si on passait un jour en rendu HTML).
+        if (isset($data['summary'])) {
+            $data['summary'] = trim(strip_tags($data['summary']));
+        }
+
         // Existing single file handling
         if ($request->hasFile('file')) {
             $path = $request->file('file')->store('urgent-infos', 'public');
@@ -96,6 +103,10 @@ class UrgentInfoController extends Controller
             'target_group_id' => ['nullable', 'exists:groups,id'],
             'existing_attachments' => ['nullable', 'string'], // JSON string
         ]);
+
+        if (isset($data['summary'])) {
+            $data['summary'] = trim(strip_tags($data['summary']));
+        }
 
         if ($request->hasFile('file')) {
             $path = $request->file('file')->store('urgent-infos', 'public');

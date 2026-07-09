@@ -18,7 +18,15 @@ class ConfigurationController extends Controller
             ['key' => 'stat_etudiants_formes', 'value' => '520', 'type' => 'text', 'name' => 'Étudiants formés', 'group' => 'Communication'],
             ['key' => 'stat_diplomes', 'value' => '410', 'type' => 'text', 'name' => 'Diplômés', 'group' => 'Communication'],
             ['key' => 'stat_partenaires', 'value' => '84', 'type' => 'text', 'name' => 'Partenaires', 'group' => 'Communication'],
-            ['key' => 'stat_insertion_pro', 'value' => '76', 'type' => 'text', 'name' => 'Insertion pro.', 'group' => 'Communication']
+            ['key' => 'stat_insertion_pro', 'value' => '76', 'type' => 'text', 'name' => 'Insertion pro.', 'group' => 'Communication'],
+            [
+                'key' => 'mode_selection_candidats',
+                'value' => 'dossier',
+                'type' => 'select',
+                'name' => 'Mode de sélection des candidats',
+                'group' => 'Candidatures',
+                'options' => 'dossier|Dossier uniquement (dépôt / étude / inscription finale),concours|Concours avec épreuve écrite (paiement / présence / notes / admission)',
+            ],
         ];
         foreach($keys as $k) {
             if (!\App\Models\Configuration::where('key', $k['key'])->exists()) {

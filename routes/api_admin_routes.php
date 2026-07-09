@@ -208,14 +208,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('payement-des-frais-de-participation', 'payementCandidaturesIndex')->name('payement-des-frais-de-participation');
         Route::get('participation-au-concours', 'participantCandidaturesIndex')->name('participation-au-concours');
         Route::get('admission-a-' . Str::slug(env('APP_NAME')), 'admisCandidaturesIndex')->name('admission');
-        Route::get('liste-des-rectifications', 'rectificationIndex')->name('index.rectifications');
+        Route::get('liste-des-rectifications', 'liste_des_rectifications')->name('index.rectifications');
         Route::get('liste-des-admis', 'InscriptionCandidaturesIndex')->name('liste-des-admis');
-        Route::get('liste-des-rejets', 'rejectionIndex')->name('index.rejections');
+        Route::get('export/excel', 'exportCandidatsAdmisExcel')->name('export.excel');
+        Route::get('export/etude-dossier', 'exportEtudeDossierExcel')->name('export.etude-dossier');
+        Route::get('liste-des-rejets', 'liste_des_rejets')->name('index.rejections');
         Route::get('{candidature}/evaluer', 'show')->name('show');
         Route::get('choix-de-groupe', 'chooseClassAssignmentGroupView')->name('choose-class-assignment-group-view');
         Route::get('attribution-de-groupe/{group}', 'showGroupClassAssignmentView')->name('show-class-assignment-view');
         Route::post('payement-des-frais-de-participation', 'payementCandidaturesStore')->name('payement-des-frais-de-participation.store');
-        Route::post('attribution-de-groupe', 'makeCandidatsUser')->name('attribution-de-groupe');
+        Route::post('attribution-de-groupe', 'storeGroupClassAssignment')->name('attribution-de-groupe');
         Route::post('presence-sub', 'presenceControlStore')->name('presence-sub');
         Route::post('admission-sub', 'admissionControl')->name('admission-sub');
         Route::put('{candidature}/valider', action: 'validateCandidature')->name('validate');
@@ -263,6 +265,34 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/documents', 'storeDocumentRequirement');
         Route::put('/documents/{id}', 'updateDocumentRequirement');
         Route::delete('/documents/{id}', 'destroyDocumentRequirement');
+    });
+
+    Route::controller(\App\Http\Controllers\Api\Admin\ConcoursSessionController::class)->prefix('concours-session')->name('concours-session.')->group(function () {
+        Route::get('/liste', 'index')->name('liste');
+        Route::post('/ajouter', 'store')->name('store');
+        Route::put('/{id}/modifier', 'update')->name('update');
+        Route::patch('/{id}/toggle-status', 'toggleStatus')->name('toggle-status');
+        Route::post('/{id}/publier', 'publish')->name('publish');
+        Route::post('/{id}/depublier', 'unpublish')->name('unpublish');
+    });
+
+    Route::controller(\App\Http\Controllers\Api\Admin\ConcoursMatiereController::class)->prefix('concours-matiere')->name('concours-matiere.')->group(function () {
+        Route::get('/liste', 'index')->name('liste');
+        Route::post('/ajouter', 'store')->name('store');
+        Route::put('/{id}/modifier', 'update')->name('update');
+        Route::delete('/{id}/supprimer', 'destroy')->name('delete');
+    });
+
+    Route::controller(\App\Http\Controllers\Api\Admin\ConcoursSessionMatiereController::class)->prefix('concours-session/{session}/matieres')->name('concours-session.matieres.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::put('/{sessionMatiere}', 'update')->name('update');
+        Route::delete('/{sessionMatiere}', 'destroy')->name('delete');
+    });
+
+    Route::controller(\App\Http\Controllers\Api\Admin\ConcoursNoteController::class)->prefix('concours-session/{session}/notes')->name('concours-session.notes.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/enregistrer', 'storeBulk')->name('store-bulk');
     });
 
 
@@ -461,6 +491,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('', 'index')->name('index');
 
             Route::get('{contact}/lire', 'read')->name('read');
+            Route::post('{contact}/repondre', 'reply')->name('reply');
 
             Route::get('{contact}', 'show')->name('show');
             Route::delete('{contact}', 'destroy')->name('delete');

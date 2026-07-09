@@ -4,8 +4,9 @@ use App\Http\Controllers\{BlogController, ContactController, EvenementController
 use App\Models\{Announcement, Blog, Evenement};
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', fn() => view('auth.login'));
-
+// Route de la racine gérée dans routes/web.php (redirection vers /officiel).
+// Ne pas la redéfinir ici : ce fichier est chargé après web.php et une
+// redéfinition du même GET '/' écraserait silencieusement celle de web.php.
 
 Route::get('officiel', fn() => view('welcome')
 	->with(

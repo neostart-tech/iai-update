@@ -30,8 +30,9 @@ class CandidatureDepotMail extends Mailable
 			with: [
 				'mailTitle' => 'Dépôt de candidature',
 				'mailContent' => $this->getMainContent(),
-				'buttonText' => 'Cliquez-ici pour accéder à votre compte',
-				'buttonHref' => env('FRONTEND_CANDIDAT_URL', 'http://localhost:3000/candidat/login'),
+				// Pas encore d'espace candidat fonctionnel : bouton désactivé pour le moment (à réactiver plus tard).
+				// 'buttonText' => 'Cliquez-ici pour accéder à votre compte',
+				// 'buttonHref' => env('FRONTEND_CANDIDAT_URL', 'http://localhost:3000/candidat/login'),
 			]
 		);
 	}
@@ -42,6 +43,7 @@ class CandidatureDepotMail extends Mailable
             "Vos identifiants de connexion :<br>" .
             "Email : <strong>" . $this->email . "</strong><br>" .
             "Mot de passe par défaut : <strong>" . $this->password . "</strong><br><br>" .
-			"Connectez-vous à votre compte régulièrement pour suivre l'état d'avancement de votre inscription.";
+			// Pas encore d'espace candidat fonctionnel : phrase désactivée pour le moment (à réactiver plus tard).
+			"<!-- Connectez-vous à votre compte régulièrement pour suivre l'état d'avancement de votre inscription. -->";
 	}
 }

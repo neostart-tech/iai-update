@@ -30,8 +30,9 @@ class CandidaturePayementMail extends Mailable
 			with: [
 				'mailTitle' => 'Payement de la quittance',
 				'mailContent' => $this->getMainContent(),
-				'buttonText' => 'Cliquez-ici pour accéder à votre compte',
-				'buttonHref' => env('FRONTEND_CANDIDAT_URL', 'http://localhost:3000/candidat/login'),
+				// Pas encore d'espace candidat fonctionnel : bouton désactivé pour le moment (à réactiver plus tard).
+				// 'buttonText' => 'Cliquez-ici pour accéder à votre compte',
+				// 'buttonHref' => env('FRONTEND_CANDIDAT_URL', 'http://localhost:3000/candidat/login'),
 			]
 		);
 	}
@@ -40,7 +41,8 @@ class CandidaturePayementMail extends Mailable
 	{
 		return $this->greeting . ". Le payement de votre quittance pour la participation au concours de sélection de" .' '.AppGetters::getAppName()." " .
 			"a été enregistré avec succès. Votre code pour le concours est le suivant: " . $this->code .
-			". Connectez - vous à votre compte régulièrement pour suivre l'état d'avancement de votre candidature .
+			// Pas encore d'espace candidat fonctionnel : phrase désactivée pour le moment (à réactiver plus tard).
+			"<!-- Connectez-vous à votre compte régulièrement pour suivre l'état d'avancement de votre candidature. -->
 	";
 	}
 }

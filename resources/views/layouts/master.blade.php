@@ -7,7 +7,6 @@
 	<title>IAI - Institut Africain d'Informatique</title>
 	<script src="https://cdn.tailwindcss.com"></script>
 	<script src="https://unpkg.com/flowbite@1.5.3/dist/flowbite.js" async></script>
-	<script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.7.3/dist/alpine.min.js" async></script>
 
 	<link rel="prefetch" href="https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css" as="style"
 				onload="this.onload=null;this.rel='stylesheet'">
@@ -206,10 +205,8 @@
 	});
 
 	@yield('other-js')
-
-	@include('layouts._scripts')
-
 </script>
+
     @stack("stepForm")
     
     @yield('scripts')

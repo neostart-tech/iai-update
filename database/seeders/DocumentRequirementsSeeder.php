@@ -29,7 +29,6 @@ class DocumentRequirementsSeeder extends Seeder
             ['key' => 'photo', 'name' => "Photo d'identité"],
             ['key' => 'certificat_medical', 'name' => 'Certificat médical'],
             ['key' => 'cv', 'name' => 'Curriculum Vitae'],
-            ['key' => 'lettre_motivation', 'name' => 'Lettre de motivation'],
         ];
 
         // On assigne par défaut ces documents à tous les niveaux pour ne rien casser

@@ -34,6 +34,7 @@ class CandidatureResource extends JsonResource
             'fax' => $this->fax,
             'hobbit' => $this->hobbit,
             'email' => $this->email,
+            'statut' => $this->computeStatut(),
             'dossier_valide' => (bool) $this->dossier_valide,
             'validation_date' => $this->validation_date,
             'frais_paye' => (bool) $this->frais_paye,
@@ -46,6 +47,10 @@ class CandidatureResource extends JsonResource
             'rectification_expected' => (bool) $this->rectification_expected,
             'slug' => $this->slug,
             'code' => $this->code,
+            'matricule_concours' => $this->matricule_concours,
+            'concours_session_id' => $this->concours_session_id,
+            'avec_epreuve_ecrite' => $this->whenLoaded('concoursSession', fn () => $this->concoursSession ? (bool) $this->concoursSession->avec_epreuve_ecrite : null),
+            'moyenne_concours' => $this->moyenneConcours(),
             'annee_scolaire_id' => $this->annee_scolaire_id,
             'etudiant_id' => $this->etudiant_id,
             'niveau' => new NiveauResource($this->resource->niveau),
@@ -59,5 +64,28 @@ class CandidatureResource extends JsonResource
             'advertiser_id' => $this->advertiser_id,
             'advertiser' => new AdvertiserResource($this->advertiser),
         ];
+    }
+
+    private function computeStatut(): string
+    {
+        if ($this->rectification_expected) {
+            return 'rectification_demandee';
+        }
+        if ($this->motif) {
+            return 'rejete';
+        }
+        if (!$this->dossier_valide) {
+            return 'en_etude';
+        }
+        if (!$this->frais_paye) {
+            return 'en_attente_paiement';
+        }
+        if (!$this->participation) {
+            return 'en_attente_participation';
+        }
+        if (!$this->admission) {
+            return 'en_attente_admission';
+        }
+        return 'admis';
     }
 }

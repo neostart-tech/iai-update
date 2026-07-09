@@ -115,6 +115,7 @@ class NiveauController extends Controller
                 'is_multiple' => $req->documentType->is_multiple ?? false,
                 'is_photo' => $req->documentType->is_photo ?? false,
                 'accepted_formats' => $req->documentType->accepted_formats ?? 'all',
+                'description' => $req->description,
             ];
         });
 
@@ -137,6 +138,7 @@ class NiveauController extends Controller
                 'is_multiple' => $req->documentType->is_multiple ?? false,
                 'is_photo' => $req->documentType->is_photo ?? false,
                 'accepted_formats' => $req->documentType->accepted_formats ?? 'all',
+                'description' => $req->description,
                 'filiere' => $req->filiere,
             ];
         });
@@ -156,7 +158,8 @@ class NiveauController extends Controller
                 })
             ],
             'is_obligatoire' => 'boolean',
-            'filiere_id' => 'nullable|exists:filieres,id'
+            'filiere_id' => 'nullable|exists:filieres,id',
+            'description' => 'nullable|string|max:1000'
         ], [
             'document_type_id.unique' => 'Ce document est déjà exigé pour ce niveau/filière.'
         ]);
@@ -165,7 +168,8 @@ class NiveauController extends Controller
             'niveau_id' => $id,
             'document_type_id' => $request->document_type_id,
             'is_obligatoire' => $request->is_obligatoire ?? true,
-            'filiere_id' => $request->filiere_id
+            'filiere_id' => $request->filiere_id,
+            'description' => $request->description
         ]);
 
         return response()->json($req);
@@ -176,14 +180,16 @@ class NiveauController extends Controller
         $request->validate([
             'document_type_id' => 'required|exists:document_types,id',
             'is_obligatoire' => 'boolean',
-            'filiere_id' => 'nullable|exists:filieres,id'
+            'filiere_id' => 'nullable|exists:filieres,id',
+            'description' => 'nullable|string|max:1000'
         ]);
 
         $req = \App\Models\DocumentRequirement::findOrFail($docId);
         $req->update([
             'document_type_id' => $request->document_type_id,
             'is_obligatoire' => $request->is_obligatoire ?? true,
-            'filiere_id' => $request->filiere_id
+            'filiere_id' => $request->filiere_id,
+            'description' => $request->description
         ]);
 
         return response()->json($req);

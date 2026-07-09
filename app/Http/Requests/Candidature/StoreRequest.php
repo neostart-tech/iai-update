@@ -26,10 +26,10 @@ class StoreRequest extends FormRequest
 			'lieu_naissance' => ['required'],
 
 			// Champs admission similaires
-			'numero_table' => ['required'],
-			'annee_bac' => ['required', 'integer', 'between:1990,' . date('Y')],
-			'serie' => ['required', Rule::in(['C','D'])],
-			'lettre_motivation' => ['required', 'string'],
+			'numero_table' => ['nullable'],
+			'annee_bac' => ['nullable', 'integer', 'between:1990,' . date('Y')],
+			'serie' => ['nullable', Rule::in(['A','C','D','E','F1','F2','F3','F4','G1','G2','G3','Autre'])],
+			'lettre_motivation' => ['nullable', 'string'],
 
 			// Identité 2
 			'tel' => ['required', 'min:8'],
@@ -105,7 +105,7 @@ class StoreRequest extends FormRequest
 			'numero_table' => 'Votre numéro de table',
 			'annee_bac' => 'Votre année de baccalauréat',
 			'serie' => 'Votre série',
-			'lettre_motivation' => 'Votre lettre de motivation',
+			'lettre_motivation' => 'Vos motivations',
 
 			// Identité 2
 			'tel' => 'Votre téléphone',

@@ -1,255 +1,257 @@
-@php use App\Enums\TypeDiplomeEnum; @endphp
-<div class="tab-pane" id="auth-4" role="tabpanel" aria-labelledby="auth-tab-4">
-	<div class="text-center">
-		<h3 class="text-center mb-3">Fournissez les pièces requises pour votre dossier</h3>
-	</div>
+<div class="step-panel" id="auth-4">
+	<div class="panel-card">
+		<div class="panel-head">
+			<p class="panel-kicker">Étape 3 / 4</p>
+			<h2 class="panel-title">Vos pièces à fournir</h2>
+			<p class="panel-sub">Ce concours d'admission concerne la Licence 1 : voici la liste des pièces à joindre à votre dossier.</p>
+		</div>
 
-	<hr/>
+		<input type="hidden" name="niveau_id" id="niveau_id" value="{{ old('niveau_id', $niveauCandidatureId) }}">
+		<input type="hidden" name="filiere_id" id="filiere_id" value="{{ old('filiere_id', $filiereCandidatureId) }}">
+		{!! errorAlert($errors->first('niveau_id'), 'niveau_id') !!}
+		{!! errorAlert($errors->first('filiere_id'), 'filiere_id') !!}
 
-	<div class="row">
-		<div class="col-12">
-			<h5 class="mb-3">Bulletins scolaires (minimum 2 fichiers par niveau)</h5>
-		</div>
-		<div class="col-12 col-md-6">
-			<div class="form-group">
-				<label class="form-label" for="bulletins_seconde">Bulletins de Seconde
-					<x-forms.required-field/>
-				</label>
-				<input class="form-control" type="file" id="bulletins_seconde" name="bulletins_seconde[]" multiple accept=".pdf,image/png,image/jpeg,image/jpg">
-				<small class="text-muted">Téléchargez au moins 2 fichiers</small>
-				{!! errorAlert($errors->first('bulletins_seconde'), 'bulletins_seconde') !!}
-				{!! errorAlert($errors->first('bulletins_seconde.*'), 'bulletins_seconde') !!}
-			</div>
-		</div>
-		<div class="col-12 col-md-6">
-			<div class="form-group">
-				<label class="form-label" for="bulletins_premiere">Bulletins de Première
-					<x-forms.required-field/>
-				</label>
-				<input class="form-control" type="file" id="bulletins_premiere" name="bulletins_premiere[]" multiple accept=".pdf,image/png,image/jpeg,image/jpg">
-				<small class="text-muted">Téléchargez au moins 2 fichiers</small>
-				{!! errorAlert($errors->first('bulletins_premiere'), 'bulletins_premiere') !!}
-				{!! errorAlert($errors->first('bulletins_premiere.*'), 'bulletins_premiere') !!}
-			</div>
-		</div>
-		<div class="col-12 col-md-6">
-			<div class="form-group">
-				<label class="form-label" for="bulletins_terminale">Bulletins de Terminale
-					<x-forms.required-field/>
-				</label>
-				<input class="form-control" type="file" id="bulletins_terminale" name="bulletins_terminale[]" multiple accept=".pdf,image/png,image/jpeg,image/jpg">
-				<small class="text-muted">Téléchargez au moins 2 fichiers</small>
-				{!! errorAlert($errors->first('bulletins_terminale'), 'bulletins_terminale') !!}
-				{!! errorAlert($errors->first('bulletins_terminale.*'), 'bulletins_terminale') !!}
-			</div>
-		</div>
-	</div>
-
-	<div class="row">
-		<div class="col-12 col-md-6">
-			<div class="form-group">
-				<label class="form-label" for="releve_bac1">Relevés BAC 1
-					<x-forms.required-field/>
-				</label>
-				<input class="form-control" type="file" id="releve_bac1" name="releve_bac1[]"  accept=".pdf,image/png,image/jpeg,image/jpg">
-				{!! errorAlert($errors->first('releve_bac1'), 'releve_bac1') !!}
-			</div>
-		</div>
-		<div class="col-12 col-md-6">
-			<div class="form-group">
-				<label class="form-label" for="releve_bac2">Relevés BAC 2
-					<x-forms.required-field/>
-				</label>
-				<input class="form-control" type="file" id="releve_bac2" name="releve_bac2[]"  accept=".pdf,image/png,image/jpeg,image/jpg">
-				{!! errorAlert($errors->first('releve_bac2'), 'releve_bac2') !!}
-			</div>
-		</div>
-	</div>
-	<div class="row mb-4">
-
-		<div class="col-12">
-			<div class="form-group">
-				<label for="lettre_file" class="form-label">Demande manuscrite
-					<x-forms.required-field/>
-				</label>
-				<input class="form-control" type="file" accept=".pdf" id="lettre_file" name="lettre_file">
-				{!! errorAlert($errors->first('lettre_file'), 'lettre_file') !!}
+		<div id="documents-requis-info" class="depot-info-box d-none">
+			<span aria-hidden="true" class="note-icon">
+				<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256"><path d="M216,40H136V24a8,8,0,0,0-16,0V40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM40,56h80V72a8,8,0,0,0,16,0V56h80V200H40ZM176,112a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h80A8,8,0,0,1,176,112Zm0,48a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h80A8,8,0,0,1,176,160Z"></path></svg>
+			</span>
+			<div>
+				<strong>Pièces à fournir pour ce niveau</strong>
+				<ul id="documents-requis-liste"></ul>
 			</div>
 		</div>
 
-		{{--		<div class="col-12 col-md-2 mb-md-4 my-0 my-md-auto">--}}
-		{{--			<button class="btn btn-primary"><i class="fa fa-eye"><span--}}
-		{{--						class="text-sm-visible">&nbsp;Voir la demande manuscrite</span></i></button>--}}
-		{{--		</div>--}}
+		<div id="documents-fields-empty" class="help-text">Aucune pièce à fournir n'est configurée pour le moment.</div>
 
+		<div id="documents-fields-container" class="field-grid"></div>
 
-		<div class="col-12">
-			<div class="form-group">
-				<label for="naissance_file" class="form-label">Copie légalisée de l'extrait de naissance
-					<x-forms.required-field/>
-				</label>
-				<input class="form-control" type="file" accept=".pdf" id="naissance_file" name="naissance_file">
-				{!! errorAlert($errors->first('naissance_file')) !!}
-			</div>
-		</div>
-
-		{{--		<div class="col-12 col-md-2 mb-md-4 my-auto">--}}
-		{{--			<button class="btn btn-primary"><i class="fa fa-eye"><span class="text-sm-visible">&nbsp;Afficher la copie légalisée de l'extrait de naissance</span></i>--}}
-		{{--			</button>--}}
-		{{--		</div>--}}
-
-		<div class="col-12">
-			<div class="form-group">
-				<label for="nationalite_file" class="form-label">Copie légalisée du certificat de nationalité
-					<x-forms.required-field/>
-				</label>
-				<input class="form-control" type="file" accept=".pdf" id="nationalite_file" name="nationalite_file">
-				{!! errorAlert($errors->first('nationalite_file')) !!}
-			</div>
-		</div>
-
-		{{--		<div class="col-12 col-md-2 mb-md-4 my-auto">--}}
-		{{--			<button class="btn btn-primary"><i class="fa fa-eye"><span class="text-sm-visible">&nbsp;Afficher la copie légalisée du certificat de nationalité</span></i>--}}
-		{{--			</button>--}}
-		{{--		</div>--}}
-
-		<div class="col-12">
-			<div class="form-group">
-				<label for="diplome_file" class="form-label">Copie légalisée du diplôme requis (BAC 2 / DUT)
-					<x-forms.required-field/>
-				</label>
-				<input class="form-control" type="file" accept=".pdf" id="diplome_file" name="diplome_file">
-				{!! errorAlert($errors->first('diplome_file')) !!}
-			</div>
-		</div>
-
-		{{--		<div class="col-12 col-md-2 mb-md-4 my-auto">--}}
-		{{--			<button class="btn btn-primary"><i class="fa fa-eye"><span class="text-sm-visible">&nbsp;Afficher la Copie légalisée du diplôme</span></i>--}}
-		{{--			</button>--}}
-		{{--		</div>--}}
-
-		<div class="form-group mt-3">
-			<label class="form-label" for="type_diplome">Type du Diplôme
-				<x-forms.required-field/>
-			</label>
-			<select class="mb-3 form-select form-select-lg" name="type_diplome" id="type_diplome">
-				@foreach( App\Enums\TypeDiplomeEnum::cases() as $type)
-					<option value="{{ $type->value }}">{{ $type->value }}</option>
-				@endforeach
-			</select>
-			{!! errorAlert($errors->first('type_diplome'), 'type_diplome') !!}
-		</div>
-
-
-		<div class="form-group mt-3">
-			<label class="form-label" for="niveau_id"> Niveau d'études
-				<x-forms.required-field/>
-			</label>
-			<select class="mb-3 form-select form-select-lg" name="niveau_id" id="niveau_id" data-trigger id="choices-single-default">
-				@foreach($niveaux as $niveau)
-					<option value="{{ $niveau->id }}" @selected(old('niveau_id') == $niveau->id)>{{ $niveau->libelle }}</option>
-				@endforeach
-			</select>
-			{!! errorAlert($errors->first('niveau_id'), 'niveau_id') !!}
-
-			<label class="form-label" for="filiere">Filiere
-				<x-forms.required-field/>
-			</label>
-			<select class="mb-3 form-select form-select-lg" name="filiere_id" id="filiere_id" data-trigger id="choices-single-default">
-				@foreach($filieres as $filiere)
-					<option value="{{ $filiere->id }}" @selected(old('filiere_id') == $filiere->id)>{{ $filiere->nom }}</option>
-				@endforeach
-			</select>
-			{!! errorAlert($errors->first('filiere_id'), 'filiere_id') !!}
-		</div>
-	
-
-
-		<div class="col-12">
-			<div class="form-group">
-				<label for="photo_identite_file" class="form-label">Photo d'identité
-					<x-forms.required-field/>
-				</label>
-				<input class="form-control" type="file" accept="image/png,image/jpeg,image/jpg" id="photo_identite_file"
-							 name="photo_identite_file">
-				{!! errorAlert($errors->first('photo_identite_file')) !!}
-			</div>
-		</div>
-
-		{{--		<div class="col-12 col-md-2 mb-md-4 my-auto">--}}
-		{{--			<button class="btn btn-primary"><i class="fa fa-eye"><span--}}
-		{{--						class="text-sm-visible">&nbsp;Afficher la photo d'identité</span></i></button>--}}
-		{{--		</div>--}}
-
-
-		<div class="col-12">
-			<div class="form-group">
-				<label for="certificat_medical_file" class="form-label">Certificat médical
-					<span class="text-muted">(optionnel)</span></label>
-				&nbsp;
-				<i class="fas fa-info-circle" data-bs-container="body" data-bs-toggle="popover" data-bs-placement="top"
-					 data-bs-content="Datant de moins de trois (3) mois"> </i>
-				<input class="form-control" type="file" accept=".pdf" id="certificat_medical_file"
-						 name="certificat_medical_file">
-				{!! errorAlert($errors->first('certificat_medical_file')) !!}
-			</div>
-		</div>
-
-		{{--		<div class="col-12 col-md-2 mb-md-4 my-auto">--}}
-		{{--			<button class="btn btn-primary"><i class="fa fa-eye"><span--}}
-		{{--						class="text-sm-visible">&nbsp; le certificat médical</span></i></button>--}}
-		{{--		</div>--}}
-
-		<div class="col-12">
-			<div class="form-group">
-				<label for="coupon_file" class="form-label">Coupon réponse</label> &nbsp;
-					<i class="fas fa-info-circle" data-bs-container="body" data-bs-toggle="popover" data-bs-placement="top"
-						 data-bs-content="Pour les diplômes délivrés à l'étranger uniquement"> </i>
-					{{--					<span class="text-danger italic">Pour les diplômes délivrés à l'étranger</span>--}}
-
-				<input class="form-control" type="file" accept=".pdf" id="coupon_file" name="coupon_file">
-				{!! errorAlert($errors->first('coupon_file')) !!}
-			</div>
-		</div>
-
-		{{--		<div class="col-12 col-md-2 my-auto">--}}
-		{{--			<button class="btn btn-primary"><i class="fa fa-eye"><span--}}
-		{{--						class="text-sm-visible">&nbsp; le fichier chargé</span></i></button>--}}
-		{{--		</div>--}}
-
-	</div>
-	<div class="row g-3">
-		<div class="col-sm-6">
-			<div class="d-grid">
-				<button class="btn btn-outline-secondary" type="button" onClick="change_tab('#auth-3')">Retour</button>
-			</div>
-		</div>
-		<div class="col-sm-6">
-			<div class="d-grid">
-				<button class="btn btn-light" type="button" style="background-color: #fdf296;" onClick="change_tab('#auth-5')">
-					Poursuivre
-				</button>
-			</div>
+		<div class="step-actions">
+			<button class="btn-refined btn-refined--ghost" type="button" onclick="change_tab('#auth-3')">← Retour</button>
+			<button class="btn-refined btn-refined--primary" type="button" onclick="change_tab('#auth-5')">Continuer →</button>
 		</div>
 	</div>
 </div>
 
-{{--
-<style>
-	/* Customize button styles */
-	.button {
-		font-size: 16px;
-		transition: opacity 0.3s ease;
+<script>
+	// Aucun champ de document n'est codé en dur : la liste vient entièrement de la
+	// configuration faite dans Paramètres > Niveaux (table document_requirements),
+	// exactement comme pour CandidatureController::updateOrCreateAlbum côté validation.
+	const documentRequirements = @json($documentRequirements ?? []);
+	const documentServerErrors = @json($errors->messages() ?? []);
+
+	// Reflète le mapping $mapKeyForUpload de CandidatureController::updateOrCreateAlbum.
+	// Toute clé absente de cette liste (ex. un nouveau type ajouté par l'école) utilise
+	// directement sa clé comme nom de champ — aucune modification de code n'est requise.
+	const docKeyFieldOverrides = {
+		lettre: 'lettre_file',
+		naissance: 'naissance_file',
+		diplome: 'diplome_file',
+		nationalite: 'nationalite_file',
+		photo: 'photo_identite_file',
+		certificat_medical: 'certificat_medical_file',
+		cv: 'cv_file',
+		coupon: 'coupon_file',
+		releve_bac1_path: 'releve_bac1',
+		releve_bac2_path: 'releve_bac2',
+	};
+
+	const acceptByFormat = {
+		image: 'image/png,image/jpeg,image/jpg',
+		pdf: '.pdf',
+		all: '.pdf,image/png,image/jpeg,image/jpg',
+	};
+
+	function fieldNameFor(req) {
+		const base = docKeyFieldOverrides[req.document_key] || req.document_key;
+		return req.is_multiple ? `${base}[]` : base;
 	}
 
-	.button:hover {
-		opacity: 0.7;
-	}
+	function buildDocumentField(req) {
+		const fieldName = fieldNameFor(req);
+		const inputId = fieldName.replace('[]', '');
+		const accept = acceptByFormat[req.accepted_formats] || acceptByFormat.all;
 
-	/* Hide text on medium and larger screens */
-	@media (min-width: 768px) {
-		.text-sm-visible {
-			display: none;
+		const wrapper = document.createElement('div');
+		wrapper.className = 'field';
+		wrapper.dataset.docKey = req.document_key;
+
+		const label = document.createElement('label');
+		label.setAttribute('for', inputId);
+		label.textContent = req.nom_affichage + ' ';
+
+		const marker = document.createElement('span');
+		if (req.is_obligatoire) {
+			marker.innerHTML = '<span class="text-danger">*</span>';
+		} else {
+			marker.className = 'help-text';
+			marker.style.display = 'inline';
+			marker.textContent = '(optionnel)';
 		}
+		label.appendChild(marker);
+
+		wrapper.appendChild(label);
+
+		if (req.description) {
+			const desc = document.createElement('p');
+			desc.className = 'help-text';
+			desc.textContent = req.description;
+			wrapper.appendChild(desc);
+		}
+
+		const input = document.createElement('input');
+		input.type = 'file';
+		input.id = inputId;
+		input.name = fieldName;
+		input.accept = accept;
+		input.className = 'file-dropzone-input';
+		if (req.is_multiple) input.multiple = true;
+		if (req.is_obligatoire) input.required = true;
+
+		const dropzone = document.createElement('div');
+		dropzone.className = 'file-dropzone';
+
+		const visual = document.createElement('div');
+		visual.className = 'file-dropzone-visual';
+		visual.innerHTML = `
+			<span class="file-dropzone-icon">
+				<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 7.5L12 3m0 0L7.5 7.5M12 3v13.5" /></svg>
+			</span>
+			<span class="file-dropzone-text"><strong>Glissez un fichier ici</strong> ou cliquez pour parcourir</span>
+			<span class="file-dropzone-hint">${req.is_multiple ? 'Plusieurs fichiers acceptés' : 'Un seul fichier'}</span>
+		`;
+
+		dropzone.appendChild(input);
+		dropzone.appendChild(visual);
+
+		const chipList = document.createElement('div');
+		chipList.className = 'file-chip-list';
+
+		function renderChips() {
+			chipList.innerHTML = '';
+			const files = Array.from(input.files || []);
+			dropzone.classList.toggle('has-files', files.length > 0);
+
+			files.forEach((file, index) => {
+				const chip = document.createElement('span');
+				chip.className = 'file-chip';
+
+				const chipIcon = document.createElement('span');
+				chipIcon.className = 'file-chip-icon';
+				chipIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m5.231 13.481L15 17.25m-1.519-3.481L12 15.25m6-3.75V19.5a2.25 2.25 0 01-2.25 2.25H8.25A2.25 2.25 0 016 19.5V4.5A2.25 2.25 0 018.25 2.25h5.379a1.5 1.5 0 011.06.44l2.122 2.121a1.5 1.5 0 01.44 1.061z" /></svg>';
+
+				const chipName = document.createElement('span');
+				chipName.className = 'file-chip-name';
+				chipName.textContent = file.name;
+				chipName.title = file.name;
+
+				const chipRemove = document.createElement('button');
+				chipRemove.type = 'button';
+				chipRemove.className = 'file-chip-remove';
+				chipRemove.setAttribute('aria-label', 'Retirer ce fichier');
+				chipRemove.innerHTML = '&times;';
+				chipRemove.addEventListener('click', function (e) {
+					e.preventDefault();
+					e.stopPropagation();
+					const dt = new DataTransfer();
+					Array.from(input.files).forEach((f, i) => {
+						if (i !== index) dt.items.add(f);
+					});
+					input.files = dt.files;
+					renderChips();
+				});
+
+				chip.appendChild(chipIcon);
+				chip.appendChild(chipName);
+				chip.appendChild(chipRemove);
+				chipList.appendChild(chip);
+			});
+		}
+
+		input.addEventListener('change', renderChips);
+
+		input.addEventListener('dragover', function (e) {
+			e.preventDefault();
+			dropzone.classList.add('is-dragover');
+		});
+		input.addEventListener('dragleave', function () {
+			dropzone.classList.remove('is-dragover');
+		});
+		input.addEventListener('drop', function (e) {
+			e.preventDefault();
+			dropzone.classList.remove('is-dragover');
+
+			const droppedFiles = Array.from(e.dataTransfer.files || []);
+			if (!droppedFiles.length) return;
+
+			const dt = new DataTransfer();
+			if (req.is_multiple) {
+				Array.from(input.files || []).forEach(f => dt.items.add(f));
+				droppedFiles.forEach(f => dt.items.add(f));
+			} else {
+				dt.items.add(droppedFiles[0]);
+			}
+			input.files = dt.files;
+			renderChips();
+		});
+
+		wrapper.appendChild(dropzone);
+		wrapper.appendChild(chipList);
+
+		// Quand le fichier est totalement absent, Laravel retombe sur le document_key brut
+		// (ex. "photo") plutôt que sur le nom de champ mappé (ex. "photo_identite_file") :
+		// on vérifie donc les deux formes pour ne jamais perdre le message d'erreur.
+		const errorKey = Object.keys(documentServerErrors).find(k =>
+			k === inputId || k === `${inputId}.*` || k === req.document_key || k === `${req.document_key}.*`
+		);
+		if (errorKey) {
+			const err = document.createElement('small');
+			err.className = 'text-danger';
+			err.textContent = documentServerErrors[errorKey][0];
+			wrapper.appendChild(err);
+		}
+
+		return wrapper;
 	}
-</style>--}}
+
+	function updateDocumentsRequis() {
+		const niveauId = document.getElementById('niveau_id').value;
+		const filiereId = document.getElementById('filiere_id').value;
+
+		const infoBox = document.getElementById('documents-requis-info');
+		const liste = document.getElementById('documents-requis-liste');
+		const container = document.getElementById('documents-fields-container');
+		const emptyState = document.getElementById('documents-fields-empty');
+
+		container.innerHTML = '';
+		liste.innerHTML = '';
+
+		if (!niveauId) {
+			infoBox.classList.add('d-none');
+			emptyState.classList.remove('d-none');
+			return;
+		}
+
+		const applicables = documentRequirements.filter(req =>
+			String(req.niveau_id) === String(niveauId) &&
+			(req.filiere_id === null || String(req.filiere_id) === String(filiereId))
+		);
+
+		applicables.forEach(req => {
+			container.appendChild(buildDocumentField(req));
+			const li = document.createElement('li');
+			li.textContent = req.nom_affichage + (req.is_obligatoire ? '' : ' (optionnel)');
+			liste.appendChild(li);
+		});
+
+		emptyState.classList.toggle('d-none', applicables.length > 0);
+		infoBox.classList.toggle('d-none', applicables.length === 0);
+
+		// Les champs fichiers viennent d'être (re)construits : le bouton de soumission
+		// doit être réévalué (ex. document obligatoire pas encore choisi).
+		window.updateCandidatureSubmitState?.();
+	}
+
+	// Le niveau et la filière sont déterminés automatiquement par le backend (concours
+	// ouvert uniquement en Licence 1) : la liste des pièces s'affiche dès le chargement.
+	document.addEventListener('DOMContentLoaded', updateDocumentsRequis);
+</script>

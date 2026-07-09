@@ -154,6 +154,7 @@
 									</div>
 									@endisset
 
+									@isset($buttonHref)
 									<!-- Lien direct avec icône -->
 									<div style="Margin-left: 20px;Margin-right: 20px;Margin-top: 20px;">
 										<div style="background-color: #f9f9f9; border-radius: 8px; padding: 15px; border: 1px solid #eaeaea;">
@@ -164,10 +165,11 @@
 												<p style="Margin: 0; font-size: 13px; color: #666666;">Lien direct :</p>
 											</div>
 											<p style="Margin: 0; font-size: 11px; color: #999999; word-break: break-all; background-color: #ffffff; padding: 8px; border-radius: 4px; border: 1px solid #eaeaea; font-family: monospace;">
-												{{ $buttonHref ?? 'https://example.com/reset-password/token' }}
+												{{ $buttonHref }}
 											</p>
 										</div>
 									</div>
+									@endisset
 
 									<div style="Margin-left: 20px;Margin-right: 20px;">
 										<div style="mso-line-height-rule: exactly;line-height: 10px;font-size: 1px;">&nbsp;</div>
