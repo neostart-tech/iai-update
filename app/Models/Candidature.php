@@ -29,6 +29,8 @@ class Candidature extends Authenticatable
 
 	protected $guarded = false;
 
+	protected $hidden = ['password', 'remember_token'];
+
 
 	protected $casts = [
 		'validation_date' => 'datetime',
@@ -38,7 +40,9 @@ class Candidature extends Authenticatable
 		'date_naissance' => 'datetime',
 		'acceptation_date' => 'datetime',
 		'end_accessibility_date' => 'datetime',
+		'transmis_academie_date' => 'datetime',
 		'genre' => GenreEnum::class,
+		'transmis_academie' => 'boolean',
 		'dossier_valide' => 'boolean',
 		'frais_paye' => 'boolean',
 		'participation' => 'boolean',

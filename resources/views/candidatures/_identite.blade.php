@@ -63,7 +63,8 @@
 
 			<div class="field">
 				<label for="numero_table">Numéro de table <x-forms.required-field/></label>
-				<input type="text" class="input-refined" name="numero_table" id="numero_table" placeholder="Numéro de table" value="{{ old('numero_table') }}" required/>
+				<input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="7" class="input-refined" name="numero_table" id="numero_table" placeholder="Numéro de table" value="{{ old('numero_table') }}" required/>
+				<small id="numero_table-live-error" class="text-danger" style="display:none;"></small>
 				{!! errorAlert($errors->first('numero_table'), 'numero_table') !!}
 			</div>
 
@@ -204,5 +205,30 @@
 		anneeBacInput.addEventListener('input', checkAnneeBac);
 		anneeBacInput.addEventListener('blur', checkAnneeBac);
 		checkAnneeBac();
+
+		const numeroTableInput = document.getElementById('numero_table');
+		const numeroTableError = document.getElementById('numero_table-live-error');
+		const NUMERO_TABLE_MAX_LENGTH = 7;
+
+		function checkNumeroTable() {
+			// On retire tout caractère non numérique au fur et à mesure de la saisie,
+			// et on tronque à 7 chiffres maximum.
+			const cleaned = numeroTableInput.value.replace(/[^0-9]/g, '').slice(0, NUMERO_TABLE_MAX_LENGTH);
+			if (cleaned !== numeroTableInput.value) {
+				numeroTableInput.value = cleaned;
+			}
+
+			if (cleaned === '') {
+				numeroTableInput.style.borderColor = '';
+				numeroTableError.style.display = 'none';
+				return;
+			}
+
+			numeroTableInput.style.borderColor = '';
+			numeroTableError.style.display = 'none';
+		}
+
+		numeroTableInput.addEventListener('input', checkNumeroTable);
+		numeroTableInput.addEventListener('blur', checkNumeroTable);
 	})();
 </script>

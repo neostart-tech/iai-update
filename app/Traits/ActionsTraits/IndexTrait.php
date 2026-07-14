@@ -23,6 +23,32 @@ trait IndexTrait
 		return CandidatureResource::collection($candidatures);
 	}
 
+	/**
+	 * Nombre de candidatures en attente d'action pour l'utilisateur connecté :
+	 * - Chargé de la clientèle : dossiers pas encore transmis à l'académie.
+	 * - Directeur académique / Logisticien académique : dossiers transmis,
+	 *   en attente de la décision finale.
+	 */
+	public function countCandidaturesATraiter(Request $request)
+	{
+		$roleSlugs = $request->user()->roles->pluck('slug');
+
+		$query = Candidature::query()
+			->whereNull('motif')
+			->where('rectification_expected', false)
+			->where('dossier_valide', false);
+
+		if ($roleSlugs->contains('directeur-academique') || $roleSlugs->contains('logiticien-academique')) {
+			$query->where('transmis_academie', true);
+		} elseif ($roleSlugs->contains('charge-de-la-clientele')) {
+			$query->where('transmis_academie', false);
+		} else {
+			return response()->json(['count' => 0]);
+		}
+
+		return response()->json(['count' => $query->count()]);
+	}
+
 	public function exportEtudeDossierExcel(Request $request)
 	{
 		$query = Candidature::query()

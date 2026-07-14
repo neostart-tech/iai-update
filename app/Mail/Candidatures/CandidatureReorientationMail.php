@@ -29,9 +29,8 @@ class CandidatureReorientationMail extends Mailable
 			with: [
 				'mailTitle' => 'Réorientation de candidature',
 				'mailContent' => $this->getMainContent(),
-				// Pas encore d'espace candidat fonctionnel : bouton désactivé pour le moment (à réactiver plus tard).
-				// 'buttonText' => 'Accéder à votre compte',
-				// 'buttonHref' => env('FRONTEND_CANDIDAT_URL', 'http://localhost:3000/candidat/login'),
+				'buttonText' => 'Accéder à mon espace candidat',
+				'buttonHref' => rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') . '/candidat/login',
 			]
 		);
 	}
@@ -40,7 +39,7 @@ class CandidatureReorientationMail extends Mailable
 	{
 		return $this->greeting .
 			". Nous vous informons que votre dossier de candidature a été réorienté vers la filière <strong>" . $this->filiere . "</strong> (Niveau: <strong>" . $this->niveau . "</strong>) pour le motif suivant :<br><br><strong>" . $this->motif . "</strong><br><br>
-			<!-- Connectez-vous à votre espace numérique pour plus de détails sur la suite de votre procédure. -->
+			Connectez-vous à votre espace candidat pour plus de détails sur la suite de votre procédure.
 		";
 	}
 }

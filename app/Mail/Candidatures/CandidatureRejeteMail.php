@@ -30,9 +30,8 @@ class CandidatureRejeteMail extends Mailable
 			with: [
 				'mailTitle' => 'Rejet de candidature',
 				'mailContent' => $this->getMainContent(),
-				// Pas encore d'espace candidat fonctionnel : bouton désactivé pour le moment (à réactiver plus tard).
-				// 'buttonText' => 'Accéder à votre compte',
-				// 'buttonHref' => env('FRONTEND_CANDIDAT_URL', 'http://localhost:3000/candidat/login'),
+				'buttonText' => 'Consulter mon dossier',
+				'buttonHref' => rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') . '/candidat/login',
 			]
 		);
 	}
@@ -41,7 +40,7 @@ class CandidatureRejeteMail extends Mailable
 	{
 		return $this->greeting .
 			". Nous sommes au regret de vous informer que votre dossier de candidature a été rejeté pour le motif suivant :<br><br><strong>" . $this->motif . "</strong><br><br>
-			<!-- Connectez-vous à votre espace numérique pour plus de détails. -->
+			Connectez-vous à votre espace candidat pour plus de détails.
 		";
 	}
 }

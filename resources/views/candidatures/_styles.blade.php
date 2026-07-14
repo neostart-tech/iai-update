@@ -357,11 +357,11 @@
 
 	.field-grid {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 		align-items: start;
 		gap: 20px 24px;
 	}
-	.field { display: flex; flex-direction: column; gap: 7px; }
+	.field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 	.field--full { grid-column: 1 / -1; }
 	@media (max-width: 640px) {
 		.field-grid { grid-template-columns: 1fr; }

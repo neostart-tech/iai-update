@@ -15,11 +15,43 @@ class MySpaceController extends Controller
 		$candidature = auth('sanctum')->user() ?? auth('web_candidatures')->user();
 
 		if (request()->wantsJson() || request()->is('api/*')) {
+			$requirements = [];
+
 			if ($candidature) {
-				$candidature->load(['tuteur', 'responsable', 'niveau', 'filiere', 'album']);
+				$candidature->load(['tuteur', 'tuteurs', 'responsable', 'niveau', 'filiere', 'album', 'submittedDocuments']);
+
+				// Fusionne les champs historiques de l'album (photo, naissance, ...) avec
+				// les documents dynamiques soumis (submittedDocuments), même logique que
+				// CandidatureController::show() côté admin.
+				$originalAlbum = $candidature->album ? $candidature->album->toArray() : [];
+				$albumFiles = [];
+				foreach ($candidature->submittedDocuments as $doc) {
+					$albumFiles[$doc->document_key] = $doc->file_path;
+				}
+				unset($candidature->album);
+				$candidature->setAttribute('album', (object) array_merge($originalAlbum, $albumFiles));
+
+				if ($candidature->niveau_id) {
+					$requirements = \App\Models\DocumentRequirement::with('documentType')
+						->where('niveau_id', $candidature->niveau_id)
+						->where(function ($q) use ($candidature) {
+							$q->whereNull('filiere_id')->orWhere('filiere_id', $candidature->filiere_id);
+						})->get()->map(fn ($req) => [
+							'niveau_id' => $req->niveau_id,
+							'filiere_id' => $req->filiere_id,
+							'is_obligatoire' => (bool) $req->is_obligatoire,
+							'document_key' => $req->documentType?->document_key,
+							'nom_affichage' => $req->documentType?->nom_affichage,
+							'is_multiple' => (bool) ($req->documentType?->is_multiple ?? false),
+							'accepted_formats' => $req->documentType?->accepted_formats ?? 'all',
+							'description' => $req->description,
+						])->filter(fn ($req) => $req['document_key'] !== null)->values();
+				}
 			}
+
 			return response()->json([
-				'candidature' => $candidature
+				'candidature' => $candidature,
+				'expected_docs' => $requirements,
 			]);
 		}
 
@@ -38,7 +70,16 @@ class MySpaceController extends Controller
 				->where('niveau_id', $user->niveau_id)
 				->where(function($q) use ($user) {
 					$q->whereNull('filiere_id')->orWhere('filiere_id', $user->filiere_id);
-				})->get();
+				})->get()->map(fn ($req) => [
+					'niveau_id' => $req->niveau_id,
+					'filiere_id' => $req->filiere_id,
+					'is_obligatoire' => (bool) $req->is_obligatoire,
+					'document_key' => $req->documentType?->document_key,
+					'nom_affichage' => $req->documentType?->nom_affichage,
+					'is_multiple' => (bool) ($req->documentType?->is_multiple ?? false),
+					'accepted_formats' => $req->documentType?->accepted_formats ?? 'all',
+					'description' => $req->description,
+				])->filter(fn ($req) => $req['document_key'] !== null)->values();
 		}
 
 		$album = [];
@@ -178,11 +219,11 @@ class MySpaceController extends Controller
 		]);
 
 		$data = $request->only([
-			'nom', 'prenom', 'nom_jeune_fille', 'numero_table', 'annee_bac', 'serie',
-			'lettre_motivation', 'genre', 'date_naissance', 'lieu_naissance', 'email',
-			'nationalite', 'hobbit', 'tel', 'tel2', 'tel3', 'bp', 'fax', 'niveau_id', 'filiere_id', 'adresse', 'quartier'
+			'nom', 'prenom', 'nom_jeune_fille', 'numero_table', 'annee_bac', 'serie', 'mention_bac',
+			'genre', 'date_naissance', 'lieu_naissance', 'email',
+			'nationalite', 'hobbit', 'tel', 'tel2', 'tel3', 'bp', 'fax', 'niveau_id', 'filiere_id', 'adresse'
 		]);
-		
+
 		if ($request->has('type_diplome')) {
 			$data['dernier_diplome'] = $request->get('type_diplome');
 		}
@@ -192,43 +233,41 @@ class MySpaceController extends Controller
 
 		$candidature->update($data);
 
-		// Update or Create Responsable
-		if ($request->filled('nom_resp')) {
-			$candidature->responsable()->updateOrCreate(
-				[],
-				[
-					'nom' => $request->get('nom_resp'),
-					'prenom' => $request->get('prenom_resp'),
-					'profession' => $request->get('profession_resp'),
-					'employeur' => $request->get('employeur_resp'),
-					'email' => $request->get('email_resp'),
-					'tel' => $request->get('tel_resp'),
-					'adresse' => $request->get('adresse_resp'),
-					'fax' => $request->get('fax_resp'),
-					'bp' => $request->get('bp_resp'),
-				]
-			);
+		// Tuteurs répétables + responsable des frais — même logique que
+		// CandidatureController::store()/updateByAdmin() : on remplace la liste
+		// existante par celle envoyée.
+		if ($request->has('tuteurs')) {
+			$candidature->tuteurs()->delete();
+			$candidature->responsable()->delete();
+
+			$tuteursValides = [];
+			foreach ($request->input('tuteurs', []) as $tuteurEntry) {
+				if (blank($tuteurEntry['nom'] ?? null) && blank($tuteurEntry['prenom'] ?? null)) {
+					continue;
+				}
+
+				$donneesTuteur = [
+					'nom' => $tuteurEntry['nom'] ?? null,
+					'prenom' => $tuteurEntry['prenom'] ?? null,
+					'profession' => $tuteurEntry['profession'] ?? null,
+					'employeur' => $tuteurEntry['employeur'] ?? null,
+					'email' => $tuteurEntry['email'] ?? null,
+					'tel' => $tuteurEntry['tel'] ?? null,
+					'adresse' => $tuteurEntry['adresse'] ?? null,
+					'responsable_des_frais' => filter_var($tuteurEntry['responsable_des_frais'] ?? false, FILTER_VALIDATE_BOOLEAN),
+				];
+
+				$candidature->tuteurs()->create($donneesTuteur);
+				$tuteursValides[] = $donneesTuteur;
+			}
+
+			if (!empty($tuteursValides)) {
+				$responsableData = collect($tuteursValides)->firstWhere('responsable_des_frais', true) ?? $tuteursValides[0];
+				$candidature->responsable()->create(collect($responsableData)->except('responsable_des_frais')->all());
+			}
 		}
 
-		// Update or Create Tuteur
-		if ($request->filled('nom_tuteur')) {
-			$candidature->tuteur()->updateOrCreate(
-				[],
-				[
-					'nom' => $request->get('nom_tuteur'),
-					'prenom' => $request->get('prenom_tuteur'),
-					'profession' => $request->get('profession_tuteur'),
-					'employeur' => $request->get('employeur_tuteur'),
-					'email' => $request->get('email_tuteur'),
-					'tel' => $request->get('tel_tuteur'),
-					'adresse' => $request->get('adresse_tuteur'),
-					'fax' => $request->get('fax_tuteur'),
-					'bp' => $request->get('bp_tuteur'),
-				]
-			);
-		}
-
-		$candidature->load(['tuteur', 'responsable', 'niveau', 'filiere']);
+		$candidature->load(['tuteur', 'tuteurs', 'responsable', 'niveau', 'filiere']);
 
 		return response()->json([
 			'success' => true,
@@ -247,24 +286,22 @@ class MySpaceController extends Controller
 			'motif' => null
 		]);
 
-		// Notifier les administrateurs
-		$responsables = User::whereHas('roles', function ($q) {
-			$q->whereIn('slug', [
-				'responsable-marketing', 
-				'responsable-du-site', 
-				'collaborateur-commercial'
-			])->orWhereIn('nom', [
-				'Responsable Marketing', 
-				'Responsable du site', 
-				'Collaborateur Commercial'
-			]);
+		// Notifier le responsable actuel du dossier : le chargé de la clientèle tant
+		// que le dossier n'a pas été transmis à l'académie, sinon l'académie elle-même
+		// (même logique que le reste du circuit de validation).
+		$rolesANotifier = $candidature->transmis_academie
+			? ['directeur-academique', 'logiticien-academique']
+			: ['charge-de-la-clientele'];
+
+		$responsables = User::whereHas('roles', function ($q) use ($rolesANotifier) {
+			$q->whereIn('slug', $rolesANotifier);
 		})->get();
 
 		if ($responsables->count() > 0) {
 			Notification::send($responsables, new CandidatRectificationSubmittedNotification($candidature));
 		}
 
-		$candidature->load(['tuteur', 'responsable', 'niveau', 'filiere']);
+		$candidature->load(['tuteur', 'tuteurs', 'responsable', 'niveau', 'filiere']);
 
 		return response()->json([
 			'success' => true,

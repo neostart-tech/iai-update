@@ -402,7 +402,55 @@
     </div>
 </div>
 
+@if($urgentInfo)
+    @php
+        $urgentDocUrl = $urgentInfo->file_path ? asset('storage/'.$urgentInfo->file_path) : $urgentInfo->file_url;
+    @endphp
+    <!-- Bannière Information urgente -->
+    <section class="py-6 md:py-8" style="background-color: #f4f5f7;">
+        <div class="container mx-auto px-4">
+            <div class="rounded-2xl px-6 py-8 md:px-12 md:py-10 text-center" style="background-color: rgba(13, 122, 55, 0.08);">
+                <h2 class="text-xl md:text-2xl font-bold mb-2" style="color: var(--dark-text);">{{ $urgentInfo->title }}</h2>
 
+                @if($urgentInfo->summary)
+                    <p class="text-sm md:text-base max-w-2xl mx-auto mb-6" style="color: #4a5568;">{{ $urgentInfo->summary }}</p>
+                @endif
+
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+                    @if($urgentDocUrl)
+                        <a href="{{ $urgentDocUrl }}" target="_blank" @if($urgentInfo->file_path) download @endif
+                           class="inline-flex items-center gap-2 font-semibold py-3 px-7 rounded-full transition-all duration-300 text-white"
+                           style="background-color: var(--primary-green);"
+                           onmouseover="this.style.backgroundColor='#0a5f2b'" onmouseout="this.style.backgroundColor='var(--primary-green)'">
+                            Consulter l'avis
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                            </svg>
+                        </a>
+                    @else
+                        <a href="{{ route('urgent.info') }}"
+                           class="inline-flex items-center gap-2 font-semibold py-3 px-7 rounded-full transition-all duration-300 text-white"
+                           style="background-color: var(--primary-green);"
+                           onmouseover="this.style.backgroundColor='#0a5f2b'" onmouseout="this.style.backgroundColor='var(--primary-green)'">
+                            Consulter l'avis
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                            </svg>
+                        </a>
+                    @endif
+
+                    <a href="{{ route('formulaire') }}"
+                       class="inline-flex items-center gap-2 font-semibold py-3 px-7 rounded-full border-2 transition-all duration-300"
+                       style="border-color: var(--primary-green); color: var(--primary-green);"
+                       onmouseover="this.style.backgroundColor='var(--primary-green)'; this.style.color='white'"
+                       onmouseout="this.style.backgroundColor='transparent'; this.style.color='var(--primary-green)'">
+                        Candidater en ligne
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+@endif
 
 <!-- About Section -->
 <section id="about" class="py-16 bg-white">

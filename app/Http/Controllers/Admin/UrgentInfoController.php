@@ -43,10 +43,13 @@ class UrgentInfoController extends Controller
         ]);
 
         // Le résumé est affiché en texte brut sur la page publique : on retire toute
-        // balise HTML à l'enregistrement pour éviter qu'elle s'affiche littéralement
-        // (et pour ne pas rouvrir de faille XSS si on passait un jour en rendu HTML).
+        // balise HTML à l'enregistrement pour éviter qu'elle s'affiche littéralement,
+        // puis on décode les entités HTML (&eacute;, &agrave;...) laissées par
+        // l'éditeur TinyMCE pour retrouver les vrais caractères accentués
+        // (et pour ne pas rouvrir de faille XSS si on passait un jour en rendu HTML,
+        // Blade ré-échappe de toute façon le résultat à l'affichage via {{ }}).
         if (isset($data['summary'])) {
-            $data['summary'] = trim(strip_tags($data['summary']));
+            $data['summary'] = trim(html_entity_decode(strip_tags($data['summary']), ENT_QUOTES, 'UTF-8'));
         }
 
         // Existing single file handling
@@ -105,7 +108,7 @@ class UrgentInfoController extends Controller
         ]);
 
         if (isset($data['summary'])) {
-            $data['summary'] = trim(strip_tags($data['summary']));
+            $data['summary'] = trim(html_entity_decode(strip_tags($data['summary']), ENT_QUOTES, 'UTF-8'));
         }
 
         if ($request->hasFile('file')) {

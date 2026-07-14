@@ -202,6 +202,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::controller(CandidatureController::class)->prefix('candidature')->name('candidatures.')->group(function () {
         Route::get('liste', 'index')->name('index');
+        Route::get('count-a-traiter', 'countCandidaturesATraiter')->name('count-a-traiter');
         Route::get('creation-d-une-candidature', 'inscriptionIndexForm')->name('create');
         Route::post("store-by-admin", "storeByAdmin")->name("store-by-admin");
         Route::post("{candidature}/update-by-admin", "updateByAdmin")->name("update-by-admin");
@@ -220,6 +221,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('attribution-de-groupe', 'storeGroupClassAssignment')->name('attribution-de-groupe');
         Route::post('presence-sub', 'presenceControlStore')->name('presence-sub');
         Route::post('admission-sub', 'admissionControl')->name('admission-sub');
+        Route::put('{candidature}/transmettre-academie', 'transmettreAcademie')->name('transmettre-academie');
         Route::put('{candidature}/valider', action: 'validateCandidature')->name('validate');
         Route::put('{candidature}/rejeter', 'rejectCandidature')->name('reject');
         Route::put('{candidature}/demander-rectification', 'askForRectificationOnCandidature')->name('ask-for-rectification');

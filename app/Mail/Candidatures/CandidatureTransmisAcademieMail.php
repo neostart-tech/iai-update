@@ -8,18 +8,18 @@ use Illuminate\Mail\Mailables\{Content, Envelope};
 use Illuminate\Queue\SerializesModels;
 use App\Helpers\ConfigHelper as AppGetters;
 
-class CandidatureRectificationMail extends Mailable
+class CandidatureTransmisAcademieMail extends Mailable
 {
 	use Queueable, SerializesModels;
 
-	public function __construct(private readonly string $greeting, private readonly string $motif)
+	public function __construct(private readonly string $greeting)
 	{
 	}
 
 	public function envelope(): Envelope
 	{
 		return new Envelope(
-			subject: 'Demande de rectification de votre dossier',
+			subject: 'Votre dossier est en cours d\'étude académique',
 		);
 	}
 
@@ -28,9 +28,9 @@ class CandidatureRectificationMail extends Mailable
 		return new Content(
 			view: 'mails.candidatures.valide',
 			with: [
-				'mailTitle' => 'Rectification requise',
+				'mailTitle' => 'Dossier transmis à l\'académie',
 				'mailContent' => $this->getMainContent(),
-				'buttonText' => 'Modifier mon dossier',
+				'buttonText' => 'Suivre mon dossier',
 				'buttonHref' => rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') . '/candidat/login',
 			]
 		);
@@ -39,8 +39,8 @@ class CandidatureRectificationMail extends Mailable
 	private function getMainContent(): string
 	{
 		return $this->greeting .
-			". L'administration a examiné votre dossier et a demandé une rectification pour le motif suivant :<br><br><strong>" . $this->motif . "</strong><br><br>
-			Merci de vous connecter au plus vite à votre espace candidat pour apporter les modifications demandées.
+			". Votre dossier de candidature a été vérifié et transmis à l'académie de " . AppGetters::getAppName() . " pour étude.<br><br>
+			Vous serez informé(e) par email dès qu'une décision sera prise concernant votre candidature.
 		";
 	}
 }

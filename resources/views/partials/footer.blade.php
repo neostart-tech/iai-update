@@ -2,12 +2,12 @@
 <footer class="relative z-10 bg-[#fbef8b] text-black pt-20 pb-10 lg:pt-[120px] lg:pb-4 border-t-8 border-[#b09d72]">
   <div class="container mx-auto px-4">
     <!-- Grid container -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 text-center lg:text-left">
-      
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 text-left">
+
       <!-- Logo + description -->
-      <div class="lg:col-span-2 flex flex-col items-center lg:items-start max-w-[280px] mx-auto lg:mx-0">
+      <div class="lg:col-span-2 flex flex-col items-start max-w-[280px]">
         <a href="/" class="mb-6 inline-block">
-          <img src="https://www.iai-togo.tg/wp-content/uploads/2017/06/logo.jpeg" alt="logo" class="w-[160px] mx-auto lg:mx-0">
+          <img src="https://www.iai-togo.tg/wp-content/uploads/2017/06/logo.jpeg" alt="logo" class="w-[160px]">
         </a>
         <p class="mb-7 text-base leading-relaxed">
           L'Institut Africain d'Informatique (IAI) et son réseau sont des centres de référence en matière de formation en Afrique.
@@ -15,22 +15,22 @@
       </div>
 
       <!-- Contact -->
-      <div class="flex flex-col items-center lg:items-start">
+      <div class="flex flex-col items-start">
         <h4 class="mb-4 text-lg font-semibold uppercase">Contact</h4>
         <ul class="space-y-4">
           <li>
-            <a href="mailto:iaitogo@iai-togo.tg" class="flex items-center justify-center lg:justify-start">
+            <a href="mailto:iaitogo@iai-togo.tg" class="flex items-center justify-start">
               <i class="fas fa-envelope text-xl mr-3"></i>
               <span>iaitogo@iai-togo.tg</span>
             </a>
           </li>
           <li>
-            <a href="tel:+22822204700" class="flex items-center justify-center lg:justify-start">
+            <a href="tel:+22822204700" class="flex items-center justify-start">
               <i class="fas fa-phone-alt text-xl mr-3"></i>
               <span>(00228) 22 20 47 00</span>
             </a>
           </li>
-          <li class="flex items-start justify-center lg:justify-start">
+          <li class="flex items-start justify-start">
             <i class="fas fa-map-marker-alt text-xl mr-3 mt-1"></i>
             <span>59 rue de la Kozah Nyékonakpoè <br> 07 BP:12456 Lomé 07, Togo</span>
           </li>
@@ -38,7 +38,7 @@
       </div>
 
       <!-- A Propos -->
-      <div class="flex flex-col items-center lg:items-start">
+      <div class="flex flex-col items-start">
         <h4 class="mb-4 text-lg font-semibold uppercase">À propos</h4>
         <ul class="space-y-2">
           <li><a href="#" class="hover:underline">Newsletter</a></li>
@@ -49,7 +49,7 @@
       </div>
 
       <!-- Liens rapides -->
-      <div class="flex flex-col items-center lg:items-start">
+      <div class="flex flex-col items-start">
         <h4 class="mb-4 text-lg font-semibold uppercase">Liens rapides</h4>
         <ul class="space-y-2">
           <li><a href="{{ route('candidatures.create') }}" class="hover:underline">Inscription</a></li>

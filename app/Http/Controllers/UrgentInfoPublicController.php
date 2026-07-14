@@ -23,9 +23,18 @@ class UrgentInfoPublicController extends Controller
         $items = $query
             ->orderByDesc('published_at')
             ->orderByDesc('created_at')
-            ->paginate(5)
+            ->paginate(9)
             ->withQueryString();
 
-        return view('pages.infourgent', compact('items'));
+        // Petits indicateurs affichés dans le hero — calculés sur l'ensemble des
+        // publications actives, pas seulement la page courante.
+        $published = UrgentInfo::where('is_published', true);
+        $stats = [
+            'total' => (clone $published)->count(),
+            'this_week' => (clone $published)->where('published_at', '>=', now()->subWeek())->count(),
+            'attachments' => (clone $published)->get()->sum(fn ($u) => count($u->attachments ?? [])),
+        ];
+
+        return view('pages.infourgent', compact('items', 'stats'));
     }
 }

@@ -37,6 +37,8 @@ class CandidatureResource extends JsonResource
             'statut' => $this->computeStatut(),
             'dossier_valide' => (bool) $this->dossier_valide,
             'validation_date' => $this->validation_date,
+            'transmis_academie' => (bool) $this->transmis_academie,
+            'transmis_academie_date' => $this->transmis_academie_date,
             'frais_paye' => (bool) $this->frais_paye,
             'frai_paye_date' => $this->frai_paye_date,
             'participation' => (bool) $this->participation,
@@ -75,7 +77,7 @@ class CandidatureResource extends JsonResource
             return 'rejete';
         }
         if (!$this->dossier_valide) {
-            return 'en_etude';
+            return $this->transmis_academie ? 'transmis_academie' : 'en_etude';
         }
         if (!$this->frais_paye) {
             return 'en_attente_paiement';

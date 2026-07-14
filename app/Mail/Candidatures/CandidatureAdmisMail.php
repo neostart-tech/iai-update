@@ -30,9 +30,8 @@ class CandidatureAdmisMail extends Mailable
 			with: [
 				'mailTitle' => 'Résultats du concours '. AppGetters::getAppName(),
 				'mailContent' => $this->getMainContent(),
-				// Pas encore d'espace candidat fonctionnel : bouton désactivé pour le moment (à réactiver plus tard).
-				// 'buttonText' => 'Procéder à l\'inscription définitive',
-				// 'buttonHref' => env('FRONTEND_CANDIDAT_URL', 'http://localhost:3000/candidat/login'),
+				'buttonText' => 'Procéder à l\'inscription définitive',
+				'buttonHref' => rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') . '/candidat/login',
 			]
 		);
 	}

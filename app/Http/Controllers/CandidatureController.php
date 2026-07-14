@@ -47,7 +47,7 @@ class CandidatureController extends Controller
 
 	public function show(Candidature $candidature)
 	{
-		$candidature->load(['album', 'tuteur', 'responsable', 'niveau', 'filiere', 'advertiser', 'submittedDocuments', 'concoursSession']);
+		$candidature->load(['album', 'tuteur', 'tuteurs', 'responsable', 'niveau', 'filiere', 'advertiser', 'submittedDocuments', 'concoursSession']);
 
 		$requirements = [];
 		if ($candidature->niveau_id) {
@@ -126,18 +126,33 @@ class CandidatureController extends Controller
 			->exists();
 
 		if ($exists) {
-			return response()->json([
-				'success' => false,
-				'message' => "Vous avez déjà déposé une candidature pour cette année scolaire."
-			], 422);
+			$message = "Vous avez déjà déposé une candidature pour cette année scolaire.";
+
+			// Le site Nuxt consomme aussi cette route en JSON : on garde ce format pour
+			// lui inchangé. Le formulaire public HTML, lui, doit revenir sur la page avec
+			// une erreur affichée proprement au lieu d'un JSON brut affiché tel quel.
+			if ($request->wantsJson()) {
+				return response()->json([
+					'success' => false,
+					'message' => $message
+				], 422);
+			}
+
+			return redirect()->back()->withErrors(['email' => $message])->withInput();
 		}
 
 		// 2. Vérification si l'étudiant est déjà inscrit (optionnel mais recommandé)
 		if (Etudiant::where('email', $request->email)->exists()) {
-			return response()->json([
-				'success' => false,
-				'message' => "Un compte étudiant existe déjà avec cet email. Veuillez passer par la procédure de réinscription."
-			], 422);
+			$message = "Un compte étudiant existe déjà avec cet email. Veuillez passer par la procédure de réinscription.";
+
+			if ($request->wantsJson()) {
+				return response()->json([
+					'success' => false,
+					'message' => $message
+				], 422);
+			}
+
+			return redirect()->back()->withErrors(['email' => $message])->withInput();
 		}
 
 		// 2bis. Vérification des champs obligatoires du dossier
@@ -148,7 +163,7 @@ class CandidatureController extends Controller
 			'date_naissance' => ['required', 'date'],
 			'lieu_naissance' => ['required', 'string', 'max:255'],
 			'nationalite' => ['required', 'string'],
-			'numero_table' => ['required', 'string', 'max:50'],
+			'numero_table' => ['required', 'digits_between:1,7'],
 			'annee_bac' => ['required', 'integer', 'min:1990', 'max:' . date('Y')],
 			'serie' => ['required', 'string'],
 			'mention_bac' => ['required', 'string'],
@@ -157,6 +172,7 @@ class CandidatureController extends Controller
 			'accept_cgu' => ['accepted'],
 		], [
 			'annee_bac.max' => "L'année du BAC ne peut pas être postérieure à l'année en cours (" . date('Y') . ").",
+			'numero_table.digits_between' => "Le numéro de table doit contenir uniquement des chiffres (7 maximum).",
 			'accept_cgu.accepted' => "Vous devez accepter les conditions générales d'utilisation.",
 		]);
 
@@ -259,38 +275,28 @@ class CandidatureController extends Controller
 
 	public function storeByAdmin(Request $request)
 	{
+		// Mêmes informations et mêmes règles que le formulaire public (store()), à la
+		// différence près que l'admin choisit lui-même le niveau (le frontend déduit la
+		// filière automatiquement à partir de ce choix, au lieu du "toujours Licence 1"
+		// du formulaire public).
 		$validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
-			'nom' => ['required', 'string', 'max:255', 'regex:/^[\pL\s\-]+$/u'],
-			'prenom' => ['required', 'string', 'max:255', 'regex:/^[\pL\s\-]+$/u'],
-			'nom_jeune_fille' => ['nullable', 'string', 'max:255', 'regex:/^[\pL\s\-]+$/u'],
-			'nom_resp' => ['nullable', 'string', 'max:255', 'regex:/^[\pL\s\-]+$/u'],
-			'prenom_resp' => ['nullable', 'string', 'max:255', 'regex:/^[\pL\s\-]+$/u'],
-			'nom_tuteur' => ['nullable', 'string', 'max:255', 'regex:/^[\pL\s\-]+$/u'],
-			'prenom_tuteur' => ['nullable', 'string', 'max:255', 'regex:/^[\pL\s\-]+$/u'],
-			'date_naissance' => ['required', 'date', 'before_or_equal:2011-12-31'],
-			'tel' => ['required', 'regex:/^\+?[0-9\s]+$/'],
-			'tel2' => ['nullable', 'regex:/^\+?[0-9\s]+$/'],
-			'tel_resp' => ['nullable', 'regex:/^\+?[0-9\s]+$/'],
-			'tel_tuteur' => ['nullable', 'regex:/^\+?[0-9\s]+$/'],
-			'annee_bac' => ['nullable', 'numeric', 'max:' . date('Y')],
-			'numero_table' => ['nullable', 'numeric'],
-			'serie' => ['nullable', 'in:A,C,D,E,F1,F2,F3,F4,G1,G2,G3,Autre'],
-			'email' => [
-				'nullable',
-				'email',
-				'max:255',
-				'unique:candidatures,email'
-			],
-			'email_resp' => [
-				'nullable',
-				'email',
-				'max:255',
-			],
-			'email_tuteur' => [
-				'nullable',
-				'email',
-				'max:255',
-			],
+			'nom' => ['required', 'string', 'max:255'],
+			'prenom' => ['required', 'string', 'max:255'],
+			'nom_jeune_fille' => ['nullable', 'string', 'max:255'],
+			'genre' => ['required', 'string'],
+			'date_naissance' => ['required', 'date'],
+			'lieu_naissance' => ['required', 'string', 'max:255'],
+			'nationalite' => ['required', 'string'],
+			'numero_table' => ['required', 'digits_between:1,7'],
+			'annee_bac' => ['required', 'integer', 'min:1990', 'max:' . date('Y')],
+			'serie' => ['required', 'in:C,D,E,F2'],
+			'mention_bac' => ['required', 'string'],
+			'tel' => ['required', 'string'],
+			'email' => ['required', 'email', 'max:255', 'unique:candidatures,email'],
+			'niveau_id' => ['required', 'exists:niveaux,id'],
+			'filiere_id' => ['nullable', 'exists:filieres,id'],
+		], [
+			'numero_table.digits_between' => "Le numéro de table doit contenir uniquement des chiffres (7 maximum).",
 		]);
 
 		if ($validator->fails()) {
@@ -307,20 +313,17 @@ class CandidatureController extends Controller
 				'nom_jeune_fille',
 				'numero_table',
 				'annee_bac',
+				'mention_bac',
 				'serie',
 				'etablissement_diplome',
-				'lettre_motivation',
 				'genre',
 				'date_naissance',
 				'lieu_naissance',
 				'email',
 				'nationalite',
-				'hobbit',
 				'tel',
 				'tel2',
 				'tel3',
-				'bp',
-				'fax',
 				'niveau_id',
 				'filiere_id',
 				'adresse',
@@ -331,38 +334,34 @@ class CandidatureController extends Controller
 			'code' => fake()->unique()->numberBetween(9999, 100000)
 		]);
 
-		// 2. Création du responsable
-		if ($request->filled('nom_resp')) {
-			$candidat->responsable()->create([
-				'nom' => $request->get('nom_resp'),
-				'prenom' => $request->get('prenom_resp'),
-				'profession' => $request->get('profession_resp'),
-				'employeur' => $request->get('employeur_resp'),
-				'email' => $request->get('email_resp'),
-				'tel' => $request->get('tel_resp'),
-				'adresse' => $request->get('adresse_resp'),
-				'fax' => $request->get('fax_resp'),
-				'bp' => $request->get('bp_resp'),
-			]);
+		// Tuteurs répétables + responsable des frais — même logique que store().
+		$tuteursValides = [];
+		foreach ($request->input('tuteurs', []) as $tuteurEntry) {
+			if (blank($tuteurEntry['nom'] ?? null) && blank($tuteurEntry['prenom'] ?? null)) {
+				continue;
+			}
+
+			$donneesTuteur = [
+				'nom' => $tuteurEntry['nom'] ?? null,
+				'prenom' => $tuteurEntry['prenom'] ?? null,
+				'profession' => $tuteurEntry['profession'] ?? null,
+				'employeur' => $tuteurEntry['employeur'] ?? null,
+				'email' => $tuteurEntry['email'] ?? null,
+				'tel' => $tuteurEntry['tel'] ?? null,
+				'adresse' => $tuteurEntry['adresse'] ?? null,
+				'responsable_des_frais' => filter_var($tuteurEntry['responsable_des_frais'] ?? false, FILTER_VALIDATE_BOOLEAN),
+			];
+
+			$candidat->tuteurs()->create($donneesTuteur);
+			$tuteursValides[] = $donneesTuteur;
 		}
 
-		// 3. Création du tuteur
-		if ($request->filled('nom_tuteur')) {
-			$candidat->tuteur()->create([
-				'nom' => $request->get('nom_tuteur'),
-				'prenom' => $request->get('prenom_tuteur'),
-				'profession' => $request->get('profession_tuteur'),
-				'employeur' => $request->get('employeur_tuteur'),
-				'email' => $request->get('email_tuteur'),
-				'tel' => $request->get('tel_tuteur'),
-				'adresse' => $request->get('adresse_tuteur'),
-				'fax' => $request->get('fax_tuteur'),
-				'bp' => $request->get('bp_tuteur'),
-				'candidature_id' => $candidat->getAttribute('id')
-			]);
+		if (!empty($tuteursValides)) {
+			$responsableData = collect($tuteursValides)->firstWhere('responsable_des_frais', true) ?? $tuteursValides[0];
+			$candidat->responsable()->create(collect($responsableData)->except('responsable_des_frais')->all());
 		}
 
-		// 4. Création de l'album
+		// Documents (dynamiques, même système que store()).
 		$this->updateOrCreateAlbum($request, $candidat);
 
 		// 5. Connexion et notification
@@ -402,22 +401,28 @@ class CandidatureController extends Controller
 	public function updateByAdmin(Request $request, Candidature $candidature)
 	{
 		$request->validate([
+			'nom' => ['required', 'string', 'max:255'],
+			'prenom' => ['required', 'string', 'max:255'],
+			'genre' => ['required', 'string'],
+			'date_naissance' => ['required', 'date'],
+			'lieu_naissance' => ['required', 'string', 'max:255'],
+			'nationalite' => ['required', 'string'],
+			'numero_table' => ['required', 'digits_between:1,7'],
+			'annee_bac' => ['required', 'integer', 'min:1990', 'max:' . date('Y')],
+			'serie' => ['required', 'string'],
+			'mention_bac' => ['required', 'string'],
+			'tel' => ['required', 'string'],
+			'niveau_id' => ['required', 'exists:niveaux,id'],
+			'filiere_id' => ['nullable', 'exists:filieres,id'],
 			'email' => [
-				'nullable',
+				'required',
 				'email',
 				'max:255',
 				'unique:candidatures,email,' . $candidature->id
 			],
-			'email_resp' => [
-				'nullable',
-				'email',
-				'max:255',
-			],
-			'email_tuteur' => [
-				'nullable',
-				'email',
-				'max:255',
-			],
+		], [
+			'annee_bac.max' => "L'année du BAC ne peut pas être postérieure à l'année en cours (" . date('Y') . ").",
+			'numero_table.digits_between' => "Le numéro de table doit contenir uniquement des chiffres (7 maximum).",
 		]);
 
 		$candidature->update($request->only([
@@ -426,9 +431,9 @@ class CandidatureController extends Controller
 			'nom_jeune_fille',
 			'numero_table',
 			'annee_bac',
+			'mention_bac',
 			'serie',
 			'etablissement_diplome',
-			'lettre_motivation',
 			'genre',
 			'date_naissance',
 			'lieu_naissance',
@@ -445,43 +450,42 @@ class CandidatureController extends Controller
 			'adresse',
 		]));
 
-		// Update or Create Responsable
-		if ($request->filled('nom_resp')) {
-			$candidature->responsable()->updateOrCreate(
-				[],
-				[
-					'nom' => $request->get('nom_resp'),
-					'prenom' => $request->get('prenom_resp'),
-					'profession' => $request->get('profession_resp'),
-					'employeur' => $request->get('employeur_resp'),
-					'email' => $request->get('email_resp'),
-					'tel' => $request->get('tel_resp'),
-					'adresse' => $request->get('adresse_resp'),
-					'fax' => $request->get('fax_resp'),
-					'bp' => $request->get('bp_resp'),
-				]
-			);
+		// Tuteurs répétables + responsable des frais — même logique que store()/storeByAdmin() :
+		// on remplace la liste existante par celle envoyée (le formulaire renvoie toujours la
+		// liste complète, pas un diff).
+		if ($request->has('tuteurs')) {
+			$candidature->tuteurs()->delete();
+			$candidature->responsable()->delete();
+
+			$tuteursValides = [];
+			foreach ($request->input('tuteurs', []) as $tuteurEntry) {
+				if (blank($tuteurEntry['nom'] ?? null) && blank($tuteurEntry['prenom'] ?? null)) {
+					continue;
+				}
+
+				$donneesTuteur = [
+					'nom' => $tuteurEntry['nom'] ?? null,
+					'prenom' => $tuteurEntry['prenom'] ?? null,
+					'profession' => $tuteurEntry['profession'] ?? null,
+					'employeur' => $tuteurEntry['employeur'] ?? null,
+					'email' => $tuteurEntry['email'] ?? null,
+					'tel' => $tuteurEntry['tel'] ?? null,
+					'adresse' => $tuteurEntry['adresse'] ?? null,
+					'responsable_des_frais' => filter_var($tuteurEntry['responsable_des_frais'] ?? false, FILTER_VALIDATE_BOOLEAN),
+				];
+
+				$candidature->tuteurs()->create($donneesTuteur);
+				$tuteursValides[] = $donneesTuteur;
+			}
+
+			if (!empty($tuteursValides)) {
+				$responsableData = collect($tuteursValides)->firstWhere('responsable_des_frais', true) ?? $tuteursValides[0];
+				$candidature->responsable()->create(collect($responsableData)->except('responsable_des_frais')->all());
+			}
 		}
 
-		// Update or Create Tuteur
-		if ($request->filled('nom_tuteur')) {
-			$candidature->tuteur()->updateOrCreate(
-				[],
-				[
-					'nom' => $request->get('nom_tuteur'),
-					'prenom' => $request->get('prenom_tuteur'),
-					'profession' => $request->get('profession_tuteur'),
-					'employeur' => $request->get('employeur_tuteur'),
-					'email' => $request->get('email_tuteur'),
-					'tel' => $request->get('tel_tuteur'),
-					'adresse' => $request->get('adresse_tuteur'),
-					'fax' => $request->get('fax_tuteur'),
-					'bp' => $request->get('bp_tuteur'),
-				]
-			);
-		}
-
-		// Update or Create Album
+		// Update or Create Album (documents dynamiques + type_diplome, méthode déjà
+		// partagée avec store()/storeByAdmin()).
 		$this->updateOrCreateAlbum($request, $candidature);
 
 		return response()->json([
@@ -916,6 +920,18 @@ class CandidatureController extends Controller
 
 	public function reorienter(Request $request, Candidature $candidature)
 	{
+		// Décision finale de l'académie : seulement une fois le dossier transmis par le
+		// chargé de la clientèle.
+		if (!$candidature->transmis_academie) {
+			return response()->json([
+				'success' => false,
+				'message' => "Ce dossier doit d'abord être transmis à l'académie avant de pouvoir être réorienté."
+			], 422);
+		}
+
+		if ($refus = $this->refuserSiPasAcademie()) {
+			return $refus;
+		}
 
 		$existe = Reorientation::where('candidature_id', $candidature->id)
 			->where('annee_scolaire_id', $candidature->annee_scolaire_id)
