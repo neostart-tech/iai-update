@@ -23,7 +23,20 @@ class EtudiantRessource extends JsonResource
             'prenom' => $this->prenom,
             'email' => $this->email,
             'genre' => $this->genre,
-            'image' => $this->image ? $this->ImagePath() : "",
+            'photo_url' => (function() {
+                if ($this->relationLoaded('submittedDocuments') && $this->submittedDocuments->isNotEmpty()) {
+                    $photoKeys = \Illuminate\Support\Facades\Cache::remember('photo_document_keys', 3600, function () {
+                        return \App\Models\DocumentType::where('is_photo', true)->pluck('document_key')->toArray();
+                    });
+                    if (empty($photoKeys)) $photoKeys = ['photo', 'photo_identite'];
+                    
+                    $photoDoc = $this->submittedDocuments->whereIn('document_key', $photoKeys)->first();
+                    if ($photoDoc && $photoDoc->file_path) {
+                        return asset(\Illuminate\Support\Facades\Storage::url($photoDoc->file_path));
+                    }
+                }
+                return $this->image ? $this->ImagePath() : null;
+            })(),
             'matricule' => $this->matricule,
             'biographie' => $this->biographie,
             'annee_admission' => $this->annee_admission,
@@ -76,7 +89,7 @@ class EtudiantRessource extends JsonResource
             'promotion' => $this->promotion,
             'est_nouveau' => (int) $this->annee_admission === (int) \Carbon\Carbon::parse(\App\Models\AnneeScolaire::where('active', true)->value('date_debut'))->year,
             'advertiser' => new AdvertiserResource($this->advertiser),
-            'album' => new AlbumResource($this->album),
+            'album' => $this->relationLoaded('submittedDocuments') ? $this->submittedDocuments->pluck('file_path', 'document_key')->toArray() : null,
             'tuteur' => $this->tuteur,
             'responsable' => $this->responsable,
             'roles' => $this->roles->map(function ($role) {

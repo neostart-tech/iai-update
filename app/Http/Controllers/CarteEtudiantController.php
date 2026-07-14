@@ -61,12 +61,18 @@ class CarteEtudiantController extends Controller
             ->with(['etudiantGroups' => function ($q) {
                 $q->with(['filiere', 'niveau', 'anneeScolaire'])
                   ->orderBy('id', 'desc');
-            }])
+            }, 'submittedDocuments'])
             ->get();
 
         $anneeActive = AnneeScolaire::where('active', true)->first();
+        $frontendUrl = rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/');
 
-        $result = $etudiants->map(function ($etudiant) use ($anneeActive) {
+        $photoKeys = \Illuminate\Support\Facades\Cache::remember('photo_document_keys', 3600, function () {
+            return \App\Models\DocumentType::where('is_photo', true)->pluck('document_key')->toArray();
+        });
+        if (empty($photoKeys)) $photoKeys = ['photo', 'photo_identite'];
+
+        $result = $etudiants->map(function ($etudiant) use ($anneeActive, $frontendUrl, $photoKeys) {
             $lastGroup = $etudiant->etudiantGroups->first();
 
             return [
@@ -76,8 +82,8 @@ class CarteEtudiantController extends Controller
                 'filiere'     => $lastGroup?->filiere?->nom ?? 'N/A',
                 'niveau'      => $lastGroup?->niveau?->libelle ?? 'N/A',
                 'promotion'   => $anneeActive?->nom ?? date('Y') . '-' . (date('Y') + 1),
-                'image_url'   => $etudiant->photo_url ?? $etudiant->photo ?? null,
-                'qr_data'     => $etudiant->matricule,
+                'image_url'   => $etudiant->submittedDocuments->whereIn('document_key', $photoKeys)->first()?->file_path ? asset(\Illuminate\Support\Facades\Storage::url($etudiant->submittedDocuments->whereIn('document_key', $photoKeys)->first()->file_path)) : ($etudiant->image ? asset(\Illuminate\Support\Facades\Storage::url($etudiant->image)) : null),
+                'qr_data'     => $frontendUrl . '/verif/' . $etudiant->matricule,
             ];
         });
 
@@ -106,19 +112,26 @@ class CarteEtudiantController extends Controller
             ->with(['etudiantGroups' => function ($q) {
                 $q->with(['filiere', 'niveau', 'anneeScolaire'])
                   ->orderBy('id', 'desc');
-            }])
+            }, 'submittedDocuments'])
             ->get();
 
         $anneeActive = AnneeScolaire::where('active', true)->first();
         $config = Configuration::first();
+        $frontendUrl = rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/');
 
         // 2. Préparer les données et convertir les images en base64 pour dompdf
-        $cardsData = $etudiants->map(function ($etudiant) use ($anneeActive) {
+        $cardsData = $etudiants->map(function ($etudiant) use ($anneeActive, $frontendUrl) {
             $lastGroup = $etudiant->etudiantGroups->first();
             
             // Conversion photo en base64
             $photoBase64 = null;
-            $photoPath = $etudiant->photo;
+            $photoKeys = \Illuminate\Support\Facades\Cache::remember('photo_document_keys', 3600, function () {
+            return \App\Models\DocumentType::where('is_photo', true)->pluck('document_key')->toArray();
+        });
+        if (empty($photoKeys)) $photoKeys = ['photo', 'photo_identite'];
+
+        $photoDoc = $etudiant->submittedDocuments->whereIn('document_key', $photoKeys)->first();
+            $photoPath = $photoDoc ? $photoDoc->file_path : $etudiant->image;
             
             if ($photoPath) {
                 $possiblePaths = [
@@ -155,7 +168,7 @@ class CarteEtudiantController extends Controller
                 'niveau'      => $lastGroup?->niveau?->libelle ?? 'N/A',
                 'promotion'   => $anneeActive?->nom ?? date('Y') . '-' . (date('Y') + 1),
                 'image_url'   => $photoBase64,
-                'qr_data'     => $etudiant->matricule,
+                'qr_data'     => $frontendUrl . '/verif/' . $etudiant->matricule,
             ];
         });
 
@@ -186,5 +199,120 @@ class CarteEtudiantController extends Controller
 
         // On retourne la vue qui contient le script html2pdf.js
         return view('pdfs.student-cards-modern', $data);
+    }
+
+    /**
+     * Endpoint public de vérification des informations scolaires et financières d'un étudiant par son matricule.
+     */
+    public function verifyStudent($matricule)
+    {
+        $etudiant = Etudiant::where('matricule', $matricule)
+            ->with(['etudiantGroups' => function ($q) {
+                $q->with(['filiere', 'niveau', 'anneeScolaire'])
+                  ->orderBy('id', 'desc');
+            }, 'fraisEtudiant' => function ($q) {
+                $q->with(['anneeScolaire', 'fraisScolarite', 'echeances'])
+                  ->orderBy('id', 'desc');
+            }, 'submittedDocuments'])
+            ->first();
+
+        if (!$etudiant) {
+            return response()->json(['message' => 'Étudiant non trouvé'], 404);
+        }
+
+        $lastGroup = $etudiant->etudiantGroups->first();
+        $frais = $etudiant->fraisEtudiant->first();
+
+        $photoKeys = \Illuminate\Support\Facades\Cache::remember('photo_document_keys', 3600, function () {
+            return \App\Models\DocumentType::where('is_photo', true)->pluck('document_key')->toArray();
+        });
+        if (empty($photoKeys)) $photoKeys = ['photo', 'photo_identite'];
+
+        $result = [
+            'nom'            => $etudiant->nom,
+            'prenom'         => $etudiant->prenom,
+            'nom_complet'    => $etudiant->getNomCompletAttribute(),
+            'matricule'      => $etudiant->matricule,
+            'email'          => $etudiant->email,
+            'tel'            => $etudiant->tel,
+            'photo'          => $etudiant->submittedDocuments->whereIn('document_key', $photoKeys)->first()?->file_path ? asset(\Illuminate\Support\Facades\Storage::url($etudiant->submittedDocuments->whereIn('document_key', $photoKeys)->first()->file_path)) : ($etudiant->image ? asset(\Illuminate\Support\Facades\Storage::url($etudiant->image)) : null),
+            'genre'          => $etudiant->genre?->value ?? null,
+            'nationalite'    => $etudiant->nationalite,
+            'filiere'        => $lastGroup?->filiere?->nom ?? 'N/A',
+            'niveau'         => $lastGroup?->niveau?->libelle ?? 'N/A',
+            'annee_scolaire' => $lastGroup?->anneeScolaire?->nom ?? 'N/A',
+            'frais'          => null
+        ];
+
+        if ($frais) {
+            $result['frais'] = [
+                'montant_initial'      => (float)$frais->montant_initial,
+                'montant_apres_bourse' => (float)$frais->montant_apres_bourse,
+                'total_paye'           => (float)$frais->total_paye,
+                'reste_a_payer'        => (float)$frais->reste_a_payer,
+                'statut'               => $frais->statut,
+                'echeances'            => collect($frais->echeances_actives)->map(function ($echeance) {
+                    return [
+                        'id'           => $echeance->id ?? null,
+                        'libelle'      => $echeance->libelle,
+                        'montant'      => (float)$echeance->montant,
+                        'montant_paye' => (float)($echeance->montant_paye ?? 0),
+                        'date_limite'  => isset($echeance->date_limite) ? (is_string($echeance->date_limite) ? $echeance->date_limite : $echeance->date_limite->format('Y-m-d')) : null,
+                        'statut'       => $echeance->statut ?? 'en_attente'
+                    ];
+                })
+            ];
+        }
+
+        return response()->json($result);
+    }
+
+    /**
+     * Endpoint public de vérification par matricule (QR Code)
+     */
+    public function verifEtudiant($matricule)
+    {
+        $etudiant = Etudiant::where('matricule', $matricule)->with('submittedDocuments')->first();
+
+        if (!$etudiant) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Étudiant non trouvé'
+            ], 404);
+        }
+
+        $service = new \App\Services\Etudiant\ParcoursService($etudiant);
+        $parcours = $service->getParcoursComplet();
+
+        $photoUrl = null;
+        $photoKeys = \Illuminate\Support\Facades\Cache::remember('photo_document_keys', 3600, function () {
+            return \App\Models\DocumentType::where('is_photo', true)->pluck('document_key')->toArray();
+        });
+        if (empty($photoKeys)) $photoKeys = ['photo', 'photo_identite'];
+
+        $photoDoc = $etudiant->submittedDocuments->whereIn('document_key', $photoKeys)->first();
+        $photoPath = $photoDoc ? $photoDoc->file_path : $etudiant->image;
+
+        if ($photoPath) {
+            if (str_starts_with($photoPath, 'http')) {
+                $photoUrl = $photoPath;
+            } else {
+                $photoUrl = asset(Storage::url($photoPath));
+            }
+        }
+
+        $identite = $parcours['identite'];
+        $identite['photo_url'] = $photoUrl;
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'identite' => $identite,
+                'parcours_academique' => $parcours['parcours_academique'],
+                'paiements_par_annee' => $parcours['paiements_par_annee'],
+                'statut_financier' => $parcours['statut_financier'],
+                'bourses_obtenues' => $parcours['bourses_obtenues'],
+            ]
+        ]);
     }
 }

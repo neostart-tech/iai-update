@@ -47,8 +47,8 @@ class CoursPresence extends Model
 
     protected $casts = [
         'date' => 'date',
-        'heure_arrivee' => 'datetime',
-        'heure_depart' => 'datetime',
+        'heure_arrivee' => 'string',
+        'heure_depart' => 'string',
         'minutes_retard' => 'integer',
         'needs_validation' => 'boolean',
         'validated_at' => 'datetime',

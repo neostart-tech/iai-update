@@ -39,12 +39,30 @@ class LoginRequest extends FormRequest
 	{
 		$this->ensureIsNotRateLimited();
 
-		if (!Auth::guard('web_candidatures')->attempt($this->only('email', 'password'), $this->boolean('remember'))) {
-			RateLimiter::hit($this->throttleKey());
+		if ($this->hasSession()) {
+			if (!Auth::guard('web_candidatures')->attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+				RateLimiter::hit($this->throttleKey());
 
-			throw ValidationException::withMessages([
-				'message' => trans('auth.failed'),
-			]);
+				throw ValidationException::withMessages([
+					'message' => trans('auth.failed'),
+				]);
+			}
+		} else {
+			// API Authenticate manually without session
+			$user = \App\Models\Candidature::where('email', $this->email)->first();
+
+			if (!$user || !\Illuminate\Support\Facades\Hash::check($this->password, $user->password)) {
+				RateLimiter::hit($this->throttleKey());
+
+				throw ValidationException::withMessages([
+					'message' => trans('auth.failed'),
+				]);
+			}
+			
+			// Set the user on the request so the controller can retrieve it
+			$this->setUserResolver(function () use ($user) {
+				return $user;
+			});
 		}
 
 		RateLimiter::clear($this->throttleKey());

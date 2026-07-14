@@ -30,8 +30,8 @@ class CandidatureAbsentMail extends Mailable
 			with: [
 				'mailTitle' => 'Participation manquée à une épreuve',
 				'mailContent' => $this->getMainContent(),
-				'buttonText' => 'Cliquez-ici pour accéder à votre compte',
-				'buttonHref' => route('officiel.login'),
+				'buttonText' => 'Consulter mon dossier',
+				'buttonHref' => rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') . '/candidat/login',
 			]
 		);
 	}

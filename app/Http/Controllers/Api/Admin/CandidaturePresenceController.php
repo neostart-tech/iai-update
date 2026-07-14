@@ -3,36 +3,25 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Candidature;
+use App\Services\CandidaturePresenceService;
 use Illuminate\Contracts\Routing\ResponseFactory;
 use Illuminate\Http\{Request};
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * @deprecated Utiliser CandidatureController::presenceControlStore (route candidature/presence-sub),
+ * conservé et délégué au même service pour ne pas casser d'éventuels appelants existants.
+ */
 class CandidaturePresenceController extends Controller
 {
-	public function __invoke(Request $request): Response|ResponseFactory
+	public function __invoke(Request $request, CandidaturePresenceService $service): Response|ResponseFactory
 	{
-		$candidatsSlugs = $request->get('candidats');
+		$absentSlugs = collect($request->get('candidats_absents', []));
 
-		$candidats = Candidature::query()->whereIn('slug', $candidatsSlugs)->get();
-//		dd($candidats);
-
-		$presentCandidats = [];
-
-		foreach ($candidats as $candidat) {
-			/**
-			 * @var Candidature $candidat
-			 */
-			$candidat->update([
-				'participation' => true,
-				'participation_date' => now()
-			]);
-
-			$presentCandidats[] = $candidat->getAttribute('slug');
-		}
+		$result = $service->processPresence($absentSlugs);
 
 		return response([
-			'presentCandidats' => $presentCandidats
+			'presentCandidats' => $result['presents']
 		], Response::HTTP_OK);
 	}
 }

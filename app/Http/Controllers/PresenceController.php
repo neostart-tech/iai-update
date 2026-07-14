@@ -758,29 +758,142 @@ public function getAlertes()
     }
 }
 
-public function exportPresencesCours($coursId, Request $request)
-{
-    $date = $request->get('date', now()->toDateString());
-    
-    // Récupérer la séance
-    $seance = Seance::where('emploi_du_temps_id', $coursId)
-        ->whereDate('date_seance', $date)
-        ->first();
-    
-    if (!$seance) {
-        return response()->json(['message' => 'Aucune séance trouvée pour cette date'], 404);
+    public function exportPresencesCours($coursId, Request $request)
+    {
+        $date = $request->get('date', now()->toDateString());
+        
+        // Récupérer la séance
+        $seance = Seance::where('emploi_du_temps_id', $coursId)
+            ->whereDate('date_seance', $date)
+            ->first();
+        
+        if (!$seance) {
+            return response()->json(['message' => 'Aucune séance trouvée pour cette date'], 404);
+        }
+        
+        // Récupérer les présences
+        $presences = CoursPresence::where('seance_id', $seance->id)
+            ->with('etudiant')
+            ->get();
+        
+        $emploi = EmploiDuTemp::find($coursId);
+        
+        return Excel::download(
+            new PresencesExport($presences, $emploi, $seance),
+            'presences_' . $date . '.xlsx'
+        );
     }
-    
-    // Récupérer les présences
-    $presences = CoursPresence::where('seance_id', $seance->id)
-        ->with('etudiant')
-        ->get();
-    
-    $emploi = EmploiDuTemp::find($coursId);
-    
-    return Excel::download(
-        new PresencesExport($presences, $emploi, $seance),
-        'presences_' . $date . '.xlsx'
-    );
-}
+
+    /**
+     * Génère un QR Token dynamique pour une séance
+     */
+    public function generateQrCode(Request $request, $emploiId)
+    {
+        try {
+            $cours = EmploiDuTemp::findOrFail($emploiId);
+            
+            // Récupérer ou créer la séance du jour
+            $seance = Seance::firstOrCreate(
+                [
+                    'emploi_du_temps_id' => $emploiId,
+                    'date_seance' => now()->toDateString()
+                ],
+                [
+                    'heure_debut_prevue' => $cours->debut,
+                    'heure_fin_prevue' => $cours->fin,
+                    'statut' => 'planifie'
+                ]
+            );
+            
+            // Générer un token unique cryptographique
+            $token = bin2hex(random_bytes(16));
+            
+            // Expiration dans 15 secondes
+            $expiresAt = now()->addSeconds(15);
+            
+            $seance->update([
+                'qr_token' => $token,
+                'qr_expires_at' => $expiresAt
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'qr_token' => $token,
+                'expires_at' => $expiresAt
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de génération QR: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Enregistre la présence via un scan de QR Code
+     */
+    public function scanQrCode(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'qr_token' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['success' => false, 'message' => 'Token manquant'], 422);
+            }
+
+            $etudiant = request()->user();
+            if (!($etudiant instanceof \App\Models\Etudiant)) {
+                return response()->json(['success' => false, 'message' => 'Seuls les étudiants peuvent scanner le QR'], 403);
+            }
+
+            // Trouver la séance avec ce token
+            $seance = Seance::where('qr_token', $request->qr_token)->first();
+
+            if (!$seance) {
+                return response()->json(['success' => false, 'message' => 'Code QR invalide ou non reconnu'], 404);
+            }
+
+            // Vérifier l'expiration
+            if (now()->greaterThan($seance->qr_expires_at)) {
+                return response()->json(['success' => false, 'message' => 'Ce code QR a expiré. Scannez le nouveau code à l\'écran.'], 400);
+            }
+
+            // Vérifier si l'étudiant est dans le groupe du cours
+            $cours = $seance->emploiDuTemps;
+            $isInGroup = EtudiantGroup::where('etudiant_id', $etudiant->id)
+                ->where('group_id', $cours->group_id)
+                ->exists();
+
+            if (!$isInGroup) {
+                return response()->json(['success' => false, 'message' => 'Vous n\'êtes pas inscrit à ce cours'], 403);
+            }
+
+            // Mettre à jour ou créer la présence
+            CoursPresence::updateOrCreate(
+                [
+                    'emploi_du_temps_id' => $cours->id,
+                    'seance_id' => $seance->id,
+                    'etudiant_id' => $etudiant->id,
+                ],
+                [
+                    'date' => $seance->date_seance,
+                    'statut' => 'present',
+                    'heure_arrivee' => now()->format('H:i'),
+                ]
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Présence validée avec succès !'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

@@ -1,11 +1,12 @@
 <?php
 
 use App\Http\Controllers\{BlogController, ContactController, EvenementController, GalleryPublicController};
-use App\Models\{Announcement, Blog, Evenement};
+use App\Models\{Announcement, Blog, Evenement, UrgentInfo};
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', fn() => view('auth.login'));
-
+// Route de la racine gérée dans routes/web.php (redirection vers /officiel).
+// Ne pas la redéfinir ici : ce fichier est chargé après web.php et une
+// redéfinition du même GET '/' écraserait silencieusement celle de web.php.
 
 Route::get('officiel', fn() => view('welcome')
 	->with(
@@ -14,7 +15,13 @@ Route::get('officiel', fn() => view('welcome')
 				->orderByDesc('publication_date')
 				->limit(2)
 				->get(),
-			'events' => Evenement::query()->orderByDesc('id')->limit(4)->get()
+			'events' => Evenement::query()->orderByDesc('id')->limit(4)->get(),
+			// Bannière d'annonce sur l'accueil : la dernière information urgente publiée.
+			'urgentInfo' => UrgentInfo::query()
+				->where('is_published', true)
+				->orderByDesc('published_at')
+				->orderByDesc('created_at')
+				->first(),
 		]
 	))
 	->name('home');

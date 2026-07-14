@@ -15,13 +15,20 @@ use Illuminate\Support\Facades\Route;
 
 Route::group([], function () {
 
-	// Route::controller(MySpaceController::class)->middleware('auth:web_candidatures')->name('my-space.')->prefix('mon-dossier')->group(function () {
-	Route::controller(MySpaceController::class)->name('my-space.')->prefix('mon-dossier')->group(function () {
+	Route::controller(MySpaceController::class)->middleware('auth:sanctum')->name('my-space.')->prefix('mon-dossier')->group(function () {
 
 		Route::get('', 'show')->name('show');
+		Route::put('mes-informations', 'updateProfil')->name('profil.update');
+		Route::post('soumettre-rectification', 'submitRectification')->name('submit.rectification');
 		Route::get('mes-fichiers', 'myFiles')->name('files');
+		Route::post('mes-fichiers', 'uploadFile')->name('files.upload');
 		Route::get('constitution', 'constitution')->name('constitution');
 		Route::get('mes-payements', 'myPayements')->name('payments');
+		
+		// Notifications
+		Route::get('notifications', 'notifications')->name('notifications');
+		Route::post('notifications/{id}/lu', 'markNotificationAsRead')->name('notifications.read');
+		Route::post('notifications/supprimer-masse', 'deleteNotifications')->name('notifications.delete');
 	});
 
 	// Route::middleware('guest:web_candidatures')->group(function () {
@@ -40,8 +47,7 @@ Route::group([], function () {
 		Route::post('mot-de-passe-oublié', [NewPasswordController::class, 'store'])->name('password.store');
 	});
 
-	// Route::middleware('auth:web_candidatures')->group(function () {
-	Route::group([],function () {
+	Route::middleware('auth:sanctum')->group(function () {
 
 		Route::get('verify-email', EmailVerificationPromptController::class)->name('verification.notice');
 

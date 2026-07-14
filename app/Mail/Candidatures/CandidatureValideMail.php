@@ -30,8 +30,8 @@ class CandidatureValideMail extends Mailable
 			with: [
 				'mailTitle' => 'Validation de candidature',
 				'mailContent' => $this->getMainContent(),
-				'buttonText' => 'Cliquez-ici pour accéder à votre compte',
-				'buttonHref' => route('officiel.login'),
+				'buttonText' => 'Accéder à mon espace candidat',
+				'buttonHref' => rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') . '/candidat/login',
 			]
 		);
 	}
@@ -39,8 +39,8 @@ class CandidatureValideMail extends Mailable
 	private function getMainContent(): string
 	{
 		return $this->greeting .
-			". Nous avons le plaisir de vous informer que, suite à l'étude approfondie de votre dossier par la commission d'admission, votre candidature pour " . AppGetters::getAppName() . " a été approuvée.
-			Connectez-vous régulièrement à votre espace numérique pour suivre les prochaines étapes de votre procédure d'admission.
+			". Nous avons le plaisir de vous informer que, suite à l'étude approfondie de votre dossier par la commission d'admission, votre candidature pour " . AppGetters::getAppName() . " a été approuvée.<br><br>
+			Connectez-vous régulièrement à votre espace candidat pour suivre les prochaines étapes de votre procédure d'admission.
 		";
 	}
 }

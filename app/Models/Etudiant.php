@@ -130,7 +130,7 @@ class Etudiant extends Authenticatable
 	{
 		return $this->hasMany(EtudiantGroup::class, 'etudiant_id')
 			->where('annee_scolaire_id', injectAnneeScolaireId())
-			->latest('id');
+			->orderByDesc('id');
 	}
 
 	public function tickets()
@@ -147,7 +147,7 @@ class Etudiant extends Authenticatable
 			'id',          // Clé locale sur etudiants
 			'group_id'     // Clé étrangère sur etudiant_group
 		)->where('etudiant_group.annee_scolaire_id', injectAnneeScolaireId())
-			->latest('etudiant_group.id');
+			->orderByDesc('etudiant_group.id');
 	}
 
 
@@ -234,6 +234,11 @@ public function echeances()
 	public function album(): MorphOne
 	{
 		return $this->morphOne(Album::class, 'owner');
+	}
+
+	public function submittedDocuments(): \Illuminate\Database\Eloquent\Relations\MorphMany
+	{
+		return $this->morphMany(Document::class, 'owner');
 	}
 
 	public function responsable(): MorphOne

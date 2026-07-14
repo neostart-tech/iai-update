@@ -90,4 +90,114 @@ class NiveauController extends Controller
 
         return response()->json(['message' => 'Périodes associées avec succès']);
     }
+
+    public function getDocumentRequirements(Request $request, $id)
+    {
+        $filiereId = $request->query('filiere_id');
+        
+        $requirements = \App\Models\DocumentRequirement::with('documentType')->where('niveau_id', $id)
+            ->where(function($q) use ($filiereId) {
+                $q->whereNull('filiere_id');
+                if ($filiereId) {
+                    $q->orWhere('filiere_id', $filiereId);
+                }
+            })->get();
+
+        $formatted = $requirements->map(function($req) {
+            return [
+                'id' => $req->id,
+                'niveau_id' => $req->niveau_id,
+                'filiere_id' => $req->filiere_id,
+                'document_type_id' => $req->document_type_id,
+                'is_obligatoire' => $req->is_obligatoire,
+                'nom_affichage' => $req->documentType->nom_affichage ?? '',
+                'document_key' => $req->documentType->document_key ?? '',
+                'is_multiple' => $req->documentType->is_multiple ?? false,
+                'is_photo' => $req->documentType->is_photo ?? false,
+                'accepted_formats' => $req->documentType->accepted_formats ?? 'all',
+                'description' => $req->description,
+            ];
+        });
+
+        return response()->json($formatted);
+    }
+
+    public function getDocumentRequirementsAdmin($id)
+    {
+        $requirements = \App\Models\DocumentRequirement::where('niveau_id', $id)->with(['filiere', 'documentType'])->get();
+        
+        $formatted = $requirements->map(function($req) {
+            return [
+                'id' => $req->id,
+                'niveau_id' => $req->niveau_id,
+                'filiere_id' => $req->filiere_id,
+                'document_type_id' => $req->document_type_id,
+                'is_obligatoire' => $req->is_obligatoire,
+                'nom_affichage' => $req->documentType->nom_affichage ?? '',
+                'document_key' => $req->documentType->document_key ?? '',
+                'is_multiple' => $req->documentType->is_multiple ?? false,
+                'is_photo' => $req->documentType->is_photo ?? false,
+                'accepted_formats' => $req->documentType->accepted_formats ?? 'all',
+                'description' => $req->description,
+                'filiere' => $req->filiere,
+            ];
+        });
+
+        return response()->json($formatted);
+    }
+
+    public function storeDocumentRequirement(Request $request, $id)
+    {
+        $request->validate([
+            'document_type_id' => [
+                'required',
+                'exists:document_types,id',
+                \Illuminate\Validation\Rule::unique('document_requirements')->where(function ($query) use ($id, $request) {
+                    return $query->where('niveau_id', $id)
+                                 ->where('filiere_id', $request->filiere_id);
+                })
+            ],
+            'is_obligatoire' => 'boolean',
+            'filiere_id' => 'nullable|exists:filieres,id',
+            'description' => 'nullable|string|max:1000'
+        ], [
+            'document_type_id.unique' => 'Ce document est déjà exigé pour ce niveau/filière.'
+        ]);
+
+        $req = \App\Models\DocumentRequirement::create([
+            'niveau_id' => $id,
+            'document_type_id' => $request->document_type_id,
+            'is_obligatoire' => $request->is_obligatoire ?? true,
+            'filiere_id' => $request->filiere_id,
+            'description' => $request->description
+        ]);
+
+        return response()->json($req);
+    }
+
+    public function updateDocumentRequirement(Request $request, $docId)
+    {
+        $request->validate([
+            'document_type_id' => 'required|exists:document_types,id',
+            'is_obligatoire' => 'boolean',
+            'filiere_id' => 'nullable|exists:filieres,id',
+            'description' => 'nullable|string|max:1000'
+        ]);
+
+        $req = \App\Models\DocumentRequirement::findOrFail($docId);
+        $req->update([
+            'document_type_id' => $request->document_type_id,
+            'is_obligatoire' => $request->is_obligatoire ?? true,
+            'filiere_id' => $request->filiere_id,
+            'description' => $request->description
+        ]);
+
+        return response()->json($req);
+    }
+
+    public function destroyDocumentRequirement($id)
+    {
+        \App\Models\DocumentRequirement::destroy($id);
+        return response()->json(['message' => 'Document requirement deleted']);
+    }
 }

@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ContactRequest;
 use App\Http\Resources\ContactResource;
+use App\Mail\Contacts\ContactReplyMail;
 use App\Models\Contact;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 
 class ContactController extends Controller
@@ -54,5 +57,24 @@ class ContactController extends Controller
 		$contact->delete();
 		return new ContactResource($contact);
 		return back()->with('success', 'Message supprimé avec succès');
+	}
+
+	public function reply(Request $request, Contact $contact)
+	{
+		if (!$contact->email) {
+			return response()->json(['message' => "Ce message n'a pas d'adresse email associée."], 422);
+		}
+
+		$data = $request->validate([
+			'message' => ['required', 'string', 'max:2000'],
+		]);
+
+		Mail::to($contact->email)->send(
+			new ContactReplyMail($contact->nom, $data['message'], $contact->message ?? '')
+		);
+
+		$contact->update(['status' => 1]);
+
+		return new ContactResource($contact);
 	}
 }

@@ -4,6 +4,7 @@ namespace App\Traits\ActionsTraits;
 
 use App\Models\Candidature;
 use App\Models\Group;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 use App\Helpers\ConfigHelper as AppGetters;
 use App\Http\Resources\CandidatureResource;
@@ -14,32 +15,60 @@ trait IndexTrait
 {
 	public function index()
 	{
-		$simpleCandidatures = Candidature::query()
-			->where('dossier_valide', false)
-			->whereNull('motif')
-			->where('frais_paye', false)
-			->where('participation', false)
-			->where('admission', false)
-			->whereDoesntHave('reorientations')
+		$candidatures = Candidature::query()
+			->with(['niveau', 'filiere', 'album'])
+			->orderBy('nom')
+			->orderBy('prenom')
 			->get();
-		return CandidatureResource::collection($simpleCandidatures);
-		// return view('admin.candidatures.index')->with([
-		// 	'simpleCandidatures' => Candidature::query()->where('dossier_valide', false)
-		// 		->whereNull('motif')
-		// 		->where('frais_paye', false)
-		// 		->where('participation', false)
-		// 		->where('admission', false)
-		// 		->whereDoesntHave('reorientations')
-		// 		->get(),
-		// 	'niveaux' => Niveau::all(),
-		// 	'filieres' => Filiere::all(),
-		// 	'metaData' => [
-		// 		'title' => 'Liste des candidatures',
-		// 		'breadcrumbs' => ['Administration', 'Candidatures', 'Liste'],
-		// 		'page_name' => 'Liste des candidatures'
-		// 	],
-		// 	"viewContent" => '_simple-candidatures'
-		// ]);
+		return CandidatureResource::collection($candidatures);
+	}
+
+	/**
+	 * Nombre de candidatures en attente d'action pour l'utilisateur connecté :
+	 * - Chargé de la clientèle : dossiers pas encore transmis à l'académie.
+	 * - Directeur académique / Logisticien académique : dossiers transmis,
+	 *   en attente de la décision finale.
+	 */
+	public function countCandidaturesATraiter(Request $request)
+	{
+		$roleSlugs = $request->user()->roles->pluck('slug');
+
+		$query = Candidature::query()
+			->whereNull('motif')
+			->where('rectification_expected', false)
+			->where('dossier_valide', false);
+
+		if ($roleSlugs->contains('directeur-academique') || $roleSlugs->contains('logiticien-academique')) {
+			$query->where('transmis_academie', true);
+		} elseif ($roleSlugs->contains('charge-de-la-clientele')) {
+			$query->where('transmis_academie', false);
+		} else {
+			return response()->json(['count' => 0]);
+		}
+
+		return response()->json(['count' => $query->count()]);
+	}
+
+	public function exportEtudeDossierExcel(Request $request)
+	{
+		$query = Candidature::query()
+			->with(['niveau', 'filiere', 'album', 'tuteurs', 'submittedDocuments']);
+
+		if ($request->filled('ids')) {
+			$query->whereIn('id', (array) $request->input('ids'));
+		}
+
+		$candidatures = $query
+			->orderBy('nom')
+			->orderBy('prenom')
+			->get();
+
+		$fileName = 'candidatures_etude_dossier_' . now()->format('Y-m-d') . '.xlsx';
+
+		return \Maatwebsite\Excel\Facades\Excel::download(
+			new \App\Exports\CandidaturesEtudeDossierExport($candidatures),
+			$fileName
+		);
 	}
 
 
@@ -161,6 +190,37 @@ trait IndexTrait
 	}
 
 
+	public function exportCandidatsAdmisExcel()
+	{
+		$candidatures = Candidature::query()
+			->with(['niveau', 'filiere'])
+			->where('dossier_valide', true)
+			->whereNotNull('validation_date')
+			->where('frais_paye', true)
+			->whereNotNull('frai_paye_date')
+			->where('participation', true)
+			->whereNotNull('participation_date')
+			->where('admission', true)
+			->whereNotNull('admission_date')
+			->whereNull('motif')
+			->where(function ($query) {
+				$query->whereDoesntHave('etudiant')
+					->orWhereHas('etudiant', function ($q) {
+						$q->whereDoesntHave('groups');
+					});
+			})
+			->orderBy('nom')
+			->orderBy('prenom')
+			->get();
+
+		$fileName = 'candidats_admis_' . now()->format('Y-m-d') . '.xlsx';
+
+		return \Maatwebsite\Excel\Facades\Excel::download(
+			new \App\Exports\CandidatsAdmisExport($candidatures),
+			$fileName
+		);
+	}
+
 	public function liste_des_admis()
 	{
 		$admisCandidatures = Candidature::query()
@@ -211,10 +271,10 @@ trait IndexTrait
 	{
 		return response()->json([
 			'groups' => Group::query()
-				->with(['filiere:id,code'])
+				->with(['filieres:id,code,nom', 'niveau:id,libelle'])
 				->withCount('etudiants')
 				->orderBy('nom')
-				->get(['id', 'nom', 'filiere_id', 'slug']),
+				->get(['id', 'nom', 'slug', 'niveau_id']),
 		]);
 	}
 
@@ -228,11 +288,11 @@ trait IndexTrait
 			->whereNull('motif')
 			->whereNull('acceptation_date')
 			->whereNull('etudiant_id')
-			->where('filiere_id', $group->filiere_id)
+			->whereIn('filiere_id', $group->filieres()->pluck('filieres.id'))
 			->get();
 
 		return response()->json([
-			'group' => $group,
+			'group' => $group->load('filieres:id,code,nom'),
 			'candidatures' => CandidatureResource::collection($candidatures)
 		]);
 	}

@@ -182,6 +182,10 @@ Route::middleware('auth:sanctum')->group(function () {
         // Enregistrer les présences étudiants
         Route::post('/save-student-presence', 'enregistrerAbsences');
 
+        // Nouvelles routes pour le système QR Code
+        Route::post('/cours/{emploiId}/generate-qr', 'generateQrCode');
+        Route::post('/scan-qr', 'scanQrCode');
+
         // Enregistrer présence enseignant
         Route::post('/save-enseignant-presence', 'enregistrerPresenceEnseignant');
 
@@ -522,6 +526,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Statistiques
         Route::get('/statistics', [ExamSubmissionController::class, 'statistics']);
+
+        // Validation et déverrouillage des notes
+        Route::post('/validate-corrections', [ExamSubmissionController::class, 'validateCorrections']);
+        Route::post('/unlock-corrections', [ExamSubmissionController::class, 'unlockCorrections']);
     });
 
     Route::get('/exam/{evaluationId}/submissions/all', [ExamSubmissionController::class, 'allSubmissions']);
@@ -610,6 +618,7 @@ Route::prefix('tickets')->group(function(){
 Route::prefix('public')->group(function () {
     // Inscription routes (unauthenticated)
     Route::get('niveau/liste', [\App\Http\Controllers\NiveauController::class, 'index']);
+    Route::get('niveau/{id}/document-requirements', [\App\Http\Controllers\NiveauController::class, 'getDocumentRequirements']);
     Route::get('filieres/liste', [\App\Http\Controllers\Admin\FiliereController::class, 'index']);
     Route::post('candidature/soumettre', [\App\Http\Controllers\CandidatureController::class, 'storeByAdmin']);
 
@@ -621,6 +630,12 @@ Route::prefix('public')->group(function () {
     // Configurations publiques
     Route::get('configurations', [\App\Http\Controllers\ConfigurationController::class, 'index']);
     
+    // Vérification de carte d'étudiant publique
+    Route::get('verif/{matricule}', [\App\Http\Controllers\CarteEtudiantController::class, 'verifEtudiant']);
+    
+    // Informations publiques du concours d'admission en cours
+    Route::get('concours/informations-publiques', [\App\Http\Controllers\Api\PublicConcoursController::class, 'index']);
+
     // Blogs
     Route::get('blogs', [\App\Http\Controllers\Api\PublicBlogController::class, 'index']);
     Route::get('blogs/{idOrSlug}', [\App\Http\Controllers\Api\PublicBlogController::class, 'show']);

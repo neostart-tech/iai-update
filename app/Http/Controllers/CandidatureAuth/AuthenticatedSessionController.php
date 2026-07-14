@@ -4,40 +4,46 @@ namespace App\Http\Controllers\CandidatureAuth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CandidatureAuth\LoginRequest;
-use App\Providers\RouteServiceProvider;
-use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
-use Illuminate\View\View;
-use MercurySeries\Flashy\Flashy;
 
 class AuthenticatedSessionController extends Controller
 {
-	public function create(): View
+	/**
+	 * Gère la tentative de connexion depuis l'API (Nuxt)
+	 *
+	 * @throws ValidationException
+	 */
+	public function store(LoginRequest $request): JsonResponse
 	{
-		return view('officiel.auth.login');
+		// Authentifie l'utilisateur via la logique de la requête (vérifie les identifiants)
+		$request->authenticate();
+
+		// Récupère l'utilisateur
+		$user = $request->user() ?? $request->user('web_candidatures');
+		
+		// Génère un jeton d'accès Sanctum
+		$token = $user->createToken('candidat_token')->plainTextToken;
+
+		return response()->json([
+			'message' => 'Connecté avec succès',
+			'user' => $user,
+			'token' => $token
+		]);
 	}
 
 	/**
-	 * @throws ValidationException
+	 * Déconnecte l'utilisateur en révoquant son jeton
 	 */
-	public function store(LoginRequest $request): RedirectResponse
+	public function destroy(Request $request): JsonResponse
 	{
-		$request->authenticate();
-
-		$request->session()->regenerate();
-		// Flashy::success($request->user('web_candidatures')->greeting(), icon: 'waving_hand');
-		return redirect()->intended(RouteServiceProvider::CANDIDAT_HOME);
-	}
-
-	public function destroy(Request $request): RedirectResponse
-	{
-		Auth::guard('web_candidatures')->logout();
-
-		$request->session()->invalidate();
-
-		$request->session()->regenerateToken();
-		return to_route('home');
+		$user = auth('sanctum')->user() ?? $request->user();
+		
+		if ($user && method_exists($user, 'currentAccessToken') && $user->currentAccessToken()) {
+			$user->currentAccessToken()->delete();
+		}
+		
+		return response()->json(['message' => 'Déconnecté avec succès']);
 	}
 }

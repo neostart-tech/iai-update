@@ -67,7 +67,9 @@ class CreatingUserBasedOnCandidatsDataJob implements ShouldQueue
 
 			$candidature->responsable->update($updatedData);
 
-			$candidature->tuteur->update($updatedData);
+			// Réattribue TOUS les tuteurs/parents du candidat (pas seulement le premier)
+			// à l'étudiant nouvellement créé.
+			$candidature->tuteurs->each(fn ($tuteur) => $tuteur->update($updatedData));
 
 			$candidature->update([
 				'etudiant_id' => $etudiant->getAttribute('id'),

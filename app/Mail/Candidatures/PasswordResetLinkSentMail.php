@@ -17,7 +17,8 @@ class PasswordResetLinkSentMail extends Mailable
 
 	public function __construct(private readonly string $token, private readonly string $email, private readonly string $greeting)
 	{
-		$this->route = url(route('officiel.password.reset', ['token' => $this->token . '?email=' . $this->email]));
+		$resetUrl = rtrim(env('FRONTEND_CANDIDAT_RESET_URL', 'http://localhost:3000/candidat/reinitialiser-mot-de-passe'), '/');
+		$this->route = $resetUrl . '?token=' . $this->token . '&email=' . urlencode($this->email);
 	}
 
 	public function envelope(): Envelope
@@ -43,15 +44,13 @@ class PasswordResetLinkSentMail extends Mailable
 
 	private function mainContent(): string
 	{
-		return $this->greeting . ". Vous recevez cet e-mail, car nous avons reçu une demande de réinitialisation du mot de passe de votre compte. <br>
-		Ce lien de réinitialisation de mot de passe expirera dans 60 minutes. Si vous n'avez pas demandé de réinitialisation du mot de passe, aucune autre action n'est requise.
-    Cordialement, " .AppGetters::getAppName() . ".";
+		return $this->greeting . ". Vous recevez cet e-mail, car nous avons reçu une demande de réinitialisation du mot de passe de votre compte. <br><br>
+		Ce lien de réinitialisation de mot de passe expirera dans 60 minutes. Si vous n'avez pas demandé de réinitialisation du mot de passe, aucune autre action n'est requise.<br><br><br>
+		Cordialement,<br><strong>" . AppGetters::getAppName() . "</strong>";
 	}
 
 	private function moreInfo(): string
 	{
-		return "<div style='margin-top: 20px;'></div>
-    Si vous rencontrez des difficultés pour cliquer sur le bouton « Réinitialiser le mot de passe », copiez et collez 
-    l'URL ci-dessous dans votre navigateur Web: <a href='" . $this->route . "'>" . $this->route . "</a>";
+		return "";
 	}
 }

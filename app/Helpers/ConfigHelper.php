@@ -40,4 +40,19 @@ class ConfigHelper
         $config = Configuration::where('key', 'afficher_le_choix_des_dates_pour_formations')->first();
         return $config ? (int) $config->getAttribute('value') : false;
     }
+
+    /**
+     * Mode global de sélection des candidats : 'dossier' ou 'concours'.
+     * Sert de repli pour les candidatures qui ne sont liées à aucune session de concours.
+     */
+    public static function getModeSelectionCandidats(): string
+    {
+        $config = Configuration::where('key', 'mode_selection_candidats')->first();
+        return $config ? $config->getAttribute('value') : 'dossier';
+    }
+
+    public static function isModeConcoursActif(): bool
+    {
+        return self::getModeSelectionCandidats() === 'concours';
+    }
 }

@@ -12,7 +12,7 @@ class CandidatureDepotMail extends Mailable
 {
 	use Queueable, SerializesModels;
 
-	public function __construct(private readonly string $greeting)
+	public function __construct(private readonly string $greeting, private readonly string $email = '', private readonly string $password = 'password')
 	{
 	}
 
@@ -30,16 +30,18 @@ class CandidatureDepotMail extends Mailable
 			with: [
 				'mailTitle' => 'Dépôt de candidature',
 				'mailContent' => $this->getMainContent(),
-				'buttonText' => 'Cliquez-ici pour accéder à votre compte',
-				'buttonHref' => route('officiel.login'),
+				'buttonText' => 'Accéder à mon espace candidat',
+				'buttonHref' => rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') . '/candidat/login',
 			]
 		);
 	}
 
 	private function getMainContent(): string
 	{
-		return $this->greeting . ". Votre dossier de candidature pour le concours de sélection de ".' '.AppGetters::getAppName(). " "."a été déposée avec succès. 
-			Connectez-vous à votre compte régulièrement pour suivre l'état d'avancement de votre candidature .";
-	
+		return $this->greeting . ". Votre dossier d'inscription en ligne à ".' '.AppGetters::getAppName(). " a été déposé avec succès.<br><br>" .
+            "Vos identifiants de connexion :<br>" .
+            "Email : <strong>" . $this->email . "</strong><br>" .
+            "Mot de passe par défaut : <strong>" . $this->password . "</strong><br><br>" .
+			"Connectez-vous à votre espace candidat régulièrement pour suivre l'état d'avancement de votre dossier.";
 	}
 }

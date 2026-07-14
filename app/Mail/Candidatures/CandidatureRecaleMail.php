@@ -30,8 +30,8 @@ class CandidatureRecaleMail extends Mailable
 			with: [
 				'mailTitle' => 'Résultats du concours '.' '. AppGetters::getAppName(),
 				'mailContent' => $this->getMainContent(),
-				'buttonText' => 'Cliquez-ici pour accéder à votre compte',
-				'buttonHref' => route('officiel.login'),
+				'buttonText' => 'Consulter mon dossier',
+				'buttonHref' => rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') . '/candidat/login',
 			]
 		);
 	}

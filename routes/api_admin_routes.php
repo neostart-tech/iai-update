@@ -58,6 +58,8 @@ Route::controller(ConfigurationController::class)->prefix('parametre')->name('co
     Route::get('configuration', 'index')->name('index');
 });
 
+Route::apiResource('document-types', \App\Http\Controllers\DocumentTypeController::class)->middleware('auth:sanctum');
+
 // Gestion des informations urgentes (PUBLIC)
 Route::controller(UrgentInfoController::class)->prefix('informations-urgentes')->name('urgent_infos_public.')->group(function () {
     Route::get('liste', 'index')->name('index');
@@ -67,6 +69,10 @@ Route::controller(UrgentInfoController::class)->prefix('informations-urgentes')-
 // Route publique pour la génération des cartes d'étudiants (Générateur Hybride)
 Route::get('student-cards/generate-pdf', [CarteEtudiantController::class, 'genererCartesPdf'])
     ->name('student-cards.generate-pdf');
+
+// Route publique pour la vérification des informations d'un étudiant par son matricule
+Route::get('student-cards/verify/{matricule}', [CarteEtudiantController::class, 'verifyStudent'])
+    ->name('student-cards.verify');
 
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -196,22 +202,26 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::controller(CandidatureController::class)->prefix('candidature')->name('candidatures.')->group(function () {
         Route::get('liste', 'index')->name('index');
+        Route::get('count-a-traiter', 'countCandidaturesATraiter')->name('count-a-traiter');
         Route::get('creation-d-une-candidature', 'inscriptionIndexForm')->name('create');
         Route::post("store-by-admin", "storeByAdmin")->name("store-by-admin");
         Route::post("{candidature}/update-by-admin", "updateByAdmin")->name("update-by-admin");
         Route::get('payement-des-frais-de-participation', 'payementCandidaturesIndex')->name('payement-des-frais-de-participation');
         Route::get('participation-au-concours', 'participantCandidaturesIndex')->name('participation-au-concours');
         Route::get('admission-a-' . Str::slug(env('APP_NAME')), 'admisCandidaturesIndex')->name('admission');
-        Route::get('liste-des-rectifications', 'rectificationIndex')->name('index.rectifications');
+        Route::get('liste-des-rectifications', 'liste_des_rectifications')->name('index.rectifications');
         Route::get('liste-des-admis', 'InscriptionCandidaturesIndex')->name('liste-des-admis');
-        Route::get('liste-des-rejets', 'rejectionIndex')->name('index.rejections');
+        Route::get('export/excel', 'exportCandidatsAdmisExcel')->name('export.excel');
+        Route::get('export/etude-dossier', 'exportEtudeDossierExcel')->name('export.etude-dossier');
+        Route::get('liste-des-rejets', 'liste_des_rejets')->name('index.rejections');
         Route::get('{candidature}/evaluer', 'show')->name('show');
         Route::get('choix-de-groupe', 'chooseClassAssignmentGroupView')->name('choose-class-assignment-group-view');
         Route::get('attribution-de-groupe/{group}', 'showGroupClassAssignmentView')->name('show-class-assignment-view');
         Route::post('payement-des-frais-de-participation', 'payementCandidaturesStore')->name('payement-des-frais-de-participation.store');
-        Route::post('attribution-de-groupe', 'makeCandidatsUser')->name('attribution-de-groupe');
+        Route::post('attribution-de-groupe', 'storeGroupClassAssignment')->name('attribution-de-groupe');
         Route::post('presence-sub', 'presenceControlStore')->name('presence-sub');
         Route::post('admission-sub', 'admissionControl')->name('admission-sub');
+        Route::put('{candidature}/transmettre-academie', 'transmettreAcademie')->name('transmettre-academie');
         Route::put('{candidature}/valider', action: 'validateCandidature')->name('validate');
         Route::put('{candidature}/rejeter', 'rejectCandidature')->name('reject');
         Route::put('{candidature}/demander-rectification', 'askForRectificationOnCandidature')->name('ask-for-rectification');
@@ -252,6 +262,39 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/{id}/toggle-status', 'toggleStatus')->name('toggle-status');
         Route::get('/{id}/periodes', 'getPeriodes')->name('get-periodes');
         Route::post('/{id}/assign-periodes', 'assignPeriodes')->name('assign-periodes');
+        
+        Route::get('/{id}/documents', 'getDocumentRequirementsAdmin');
+        Route::post('/{id}/documents', 'storeDocumentRequirement');
+        Route::put('/documents/{id}', 'updateDocumentRequirement');
+        Route::delete('/documents/{id}', 'destroyDocumentRequirement');
+    });
+
+    Route::controller(\App\Http\Controllers\Api\Admin\ConcoursSessionController::class)->prefix('concours-session')->name('concours-session.')->group(function () {
+        Route::get('/liste', 'index')->name('liste');
+        Route::post('/ajouter', 'store')->name('store');
+        Route::put('/{id}/modifier', 'update')->name('update');
+        Route::patch('/{id}/toggle-status', 'toggleStatus')->name('toggle-status');
+        Route::post('/{id}/publier', 'publish')->name('publish');
+        Route::post('/{id}/depublier', 'unpublish')->name('unpublish');
+    });
+
+    Route::controller(\App\Http\Controllers\Api\Admin\ConcoursMatiereController::class)->prefix('concours-matiere')->name('concours-matiere.')->group(function () {
+        Route::get('/liste', 'index')->name('liste');
+        Route::post('/ajouter', 'store')->name('store');
+        Route::put('/{id}/modifier', 'update')->name('update');
+        Route::delete('/{id}/supprimer', 'destroy')->name('delete');
+    });
+
+    Route::controller(\App\Http\Controllers\Api\Admin\ConcoursSessionMatiereController::class)->prefix('concours-session/{session}/matieres')->name('concours-session.matieres.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::put('/{sessionMatiere}', 'update')->name('update');
+        Route::delete('/{sessionMatiere}', 'destroy')->name('delete');
+    });
+
+    Route::controller(\App\Http\Controllers\Api\Admin\ConcoursNoteController::class)->prefix('concours-session/{session}/notes')->name('concours-session.notes.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/enregistrer', 'storeBulk')->name('store-bulk');
     });
 
 
@@ -325,6 +368,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('{slug}/publier', 'publish')->name('publish');
             Route::get('{evaluation}/fiche-de-note', 'getNoteFiche')->name(name: 'fiche-de-note');
             Route::get('/get-liste-enseignant-evaluations', 'getListEvaluationForTeacher');
+            Route::get('/get-mes-evaluations', 'getMyEvaluations');
             Route::get('/get-liste-etudiant-evaluations', 'getListEvaluationForStudent');
         });
 
@@ -449,6 +493,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('', 'index')->name('index');
 
             Route::get('{contact}/lire', 'read')->name('read');
+            Route::post('{contact}/repondre', 'reply')->name('reply');
 
             Route::get('{contact}', 'show')->name('show');
             Route::delete('{contact}', 'destroy')->name('delete');
@@ -459,6 +504,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ->prefix('prospects')
         ->name('prospects.')
         ->group(function () {
+            Route::get('export', 'export')->name('export');
             Route::get('count-unread', 'countUnread')->name('count-unread');
             Route::get('', 'index')->name('index');
             Route::get('{prospect}', 'show')->name('show');
@@ -536,6 +582,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('get-etudiant-non-boursier', "getNonBoursiers");
 
+        Route::post('store', 'store')->name('store');
         Route::post('import', 'importEtudiant')->name('import');
         $anneActive = AnneeScolaire::where('active', true)->first()->nom ?? null;
         Route::get('export', function () use ($anneActive) {

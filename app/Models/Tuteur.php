@@ -27,8 +27,13 @@ class Tuteur extends Model
 		'adresse',
 		'fax',
 		'bp',
+		'responsable_des_frais',
 		'owner_id',
 		'owner_type',
+	];
+
+	protected $casts = [
+		'responsable_des_frais' => 'boolean',
 	];
 
 	public function owner(): MorphTo

@@ -23,6 +23,9 @@ use Illuminate\View\View;
 use Monarobase\CountryList\CountryListFacade;
 use Sabberworm\CSS\Rule\Rule;
 use Throwable;
+use App\Models\User;
+use Illuminate\Support\Facades\Notification;
+use App\Notifications\Candidatures\NewCandidatureSubmittedNotification;
 
 class CandidatureController extends Controller
 {
@@ -44,16 +47,34 @@ class CandidatureController extends Controller
 
 	public function show(Candidature $candidature)
 	{
-		$candidature->load(['documents', 'album', 'tuteur', 'responsable', 'niveau', 'filiere', 'advertiser']);
+		$candidature->load(['album', 'tuteur', 'tuteurs', 'responsable', 'niveau', 'filiere', 'advertiser', 'submittedDocuments', 'concoursSession']);
+
+		$requirements = [];
+		if ($candidature->niveau_id) {
+			$requirements = \App\Models\DocumentRequirement::with('documentType')->where('niveau_id', $candidature->niveau_id)
+				->where(function ($q) use ($candidature) {
+					$q->whereNull('filiere_id')->orWhere('filiere_id', $candidature->filiere_id);
+				})->get();
+		}
+
+		$originalAlbum = $candidature->album ? $candidature->album->toArray() : [];
+		$albumFiles = [];
+		foreach ($candidature->submittedDocuments as $doc) {
+			$albumFiles[$doc->document_key] = $doc->file_path;
+		}
+
+		unset($candidature->album);
+		$candidature->setAttribute('album', (object) array_merge($originalAlbum, $albumFiles));
 
 		if (request()->ajax() || request()->wantsJson()) {
 			return response()->json([
-				'data' => $candidature
+				'data' => $candidature,
+				'expected_docs' => $requirements
 			]);
 		}
 
 		return view('admin.candidatures.show', compact('candidature'))->with([
-			'album' => $candidature->album,
+			'album' => (object) $album,
 			'niveau' => $candidature->niveau,
 			'filiere' => $candidature->filiere,
 			'filieres' => Filiere::all(),
@@ -63,11 +84,35 @@ class CandidatureController extends Controller
 
 	public function create(): View
 	{
+		$documentRequirements = \App\Models\DocumentRequirement::with('documentType')
+			->get()
+			->map(fn ($req) => [
+				'niveau_id' => $req->niveau_id,
+				'filiere_id' => $req->filiere_id,
+				'is_obligatoire' => (bool) $req->is_obligatoire,
+				'document_key' => $req->documentType?->document_key,
+				'nom_affichage' => $req->documentType?->nom_affichage,
+				'is_multiple' => (bool) ($req->documentType?->is_multiple ?? false),
+				'accepted_formats' => $req->documentType?->accepted_formats ?? 'all',
+				'description' => $req->description,
+			])
+			->filter(fn ($req) => $req['document_key'] !== null)
+			->values();
+
+		// Le concours d'admission ne concerne actuellement que la Licence 1 : le candidat
+		// ne choisit ni son niveau ni sa filière, ils sont déduits automatiquement ici
+		// (Licence 1 -> son groupe -> l'unique filière rattachée à ce groupe).
+		$niveauCandidature = Niveau::where('libelle', 'Licence 1')->first();
+		$filiereCandidature = $niveauCandidature
+			? Filiere::whereHas('groups', fn ($q) => $q->where('niveau_id', $niveauCandidature->id))->first()
+			: null;
+
 		return view('candidatures.create')->with([
 			'candidature' => new Candidature(),
-			'niveaux' => $this->getNiveaux(),
-			'filieres' => $this->getFilieres(),
-			'countries' => CountryListFacade::getList(config('app.locale'))
+			'countries' => CountryListFacade::getList(config('app.locale')),
+			'documentRequirements' => $documentRequirements,
+			'niveauCandidatureId' => $niveauCandidature?->id,
+			'filiereCandidatureId' => $filiereCandidature?->id,
 		]);
 	}
 
@@ -81,21 +126,186 @@ class CandidatureController extends Controller
 			->exists();
 
 		if ($exists) {
-			return response()->json([
-				'success' => false,
-				'message' => "Vous avez déjà déposé une candidature pour cette année scolaire."
-			], 422);
+			$message = "Vous avez déjà déposé une candidature pour cette année scolaire.";
+
+			// Le site Nuxt consomme aussi cette route en JSON : on garde ce format pour
+			// lui inchangé. Le formulaire public HTML, lui, doit revenir sur la page avec
+			// une erreur affichée proprement au lieu d'un JSON brut affiché tel quel.
+			if ($request->wantsJson()) {
+				return response()->json([
+					'success' => false,
+					'message' => $message
+				], 422);
+			}
+
+			return redirect()->back()->withErrors(['email' => $message])->withInput();
 		}
 
 		// 2. Vérification si l'étudiant est déjà inscrit (optionnel mais recommandé)
 		if (Etudiant::where('email', $request->email)->exists()) {
+			$message = "Un compte étudiant existe déjà avec cet email. Veuillez passer par la procédure de réinscription.";
+
+			if ($request->wantsJson()) {
+				return response()->json([
+					'success' => false,
+					'message' => $message
+				], 422);
+			}
+
+			return redirect()->back()->withErrors(['email' => $message])->withInput();
+		}
+
+		// 2bis. Vérification des champs obligatoires du dossier
+		$request->validate([
+			'nom' => ['required', 'string', 'max:255'],
+			'prenom' => ['required', 'string', 'max:255'],
+			'genre' => ['required', 'string'],
+			'date_naissance' => ['required', 'date'],
+			'lieu_naissance' => ['required', 'string', 'max:255'],
+			'nationalite' => ['required', 'string'],
+			'numero_table' => ['required', 'digits_between:1,7'],
+			'annee_bac' => ['required', 'integer', 'min:1990', 'max:' . date('Y')],
+			'serie' => ['required', 'string'],
+			'mention_bac' => ['required', 'string'],
+			'tel' => ['required', 'string'],
+			'email' => ['required', 'email', 'max:255'],
+			'accept_cgu' => ['accepted'],
+		], [
+			'annee_bac.max' => "L'année du BAC ne peut pas être postérieure à l'année en cours (" . date('Y') . ").",
+			'numero_table.digits_between' => "Le numéro de table doit contenir uniquement des chiffres (7 maximum).",
+			'accept_cgu.accepted' => "Vous devez accepter les conditions générales d'utilisation.",
+		]);
+
+		// 3. Création du candidat, de ses tuteurs/responsable et de ses documents dans une
+		// même transaction : si la validation des pièces jointes (dans updateOrCreateAlbum)
+		// échoue, tout est annulé plutôt que de laisser une candidature orpheline sans
+		// documents en base (ce qui bloquait ensuite tout nouveau dépôt avec le même email).
+		$candidat = DB::transaction(function () use ($request, &$plainPassword) {
+			$candidat = Candidature::create([
+				...$request->only([
+					'nom',
+					'prenom',
+					'nom_jeune_fille',
+					'numero_table',
+					'annee_bac',
+					'mention_bac',
+					'serie',
+					'etablissement_diplome',
+					'genre',
+					'date_naissance',
+					'lieu_naissance',
+					'email',
+					'nationalite',
+					'hobbit',
+					'tel',
+					'tel2',
+					'tel3',
+					'bp',
+					'fax',
+					'niveau_id',
+					'filiere_id',
+					'adresse',
+				]),
+				...injectAnneeScolaireId(),
+				'concours_session_id' => \App\Models\ConcoursSession::where('annee_scolaire_id', getAnneeScolaireId())->value('id'),
+				'password' => Hash::make($plainPassword = Str::random(8)),
+				'code' => fake()->unique()->numberBetween(9999, 100000)
+			]);
+
+			// Création des tuteurs/parents (un ou plusieurs) et, pour compatibilité avec le
+			// reste de l'application (espace candidat, admission), du responsable des frais.
+			$tuteursValides = [];
+			foreach ($request->input('tuteurs', []) as $tuteurEntry) {
+				if (blank($tuteurEntry['nom'] ?? null) && blank($tuteurEntry['prenom'] ?? null)) {
+					continue;
+				}
+
+				$donneesTuteur = [
+					'nom' => $tuteurEntry['nom'] ?? null,
+					'prenom' => $tuteurEntry['prenom'] ?? null,
+					'profession' => $tuteurEntry['profession'] ?? null,
+					'employeur' => $tuteurEntry['employeur'] ?? null,
+					'email' => $tuteurEntry['email'] ?? null,
+					'tel' => $tuteurEntry['tel'] ?? null,
+					'adresse' => $tuteurEntry['adresse'] ?? null,
+					'responsable_des_frais' => filter_var($tuteurEntry['responsable_des_frais'] ?? false, FILTER_VALIDATE_BOOLEAN),
+				];
+
+				$candidat->tuteurs()->create($donneesTuteur);
+				$tuteursValides[] = $donneesTuteur;
+			}
+
+			if (!empty($tuteursValides)) {
+				$responsableData = collect($tuteursValides)->firstWhere('responsable_des_frais', true) ?? $tuteursValides[0];
+				$candidat->responsable()->create(collect($responsableData)->except('responsable_des_frais')->all());
+			}
+
+			// Création de l'album (utilise la version corrigée ci-dessus)
+			$this->updateOrCreateAlbum($request, $candidat);
+
+			return $candidat;
+		});
+
+		// 5. Connexion et notification
+		Auth::guard('web_candidatures')->login($candidat);
+
+		$message = $candidat->greeting(true);
+		$message .= ", votre dossier de candidature a été déposé avec succès.";
+
+		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message, $plainPassword));
+
+		if ($request->wantsJson()) {
+			return response()->json([
+				'success' => true,
+				'message' => 'Le dossier a été déposé avec succès.',
+				'candidat' => $candidat
+			], 201);
+		}
+
+		return redirect()->route('candidatures.merci', ['prenom' => $candidat->prenom, 'email' => $candidat->email]);
+	}
+
+	public function merci(Request $request): View
+	{
+		return view('candidatures.merci', [
+			'prenom' => $request->query('prenom'),
+			'email' => $request->query('email'),
+		]);
+	}
+
+	public function storeByAdmin(Request $request)
+	{
+		// Mêmes informations et mêmes règles que le formulaire public (store()), à la
+		// différence près que l'admin choisit lui-même le niveau (le frontend déduit la
+		// filière automatiquement à partir de ce choix, au lieu du "toujours Licence 1"
+		// du formulaire public).
+		$validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+			'nom' => ['required', 'string', 'max:255'],
+			'prenom' => ['required', 'string', 'max:255'],
+			'nom_jeune_fille' => ['nullable', 'string', 'max:255'],
+			'genre' => ['required', 'string'],
+			'date_naissance' => ['required', 'date'],
+			'lieu_naissance' => ['required', 'string', 'max:255'],
+			'nationalite' => ['required', 'string'],
+			'numero_table' => ['required', 'digits_between:1,7'],
+			'annee_bac' => ['required', 'integer', 'min:1990', 'max:' . date('Y')],
+			'serie' => ['required', 'in:C,D,E,F2'],
+			'mention_bac' => ['required', 'string'],
+			'tel' => ['required', 'string'],
+			'email' => ['required', 'email', 'max:255', 'unique:candidatures,email'],
+			'niveau_id' => ['required', 'exists:niveaux,id'],
+			'filiere_id' => ['nullable', 'exists:filieres,id'],
+		], [
+			'numero_table.digits_between' => "Le numéro de table doit contenir uniquement des chiffres (7 maximum).",
+		]);
+
+		if ($validator->fails()) {
 			return response()->json([
 				'success' => false,
-				'message' => "Un compte étudiant existe déjà avec cet email. Veuillez passer par la procédure de réinscription."
+				'errors' => $validator->errors()
 			], 422);
 		}
 
-		// 3. Création du candidat
 		$candidat = Candidature::create([
 			...$request->only([
 				'nom',
@@ -103,148 +313,83 @@ class CandidatureController extends Controller
 				'nom_jeune_fille',
 				'numero_table',
 				'annee_bac',
+				'mention_bac',
 				'serie',
-				'lettre_motivation',
+				'etablissement_diplome',
 				'genre',
 				'date_naissance',
 				'lieu_naissance',
 				'email',
 				'nationalite',
-				'hobbit',
 				'tel',
 				'tel2',
 				'tel3',
-				'bp',
-				'fax',
 				'niveau_id',
 				'filiere_id',
+				'adresse',
 			]),
 			...injectAnneeScolaireId(),
-			'password' => Hash::make('password'),
+			'concours_session_id' => \App\Models\ConcoursSession::where('annee_scolaire_id', getAnneeScolaireId())->value('id'),
+			'password' => Hash::make($plainPassword = Str::random(8)),
 			'code' => fake()->unique()->numberBetween(9999, 100000)
 		]);
 
-		// 2. Création du responsable
-		if ($request->filled('nom_resp')) {
-			$candidat->responsable()->create([
-				'nom' => $request->get('nom_resp'),
-				'prenom' => $request->get('prenom_resp'),
-				'profession' => $request->get('profession_resp'),
-				'employeur' => $request->get('employeur_resp'),
-				'email' => $request->get('email_resp'),
-				'tel' => $request->get('tel_resp'),
-				'adresse' => $request->get('adresse_resp'),
-				'fax' => $request->get('fax_resp'),
-				'bp' => $request->get('bp_resp'),
-			]);
+		// Tuteurs répétables + responsable des frais — même logique que store().
+		$tuteursValides = [];
+		foreach ($request->input('tuteurs', []) as $tuteurEntry) {
+			if (blank($tuteurEntry['nom'] ?? null) && blank($tuteurEntry['prenom'] ?? null)) {
+				continue;
+			}
+
+			$donneesTuteur = [
+				'nom' => $tuteurEntry['nom'] ?? null,
+				'prenom' => $tuteurEntry['prenom'] ?? null,
+				'profession' => $tuteurEntry['profession'] ?? null,
+				'employeur' => $tuteurEntry['employeur'] ?? null,
+				'email' => $tuteurEntry['email'] ?? null,
+				'tel' => $tuteurEntry['tel'] ?? null,
+				'adresse' => $tuteurEntry['adresse'] ?? null,
+				'responsable_des_frais' => filter_var($tuteurEntry['responsable_des_frais'] ?? false, FILTER_VALIDATE_BOOLEAN),
+			];
+
+			$candidat->tuteurs()->create($donneesTuteur);
+			$tuteursValides[] = $donneesTuteur;
 		}
 
-		// 3. Création du tuteur
-		if ($request->filled('nom_tuteur')) {
-			$candidat->tuteur()->create([
-				'nom' => $request->get('nom_tuteur'),
-				'prenom' => $request->get('prenom_tuteur'),
-				'profession' => $request->get('profession_tuteur'),
-				'employeur' => $request->get('employeur_tuteur'),
-				'email' => $request->get('email_tuteur'),
-				'tel' => $request->get('tel_tuteur'),
-				'adresse' => $request->get('adresse_tuteur'),
-				'fax' => $request->get('fax_tuteur'),
-				'bp' => $request->get('bp_tuteur'),
-				'candidature_id' => $candidat->getAttribute('id')
-			]);
+		if (!empty($tuteursValides)) {
+			$responsableData = collect($tuteursValides)->firstWhere('responsable_des_frais', true) ?? $tuteursValides[0];
+			$candidat->responsable()->create(collect($responsableData)->except('responsable_des_frais')->all());
 		}
 
-		// 4. Création de l'album (utilise la version corrigée ci-dessus)
-		$this->createAlbum($request, $candidat);
-
-		// 5. Connexion et notification
-		Auth::guard('web_candidatures')->login($candidat);
-
-		$message = $candidat->greeting(true);
-		$message .= ", votre dossier de candidature a été déposé avec succès.";
-
-		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message));
-		
-		return response()->json([
-			'success' => true,
-			'message' => 'Le dossier a été déposé avec succès.',
-			'candidat' => $candidat
-		], 201);
-	}
-	public function storeByAdmin(Request $request)
-	{
-		$request->validate([
-			'email' => [
-				'nullable',
-				'email',
-				'max:255',
-				'unique:candidatures,email'
-			],
-			'email_resp' => [
-				'nullable',
-				'email',
-				'max:255',
-			],
-			'email_tuteur' => [
-				'nullable',
-				'email',
-				'max:255',
-			],
-		]);
-
-		$candidat = Candidature::create([
-			...$request->only([
-				'nom', 'prenom', 'nom_jeune_fille', 'numero_table', 'annee_bac', 'serie',
-				'lettre_motivation', 'genre', 'date_naissance', 'lieu_naissance', 'email',
-				'nationalite', 'hobbit', 'tel', 'tel2', 'tel3', 'bp', 'fax', 'niveau_id', 'filiere_id',
-			]),
-			...injectAnneeScolaireId(),
-			'password' => Hash::make('password'),
-			'code' => fake()->unique()->numberBetween(9999, 100000)
-		]);
-
-		// 2. Création du responsable
-		if ($request->filled('nom_resp')) {
-			$candidat->responsable()->create([
-				'nom' => $request->get('nom_resp'),
-				'prenom' => $request->get('prenom_resp'),
-				'profession' => $request->get('profession_resp'),
-				'employeur' => $request->get('employeur_resp'),
-				'email' => $request->get('email_resp'),
-				'tel' => $request->get('tel_resp'),
-				'adresse' => $request->get('adresse_resp'),
-				'fax' => $request->get('fax_resp'),
-				'bp' => $request->get('bp_resp'),
-			]);
-		}
-
-		// 3. Création du tuteur
-		if ($request->filled('nom_tuteur')) {
-			$candidat->tuteur()->create([
-				'nom' => $request->get('nom_tuteur'),
-				'prenom' => $request->get('prenom_tuteur'),
-				'profession' => $request->get('profession_tuteur'),
-				'employeur' => $request->get('employeur_tuteur'),
-				'email' => $request->get('email_tuteur'),
-				'tel' => $request->get('tel_tuteur'),
-				'adresse' => $request->get('adresse_tuteur'),
-				'fax' => $request->get('fax_tuteur'),
-				'bp' => $request->get('bp_tuteur'),
-				'candidature_id' => $candidat->getAttribute('id')
-			]);
-		}
-
-		// 4. Création de l'album
+		// Documents (dynamiques, même système que store()).
 		$this->updateOrCreateAlbum($request, $candidat);
 
 		// 5. Connexion et notification
-		Auth::guard('web_candidatures')->login($candidat);
+		if ($request->hasSession()) {
+			Auth::guard('web_candidatures')->login($candidat);
+		}
 
 		$message = $candidat->greeting(true);
 		$message .= ", votre dossier de candidature a été déposé avec succès.";
 
-		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message));
+		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message, $plainPassword));
+
+		// Notifier les administrateurs
+		$responsables = User::whereHas('roles', function ($q) {
+			$q->whereIn('slug', [
+				'responsable-marketing',
+				'responsable-du-site',
+				'collaborateur-commercial'
+			])->orWhereIn('nom', [
+						'Responsable Marketing',
+						'Responsable du site',
+						'Collaborateur Commercial'
+					]);
+		})->get();
+
+		if ($responsables->count() > 0) {
+			Notification::send($responsables, new NewCandidatureSubmittedNotification($candidat));
+		}
 
 		return response()->json([
 			'success' => true,
@@ -256,67 +401,91 @@ class CandidatureController extends Controller
 	public function updateByAdmin(Request $request, Candidature $candidature)
 	{
 		$request->validate([
+			'nom' => ['required', 'string', 'max:255'],
+			'prenom' => ['required', 'string', 'max:255'],
+			'genre' => ['required', 'string'],
+			'date_naissance' => ['required', 'date'],
+			'lieu_naissance' => ['required', 'string', 'max:255'],
+			'nationalite' => ['required', 'string'],
+			'numero_table' => ['required', 'digits_between:1,7'],
+			'annee_bac' => ['required', 'integer', 'min:1990', 'max:' . date('Y')],
+			'serie' => ['required', 'string'],
+			'mention_bac' => ['required', 'string'],
+			'tel' => ['required', 'string'],
+			'niveau_id' => ['required', 'exists:niveaux,id'],
+			'filiere_id' => ['nullable', 'exists:filieres,id'],
 			'email' => [
-				'nullable',
+				'required',
 				'email',
 				'max:255',
 				'unique:candidatures,email,' . $candidature->id
 			],
-			'email_resp' => [
-				'nullable',
-				'email',
-				'max:255',
-			],
-			'email_tuteur' => [
-				'nullable',
-				'email',
-				'max:255',
-			],
+		], [
+			'annee_bac.max' => "L'année du BAC ne peut pas être postérieure à l'année en cours (" . date('Y') . ").",
+			'numero_table.digits_between' => "Le numéro de table doit contenir uniquement des chiffres (7 maximum).",
 		]);
 
 		$candidature->update($request->only([
-			'nom', 'prenom', 'nom_jeune_fille', 'numero_table', 'annee_bac', 'serie',
-			'lettre_motivation', 'genre', 'date_naissance', 'lieu_naissance', 'email',
-			'nationalite', 'hobbit', 'tel', 'tel2', 'tel3', 'bp', 'fax', 'niveau_id', 'filiere_id',
+			'nom',
+			'prenom',
+			'nom_jeune_fille',
+			'numero_table',
+			'annee_bac',
+			'mention_bac',
+			'serie',
+			'etablissement_diplome',
+			'genre',
+			'date_naissance',
+			'lieu_naissance',
+			'email',
+			'nationalite',
+			'hobbit',
+			'tel',
+			'tel2',
+			'tel3',
+			'bp',
+			'fax',
+			'niveau_id',
+			'filiere_id',
+			'adresse',
 		]));
 
-		// Update or Create Responsable
-		if ($request->filled('nom_resp')) {
-			$candidature->responsable()->updateOrCreate(
-				[],
-				[
-					'nom' => $request->get('nom_resp'),
-					'prenom' => $request->get('prenom_resp'),
-					'profession' => $request->get('profession_resp'),
-					'employeur' => $request->get('employeur_resp'),
-					'email' => $request->get('email_resp'),
-					'tel' => $request->get('tel_resp'),
-					'adresse' => $request->get('adresse_resp'),
-					'fax' => $request->get('fax_resp'),
-					'bp' => $request->get('bp_resp'),
-				]
-			);
+		// Tuteurs répétables + responsable des frais — même logique que store()/storeByAdmin() :
+		// on remplace la liste existante par celle envoyée (le formulaire renvoie toujours la
+		// liste complète, pas un diff).
+		if ($request->has('tuteurs')) {
+			$candidature->tuteurs()->delete();
+			$candidature->responsable()->delete();
+
+			$tuteursValides = [];
+			foreach ($request->input('tuteurs', []) as $tuteurEntry) {
+				if (blank($tuteurEntry['nom'] ?? null) && blank($tuteurEntry['prenom'] ?? null)) {
+					continue;
+				}
+
+				$donneesTuteur = [
+					'nom' => $tuteurEntry['nom'] ?? null,
+					'prenom' => $tuteurEntry['prenom'] ?? null,
+					'profession' => $tuteurEntry['profession'] ?? null,
+					'employeur' => $tuteurEntry['employeur'] ?? null,
+					'email' => $tuteurEntry['email'] ?? null,
+					'tel' => $tuteurEntry['tel'] ?? null,
+					'adresse' => $tuteurEntry['adresse'] ?? null,
+					'responsable_des_frais' => filter_var($tuteurEntry['responsable_des_frais'] ?? false, FILTER_VALIDATE_BOOLEAN),
+				];
+
+				$candidature->tuteurs()->create($donneesTuteur);
+				$tuteursValides[] = $donneesTuteur;
+			}
+
+			if (!empty($tuteursValides)) {
+				$responsableData = collect($tuteursValides)->firstWhere('responsable_des_frais', true) ?? $tuteursValides[0];
+				$candidature->responsable()->create(collect($responsableData)->except('responsable_des_frais')->all());
+			}
 		}
 
-		// Update or Create Tuteur
-		if ($request->filled('nom_tuteur')) {
-			$candidature->tuteur()->updateOrCreate(
-				[],
-				[
-					'nom' => $request->get('nom_tuteur'),
-					'prenom' => $request->get('prenom_tuteur'),
-					'profession' => $request->get('profession_tuteur'),
-					'employeur' => $request->get('employeur_tuteur'),
-					'email' => $request->get('email_tuteur'),
-					'tel' => $request->get('tel_tuteur'),
-					'adresse' => $request->get('adresse_tuteur'),
-					'fax' => $request->get('fax_tuteur'),
-					'bp' => $request->get('bp_tuteur'),
-				]
-			);
-		}
-
-		// Update or Create Album
+		// Update or Create Album (documents dynamiques + type_diplome, méthode déjà
+		// partagée avec store()/storeByAdmin()).
 		$this->updateOrCreateAlbum($request, $candidature);
 
 		return response()->json([
@@ -328,74 +497,148 @@ class CandidatureController extends Controller
 
 	private function updateOrCreateAlbum(Request $request, Candidature $candidat)
 	{
+		$requirements = \App\Models\DocumentRequirement::with('documentType')
+            ->where('niveau_id', $candidat->niveau_id)
+			->where(function ($q) use ($candidat) {
+				$q->whereNull('filiere_id')->orWhere('filiere_id', $candidat->filiere_id);
+			})->get();
+
 		$filePrefix = Str::slug($candidat->nom . '_' . $candidat->prenom);
-		$album = $candidat->album;
 
-		$data = [];
+		$mapKeyForUpload = function ($dbKey) {
+			$map = [
+				'lettre' => 'lettre_file',
+				'naissance' => 'naissance_file',
+				'diplome' => 'diplome_file',
+				'nationalite' => 'nationalite_file',
+				'photo' => 'photo_identite_file',
+				'certificat_medical' => 'certificat_medical_file',
+				'cv_path' => 'cv_file',
+				'cv' => 'cv_file',
+				'coupon' => 'coupon_file',
+				'releve_bac1_path' => 'releve_bac1',
+				'releve_bac2_path' => 'releve_bac2',
+			];
+			return $map[$dbKey] ?? $dbKey;
+		};
 
-		// Files unique
-		$fileFields = [
-			'lettre_file' => 'lettre',
-			'naissance_file' => 'naissance',
-			'diplome_file' => 'diplome',
-			'nationalite_file' => 'nationalite',
-			'photo_identite_file' => 'photo',
-			'certificat_medical_file' => 'certificat_medical',
-			'coupon_file' => 'coupon',
-			'cv_file' => 'cv_path'
-		];
+        // 1. Validation dynamique des formats et obligations
+        $rules = [];
+        $messages = [];
 
-		foreach ($fileFields as $requestKey => $dbKey) {
+        foreach ($requirements as $req) {
+            $type = $req->documentType;
+            if (!$type) continue;
+            
+            $docKey = $type->document_key;
+            $requestKey = $mapKeyForUpload($docKey);
+            
+            // Déterminer la clé utilisée dans la requête
+            $actualKey = $docKey;
+            if ($request->hasFile($requestKey)) {
+                $actualKey = $requestKey;
+            } elseif ($request->hasFile($docKey . '_file')) {
+                $actualKey = $docKey . '_file';
+            }
+
+            // Vérifier si le document a déjà été uploadé (pour les mises à jour)
+            $isAlreadyUploaded = $candidat->submittedDocuments()->where('document_key', $docKey)->exists();
+
+            $ruleSet = [];
+            
+            if ($req->is_obligatoire && !$isAlreadyUploaded) {
+                $ruleSet[] = 'required';
+                $messages["{$actualKey}.required"] = "Le document {$type->nom_affichage} est obligatoire.";
+            } else {
+                $ruleSet[] = 'nullable';
+            }
+
+            // Limite stricte de 5 Mo (5120 Ko)
+            $ruleSet[] = 'max:5120';
+            $messages["{$actualKey}.max"] = "Le document {$type->nom_affichage} ne doit pas dépasser 5 Mo.";
+
+            if ($type->accepted_formats === 'image') {
+                $ruleSet[] = 'image';
+                $ruleSet[] = 'mimes:jpeg,png,jpg,gif,webp';
+                $messages["{$actualKey}.image"] = "Le document {$type->nom_affichage} doit être une image.";
+                $messages["{$actualKey}.mimes"] = "Le document {$type->nom_affichage} doit être au format jpeg, png, jpg, gif ou webp.";
+            } elseif ($type->accepted_formats === 'pdf') {
+                $ruleSet[] = 'mimes:pdf';
+                $messages["{$actualKey}.mimes"] = "Le document {$type->nom_affichage} doit être un fichier PDF.";
+            }
+
+            if ($type->is_multiple) {
+                if ($req->is_obligatoire && !$isAlreadyUploaded) {
+                    $rules[$actualKey] = ['required', 'array', 'min:1'];
+                    $messages["{$actualKey}.required"] = "Le document {$type->nom_affichage} est obligatoire.";
+                } else {
+                    $rules[$actualKey] = ['nullable', 'array'];
+                }
+                
+                $childRules = array_filter($ruleSet, fn($r) => $r !== 'required' && $r !== 'nullable');
+                $rules["{$actualKey}.*"] = $childRules;
+                
+                $messages["{$actualKey}.*.max"] = "Chaque fichier de {$type->nom_affichage} ne doit pas dépasser 5 Mo.";
+                if ($type->accepted_formats === 'image') {
+                    $messages["{$actualKey}.*.image"] = "Chaque fichier de {$type->nom_affichage} doit être une image.";
+                    $messages["{$actualKey}.*.mimes"] = "Chaque fichier de {$type->nom_affichage} doit être au format jpeg, png, jpg, gif ou webp.";
+                } elseif ($type->accepted_formats === 'pdf') {
+                    $messages["{$actualKey}.*.mimes"] = "Chaque fichier de {$type->nom_affichage} doit être un fichier PDF.";
+                }
+            } else {
+                $rules[$actualKey] = $ruleSet;
+            }
+        }
+
+        if (!empty($rules)) {
+            \Illuminate\Support\Facades\Validator::make($request->all(), $rules, $messages)->validate();
+        }
+
+		foreach ($requirements as $req) {
+			$docKey = $req->documentType->document_key ?? null;
+			if (!$docKey) continue;
+
+			$requestKey = $mapKeyForUpload($docKey);
+			$folder = 'documents/' . $docKey;
+
+			$actualKey = null;
 			if ($request->hasFile($requestKey)) {
-				// Store new file
-				$folder = match ($requestKey) {
-					'lettre_file' => static::LETTRE,
-					'naissance_file' => static::NAISSANCE,
-					'diplome_file' => static::DIPLOME,
-					'nationalite_file' => static::NATIONALITE,
-					'photo_identite_file' => static::PHOTO_IDENTITE,
-					'certificat_medical_file' => static::CERTIFICAT_MEDICAL,
-					'coupon_file' => static::COUPON,
-					'cv_file' => 'cv',
-					default => 'others'
-				};
-				$data[$dbKey] = $this->storeFile($request, $requestKey, $folder, $filePrefix);
+				$actualKey = $requestKey;
+			} elseif ($request->hasFile($docKey)) {
+				$actualKey = $docKey;
+			} elseif ($request->hasFile($docKey . '_file')) {
+				$actualKey = $docKey . '_file';
 			}
-		}
 
-		// Bulletins
-		$allBulletins = [];
-		$hasBulletins = false;
-		foreach (['seconde', 'premiere', 'terminale'] as $niveau) {
-			if ($request->hasFile("bulletins_{$niveau}")) {
-				$paths = $this->storeMultipleFiles($request, "bulletins_{$niveau}", 'bulletins', $niveau, $filePrefix);
-				$allBulletins[$niveau] = $paths;
-				$hasBulletins = true;
+			if ($actualKey) {
+				$isMultiple = in_array($actualKey, ['releve_bac1', 'releve_bac2']) || str_contains($actualKey, 'bulletins') || ($req->documentType->is_multiple ?? false);
+
+				if ($isMultiple) {
+					$paths = $this->storeMultipleFiles($request, $actualKey, $folder, 'files', $filePrefix);
+					if (!empty($paths)) {
+						$candidat->submittedDocuments()->updateOrCreate(
+							['document_key' => $docKey],
+							['file_path' => json_encode($paths), 'statut' => 'en_attente']
+						);
+					}
+				} else {
+					$path = $this->storeFile($request, $actualKey, $folder, $filePrefix);
+					$candidat->submittedDocuments()->updateOrCreate(
+						['document_key' => $docKey],
+						['file_path' => $path, 'statut' => 'en_attente']
+					);
+				}
 			}
-		}
-		if ($hasBulletins) {
-			$data['bulletins_lycee_paths'] = json_encode($allBulletins);
-		}
-
-		// Relevés
-		if ($request->hasFile("releve_bac1")) {
-			$bac1Paths = $this->storeMultipleFiles($request, "releve_bac1", 'releves', 'bac1', $filePrefix);
-			if (!empty($bac1Paths)) $data['releve_bac1_path'] = $bac1Paths[0];
-		}
-		if ($request->hasFile("releve_bac2")) {
-			$bac2Paths = $this->storeMultipleFiles($request, "releve_bac2", 'releves', 'bac2', $filePrefix);
-			if (!empty($bac2Paths)) $data['releve_bac2_path'] = $bac2Paths[0];
 		}
 
 		// Type diplome
 		if ($request->has('type_diplome')) {
 			$data['type_diplome'] = $request->get('type_diplome');
-		}
-
-		if ($album) {
-			$album->update($data);
-		} else {
-			$candidat->album()->create($data);
+			if ($candidat->album) {
+				$candidat->album->update($data);
+			} else {
+				$candidat->album()->create($data);
+			}
 		}
 	}
 
@@ -421,47 +664,7 @@ class CandidatureController extends Controller
 	public function presenceControlStore(Request $request): Response
 	{
 		try {
-			$absentesCandidats = $request->collect('candidats');
-			$absentCandidats = Candidature::query()->whereIn('slug', $absentesCandidats)->get();
-
-			$absentCandidats->map(function (Candidature $candidat) {
-				$candidat->update([
-					'participation' => false,
-					'participation_date' => now()
-				]);
-
-				$message = $candidat->greeting();
-				$message .= '. Nous avons remarqué que vous n\'avez pas pu participer à l\'épreuve du concours  qui a eu
-			 lieu . Nous regrettons sincèrement votre absence et comprenons que des imprévus peuvent survenir. 
-			 Nous espérons vous voir participer à nos futurs événements et concours';
-
-				$candidat->notify(new CandidatAbsentNotification($message));
-				// dump($candidat->notifications()->get());
-				// TODO effectuer la tâche sans le dump
-			});
-
-			Candidature::query()
-				->where('dossier_valide', true)
-				->where('frais_paye', true)
-				->where('participation', false)
-				->whereNull('participation_date')
-				->where('admission', false)
-				->whereNull('motif')
-				->whereNotIn('slug', $absentesCandidats)
-				->get()
-				->map(function (Candidature $candidat) {
-					$message = $candidat->greeting();
-
-					$candidat->update([
-						'participation' => true,
-						'participation_date' => now()
-					]);
-
-					$message .= ' . Nous tenons à vous remercier pour votre participation au concours . Nous tenons à vous informer que 
-				les résultats seront annoncés le [Date prévue]. Nous vous prions de bien vouloir patienter jusqu\'à cette date.';
-
-					$candidat->notify(new CandidatPresentNotification($message));
-				});
+			app(\App\Services\CandidaturePresenceService::class)->processPresence($request->collect('candidats'));
 		} catch (Throwable $throwable) {
 			return __500($throwable->getMessage());
 		}
@@ -470,7 +673,32 @@ class CandidatureController extends Controller
 
 	public function storeGroupClassAssignment(Request $request)
 	{
-		$request->dd();
+		$request->validate([
+			'group_id' => ['required', 'exists:groups,id'],
+			'candidats' => ['required', 'array', 'min:1'],
+			'candidats.*' => ['string'],
+		]);
+
+		$group = Group::findOrFail($request->input('group_id'));
+
+		$candidatures = Candidature::query()
+			->where('dossier_valide', true)
+			->where('frais_paye', true)
+			->where('participation', true)
+			->where('admission', true)
+			->whereNull('motif')
+			->whereIn('slug', $request->input('candidats'))
+			->get();
+
+		$candidatures->each(fn (Candidature $candidature) => $candidature->update([
+			'niveau_id' => $group->niveau_id,
+			'filiere_id' => $group->filiere_id,
+		]));
+
+		return response()->json([
+			'success' => true,
+			'message' => 'Groupe attribué avec succès à ' . $candidatures->count() . ' candidat(s).'
+		]);
 	}
 
 	public function admissionControl(Request $request): JsonResponse
@@ -585,7 +813,7 @@ class CandidatureController extends Controller
 				$fraisInsc = FraisInscription::where('annee_scolaire_id', $activeAnnee->id)
 					->where('active', true)
 					->first() ?: FraisInscription::where('annee_scolaire_id', $activeAnnee->id)->latest()->first();
-				
+
 				if ($fraisInsc) {
 					Paiement::updateOrCreate(
 						[
@@ -655,9 +883,13 @@ class CandidatureController extends Controller
 				'owner_id' => $etudiant->id,
 				'owner_type' => Etudiant::class,
 			];
-			if ($candidature->album) $candidature->album->update($updatedData);
-			if ($candidature->responsable) $candidature->responsable->update($updatedData);
-			if ($candidature->tuteur) $candidature->tuteur->update($updatedData);
+			if ($candidature->album)
+				$candidature->album->update($updatedData);
+			$candidature->submittedDocuments()->update($updatedData);
+			if ($candidature->responsable)
+				$candidature->responsable->update($updatedData);
+			if ($candidature->tuteur)
+				$candidature->tuteur->update($updatedData);
 
 			// 8. Mise à jour finalisation candidature
 			$candidature->update([
@@ -688,6 +920,18 @@ class CandidatureController extends Controller
 
 	public function reorienter(Request $request, Candidature $candidature)
 	{
+		// Décision finale de l'académie : seulement une fois le dossier transmis par le
+		// chargé de la clientèle.
+		if (!$candidature->transmis_academie) {
+			return response()->json([
+				'success' => false,
+				'message' => "Ce dossier doit d'abord être transmis à l'académie avant de pouvoir être réorienté."
+			], 422);
+		}
+
+		if ($refus = $this->refuserSiPasAcademie()) {
+			return $refus;
+		}
 
 		$existe = Reorientation::where('candidature_id', $candidature->id)
 			->where('annee_scolaire_id', $candidature->annee_scolaire_id)
@@ -711,6 +955,11 @@ class CandidatureController extends Controller
 			'filiere_id' => $request->filiere_id,
 			'niveau_id' => $request->niveau_id
 		]);
+
+		$candidature->load(['filiere', 'niveau']);
+
+		$message = $candidature->greeting(true) . ". Nous vous informons que votre dossier de candidature a été réorienté vers la filière " . $candidature->filiere->nom . " (Niveau: " . $candidature->niveau->libelle . ") pour le motif suivant : " . $request->motif;
+		$candidature->notify(new \App\Notifications\Candidatures\CandidatReorientationNotification($message, $request->motif, $candidature->filiere->nom, $candidature->niveau->libelle));
 
 		return response()->json([
 			'message' => 'Réorientation effectuée avec succès.'

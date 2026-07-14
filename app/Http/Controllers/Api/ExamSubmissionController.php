@@ -358,12 +358,18 @@ class ExamSubmissionController extends Controller
     public function grade(Request $request, $id): JsonResponse
     {
         $examSubmission = ExamSubmission::findOrFail($id);
+        // Vérifier si l'évaluation a été validée par le professeur
+        $evaluation = $examSubmission->evaluation;
+        $user = auth()->user();
         
-        // Empêcher la modification si déjà noté
-        if ($examSubmission->points_obtenus !== null) {
+        // Vérifier si l'utilisateur est un admin (on vérifie s'il n'est PAS uniquement enseignant, ou s'il a un rôle admin)
+        // Par précaution, si correction_submission_date est défini, seul un non-enseignant (admin) peut modifier.
+        $isTeacher = $user && $user->roles()->whereIn('nom', ['Enseignant', 'Professeur'])->exists() && !$user->roles()->whereIn('nom', ['Admin', 'Directeur Général', 'Directeur Académique', 'Informaticien', 'Super Admin'])->exists();
+
+        if ($evaluation->correction_submission_date !== null && $isTeacher) {
             return response()->json([
                 'success' => false,
-                'message' => 'Cette question a déjà été notée et ne peut plus être modifiée.'
+                'message' => 'Les notes ont déjà été validées. Veuillez contacter l\'administration pour effectuer des modifications.'
             ], 403);
         }
 
@@ -776,6 +782,40 @@ class ExamSubmissionController extends Controller
                 $question->load($question->type === 'complex_data' ? 'complexData' : ($question->type === 'structured_data' ? 'structuredData' : ($question->type === 'multi_parts' ? 'multiParts' : 'guidedWriting')));
             }
             return response()->json(['success' => true, 'data' => $examSubmission], 200);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function validateCorrections(string $evaluationId): JsonResponse
+    {
+        try {
+            $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
+            $evaluation->correction_submission_date = now();
+            $evaluation->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Les notes ont été validées avec succès.',
+                'data' => $evaluation
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function unlockCorrections(string $evaluationId): JsonResponse
+    {
+        try {
+            $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
+            $evaluation->correction_submission_date = null;
+            $evaluation->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'L\'évaluation a été déverrouillée et retournée au professeur.',
+                'data' => $evaluation
+            ], 200);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
