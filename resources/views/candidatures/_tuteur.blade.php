@@ -42,32 +42,42 @@
 				<input type="text" class="input-refined field-prenom" placeholder="Prénom" required/>
 			</div>
 
-			<div class="field">
-				<label>Profession <x-forms.required-field/></label>
-				<input type="text" class="input-refined field-profession" placeholder="Profession" required/>
-			</div>
+			@if(isset($champsConfig['tuteur_profession']))
+				<div class="field">
+					<label>{{ $champsConfig['tuteur_profession']->label }} @if($champsConfig['tuteur_profession']->obligatoire) <x-forms.required-field/> @else <span class="help-text" style="display:inline">(optionnel)</span> @endif</label>
+					<input type="text" class="input-refined field-profession" placeholder="{{ $champsConfig['tuteur_profession']->label }}" @if($champsConfig['tuteur_profession']->obligatoire) required @endif/>
+				</div>
+			@endif
 
-			<div class="field">
-				<label>Nom de l'employeur <span class="help-text" style="display:inline">(optionnel)</span></label>
-				<input type="text" class="input-refined field-employeur" placeholder="Nom de l'employeur"/>
-			</div>
+			@if(isset($champsConfig['tuteur_employeur']))
+				<div class="field">
+					<label>{{ $champsConfig['tuteur_employeur']->label }} @if($champsConfig['tuteur_employeur']->obligatoire) <x-forms.required-field/> @else <span class="help-text" style="display:inline">(optionnel)</span> @endif</label>
+					<input type="text" class="input-refined field-employeur" placeholder="{{ $champsConfig['tuteur_employeur']->label }}" @if($champsConfig['tuteur_employeur']->obligatoire) required @endif/>
+				</div>
+			@endif
 
-			<div class="field">
-				<label>Email <span class="help-text" style="display:inline">(optionnel)</span></label>
-				<input type="email" class="input-refined field-email" placeholder="Email"/>
-			</div>
+			@if(isset($champsConfig['tuteur_email']))
+				<div class="field">
+					<label>{{ $champsConfig['tuteur_email']->label }} @if($champsConfig['tuteur_email']->obligatoire) <x-forms.required-field/> @else <span class="help-text" style="display:inline">(optionnel)</span> @endif</label>
+					<input type="email" class="input-refined field-email" placeholder="{{ $champsConfig['tuteur_email']->label }}" @if($champsConfig['tuteur_email']->obligatoire) required @endif/>
+				</div>
+			@endif
 
-			<div class="field">
-				<label>Téléphone <x-forms.required-field/></label>
-				<input type="tel" class="input-refined field-tel" placeholder="" required/>
-				<input type="hidden" class="field-indicatif">
-				<p class="help-text">Numéro togolais ou étranger.</p>
-			</div>
+			@if(isset($champsConfig['tuteur_tel']))
+				<div class="field">
+					<label>{{ $champsConfig['tuteur_tel']->label }} @if($champsConfig['tuteur_tel']->obligatoire) <x-forms.required-field/> @else <span class="help-text" style="display:inline">(optionnel)</span> @endif</label>
+					<input type="tel" class="input-refined field-tel" placeholder="" @if($champsConfig['tuteur_tel']->obligatoire) required @endif/>
+					<input type="hidden" class="field-indicatif">
+					<p class="help-text">Numéro togolais ou étranger.</p>
+				</div>
+			@endif
 
-			<div class="field field--full">
-				<label>Adresse / Quartier <x-forms.required-field/></label>
-				<input type="text" class="input-refined field-adresse" placeholder="Adresse / Quartier" required/>
-			</div>
+			@if(isset($champsConfig['tuteur_adresse']))
+				<div class="field field--full">
+					<label>{{ $champsConfig['tuteur_adresse']->label }} @if($champsConfig['tuteur_adresse']->obligatoire) <x-forms.required-field/> @else <span class="help-text" style="display:inline">(optionnel)</span> @endif</label>
+					<input type="text" class="input-refined field-adresse" placeholder="{{ $champsConfig['tuteur_adresse']->label }}" @if($champsConfig['tuteur_adresse']->obligatoire) required @endif/>
+				</div>
+			@endif
 
 			<div class="field field--full">
 				<label class="tuteur-responsable-check">
@@ -95,15 +105,18 @@
 			const card = template.content.firstElementChild.cloneNode(true);
 			card.dataset.index = index;
 
+			// Chaque champ tuteur est configurable (afficher/masquer par école, voir
+			// Paramètres > Champs obligatoires) : un champ masqué n'existe tout simplement
+			// plus dans ce template, d'où le `?.` défensif sur chaque querySelector.
 			card.querySelector('.tuteur-card-title').textContent = index === 0 ? 'Tuteur / Parent 1' : `Tuteur / Parent ${index + 1}`;
 			card.querySelector('.field-nom').name = fieldName(index, 'nom');
 			card.querySelector('.field-prenom').name = fieldName(index, 'prenom');
-			card.querySelector('.field-profession').name = fieldName(index, 'profession');
-			card.querySelector('.field-employeur').name = fieldName(index, 'employeur');
-			card.querySelector('.field-email').name = fieldName(index, 'email');
-			card.querySelector('.field-tel').name = fieldName(index, 'tel');
-			card.querySelector('.field-indicatif').name = fieldName(index, 'indicatif');
-			card.querySelector('.field-adresse').name = fieldName(index, 'adresse');
+			card.querySelector('.field-profession')?.setAttribute('name', fieldName(index, 'profession'));
+			card.querySelector('.field-employeur')?.setAttribute('name', fieldName(index, 'employeur'));
+			card.querySelector('.field-email')?.setAttribute('name', fieldName(index, 'email'));
+			card.querySelector('.field-tel')?.setAttribute('name', fieldName(index, 'tel'));
+			card.querySelector('.field-indicatif')?.setAttribute('name', fieldName(index, 'indicatif'));
+			card.querySelector('.field-adresse')?.setAttribute('name', fieldName(index, 'adresse'));
 			card.querySelector('.field-responsable-frais').name = fieldName(index, 'responsable_des_frais');
 
 			card.querySelector('.remove-tuteur-btn').addEventListener('click', function () {
@@ -121,6 +134,7 @@
 		function initPhoneInput(card) {
 			const telInput = card.querySelector('.field-tel');
 			const indicatifInput = card.querySelector('.field-indicatif');
+			if (!telInput || !indicatifInput) return; // champ téléphone tuteur masqué pour cette école
 
 			const iti = window.intlTelInput(telInput, {
 				utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",

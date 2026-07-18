@@ -619,6 +619,7 @@ Route::prefix('public')->group(function () {
     // Inscription routes (unauthenticated)
     Route::get('niveau/liste', [\App\Http\Controllers\NiveauController::class, 'index']);
     Route::get('niveau/{id}/document-requirements', [\App\Http\Controllers\NiveauController::class, 'getDocumentRequirements']);
+    Route::get('candidature-config', [\App\Http\Controllers\Api\PublicCandidatureConfigController::class, 'index']);
     Route::get('filieres/liste', [\App\Http\Controllers\Admin\FiliereController::class, 'index']);
     Route::post('candidature/soumettre', [\App\Http\Controllers\CandidatureController::class, 'storeByAdmin']);
 

@@ -16,8 +16,8 @@ class CreateCoursTable extends Migration
             $table->date('date_cours');
             $table->timestamps();
 
-            $table->foreign('groupe_id')->references('id')->on('groupes')->onDelete('cascade');
-            $table->foreign('uv_id')->references('id')->on('uvs')->onDelete('cascade');
+            // Pas de contrainte FK vers `groupes`/`uvs` : ces tables n'ont jamais existé
+            // dans le schéma actuel (absentes de la base de référence escendb).
         });
     }
 

@@ -15,6 +15,7 @@ class ConfigurationController extends Controller
     public function index()
     {
         $keys = [
+            ['key' => 'sigle_etablissement', 'value' => '', 'type' => 'text', 'valueKey' => "Sigle de l'établissement"],
             ['key' => 'stat_etudiants_formes', 'value' => '520', 'type' => 'text', 'name' => 'Étudiants formés', 'group' => 'Communication'],
             ['key' => 'stat_diplomes', 'value' => '410', 'type' => 'text', 'name' => 'Diplômés', 'group' => 'Communication'],
             ['key' => 'stat_partenaires', 'value' => '84', 'type' => 'text', 'name' => 'Partenaires', 'group' => 'Communication'],

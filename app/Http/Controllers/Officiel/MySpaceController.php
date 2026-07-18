@@ -18,7 +18,7 @@ class MySpaceController extends Controller
 			$requirements = [];
 
 			if ($candidature) {
-				$candidature->load(['tuteur', 'tuteurs', 'responsable', 'niveau', 'filiere', 'album', 'submittedDocuments']);
+				$candidature->load(['tuteur', 'tuteurs', 'responsable', 'niveau', 'filiere', 'album', 'submittedDocuments', 'concoursSession']);
 
 				// Fusionne les champs historiques de l'album (photo, naissance, ...) avec
 				// les documents dynamiques soumis (submittedDocuments), même logique que
@@ -215,20 +215,37 @@ class MySpaceController extends Controller
 				'email',
 				'max:255',
 				'unique:candidatures,email,' . $candidature->id
-			]
+			],
+			'numero_bordereau' => [
+				'nullable',
+				'string',
+				'max:50',
+				\Illuminate\Validation\Rule::unique('candidatures', 'numero_bordereau')->ignore($candidature->id),
+			],
 		]);
 
 		$data = $request->only([
 			'nom', 'prenom', 'nom_jeune_fille', 'numero_table', 'annee_bac', 'serie', 'mention_bac',
 			'genre', 'date_naissance', 'lieu_naissance', 'email',
-			'nationalite', 'hobbit', 'tel', 'tel2', 'tel3', 'bp', 'fax', 'niveau_id', 'filiere_id', 'adresse'
+			'nationalite', 'hobbit', 'tel', 'tel2', 'tel3', 'bp', 'fax', 'niveau_id', 'filiere_id', 'adresse',
+			'numero_bordereau', 'moyen_connaissance_id',
 		]);
 
-		if ($request->has('type_diplome')) {
-			$data['dernier_diplome'] = $request->get('type_diplome');
-		}
 		if ($request->has('etablissement_diplome')) {
 			$data['etablissement_diplome'] = $request->get('etablissement_diplome');
+		}
+
+		// `type_diplome_id` (source de vérité pour les champs du parcours scolaire à
+		// exiger) pilote aussi `dernier_diplome`, conservée en parallèle pour tout le
+		// code existant qui la lit encore telle quelle. Rétrocompatibilité : si le
+		// frontend envoie encore l'ancien champ texte libre `type_diplome`, on
+		// continue de l'accepter tel quel.
+		if ($request->filled('type_diplome_id')) {
+			$typeDiplome = \App\Models\TypeDiplome::find($request->input('type_diplome_id'));
+			$data['type_diplome_id'] = $typeDiplome?->id;
+			$data['dernier_diplome'] = $typeDiplome?->nom;
+		} elseif ($request->has('type_diplome')) {
+			$data['dernier_diplome'] = $request->get('type_diplome');
 		}
 
 		$candidature->update($data);

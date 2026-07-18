@@ -60,6 +60,32 @@ Route::controller(ConfigurationController::class)->prefix('parametre')->name('co
 
 Route::apiResource('document-types', \App\Http\Controllers\DocumentTypeController::class)->middleware('auth:sanctum');
 
+// Configuration des champs obligatoires du formulaire de candidature (par école)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::controller(\App\Http\Controllers\Api\Admin\CandidatureFieldConfigController::class)
+        ->prefix('candidature-field-configs')->name('candidature-field-configs.')->group(function () {
+            Route::get('', 'index')->name('index');
+            Route::put('', 'update')->name('update');
+        });
+
+    Route::controller(\App\Http\Controllers\Api\Admin\TypeDiplomeController::class)
+        ->prefix('type-diplomes')->name('type-diplomes.')->group(function () {
+            Route::get('', 'index')->name('index');
+            Route::get('champs-disponibles', 'champsDisponibles')->name('champs-disponibles');
+            Route::post('', 'store')->name('store');
+            Route::put('{id}', 'update')->name('update');
+            Route::delete('{id}', 'destroy')->name('destroy');
+        });
+
+    Route::controller(\App\Http\Controllers\Api\Admin\MoyenConnaissanceController::class)
+        ->prefix('moyens-connaissance')->name('moyens-connaissance.')->group(function () {
+            Route::get('', 'index')->name('index');
+            Route::post('', 'store')->name('store');
+            Route::put('{id}', 'update')->name('update');
+            Route::delete('{id}', 'destroy')->name('destroy');
+        });
+});
+
 // Gestion des informations urgentes (PUBLIC)
 Route::controller(UrgentInfoController::class)->prefix('informations-urgentes')->name('urgent_infos_public.')->group(function () {
     Route::get('liste', 'index')->name('index');
@@ -584,8 +610,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::post('store', 'store')->name('store');
         Route::post('import', 'importEtudiant')->name('import');
-        $anneActive = AnneeScolaire::where('active', true)->first()->nom ?? null;
-        Route::get('export', function () use ($anneActive) {
+        Route::get('export', function () {
+            $anneActive = AnneeScolaire::where('active', true)->first()?->nom;
             return Excel::download(new EtudiantsExport, 'liste_des_etudiants_' . $anneActive . '.xlsx');
         })->name('export');
         Route::get('{etudiant}', 'show')->name('show');

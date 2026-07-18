@@ -15,7 +15,6 @@ use App\Http\Controllers\EvaluationController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\ReclamationController;
 use App\Http\Controllers\ReleveController;
-use App\Http\Controllers\SemoaCallBackController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('espace-etudiant')->name('etudiants.')->group(function () {
@@ -85,19 +84,6 @@ Route::prefix('espace-etudiant')->name('etudiants.')->group(function () {
         //         // Route::get('', 'showReleveForAuthStudent')->name('auth.index');
         //     });
         // });
-
-        Route::prefix('semoa')->name('semoa.')->group(function () {
-
-            Route::post('auth', [SemoaCallBackController::class, 'authentification'])->name('auth');
-            Route::post('ping', [SemoaCallBackController::class, 'ping'])->name('ping');
-
-            Route::get('orders', [SemoaCallBackController::class, 'orderList'])->name('orders.list');
-            Route::get('orders/{reference}', [SemoaCallBackController::class, 'getOrder'])->name('orders.show');
-
-            Route::get('form', [SemoaCallBackController::class, 'showPaymentForm'])->name('form');
-            Route::post('payments/process', [SemoaCallBackController::class, 'processPayment'])->name('payments.process');
-            Route::get('payment-status/{reference}', [SemoaCallBackController::class, 'paymentStatus'])->name('payment-status');
-        });
 
         Route::get('syllabuses', [\App\Http\Controllers\SyllabusController::class, 'getEtudiantSyllabuses'])->name('syllabuses.index');
     });

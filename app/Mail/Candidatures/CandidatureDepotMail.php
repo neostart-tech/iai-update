@@ -12,7 +12,7 @@ class CandidatureDepotMail extends Mailable
 {
 	use Queueable, SerializesModels;
 
-	public function __construct(private readonly string $greeting, private readonly string $email = '', private readonly string $password = 'password')
+	public function __construct(private readonly string $greeting, private readonly string $email = '', private readonly string $password = 'password', private readonly ?string $numeroDossier = null)
 	{
 	}
 
@@ -38,7 +38,17 @@ class CandidatureDepotMail extends Mailable
 
 	private function getMainContent(): string
 	{
+		$mentionPaiement = AppGetters::isModeConcoursActif()
+			? "Votre dossier a été bien reçu sous réserve de la validation de votre paiement.<br><br>"
+			: '';
+
+		$mentionNumeroDossier = $this->numeroDossier
+			? "Votre numéro de dossier : <strong>" . $this->numeroDossier . "</strong><br><br>"
+			: '';
+
 		return $this->greeting . ". Votre dossier d'inscription en ligne à ".' '.AppGetters::getAppName(). " a été déposé avec succès.<br><br>" .
+			$mentionNumeroDossier .
+			$mentionPaiement .
             "Vos identifiants de connexion :<br>" .
             "Email : <strong>" . $this->email . "</strong><br>" .
             "Mot de passe par défaut : <strong>" . $this->password . "</strong><br><br>" .

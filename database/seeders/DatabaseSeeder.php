@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
 			AdminSeeder::class,
 			AssignEtudiantRoleSeeder::class,
 			NiveauPeriodeSeeder::class,
+			CandidatureFieldConfigSeeder::class,
 			// CandidatureSeeder::class
 		]);
 	}

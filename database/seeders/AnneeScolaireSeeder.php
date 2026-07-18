@@ -14,7 +14,8 @@ class AnneeScolaireSeeder extends Seeder
 		AnneeScolaire::query()->create([
 			'nom' => "Année scolaire 2023-2024",
 			'code' => 'as_2023_2024',
-			'slug' => uniqid()
+			'slug' => uniqid(),
+			'active' => true,
 		]);
 	}
 }

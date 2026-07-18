@@ -2,8 +2,6 @@
 
 namespace App\Providers;
 
-use App\Facades\Semoa;
-use App\Services\SemoaService;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\ServiceProvider;
 use Schema;
@@ -20,7 +18,6 @@ class AppServiceProvider extends ServiceProvider
 	 */
 	public function boot(): void
 	{
-		$this->app->singleton(Semoa::class, fn() => new SemoaService());
 		Schema::defaultStringLength(191);
 
 		// Personnaliser l'URL de réinitialisation du mot de passe pour les candidats

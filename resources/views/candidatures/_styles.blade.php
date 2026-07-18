@@ -164,6 +164,42 @@
 		max-width: 42ch;
 		margin: 0;
 	}
+	.hero-checklist {
+		list-style: none;
+		margin: 22px 0 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		max-width: 38ch;
+	}
+	.hero-checklist li {
+		display: flex;
+		align-items: flex-start;
+		gap: 12px;
+		font-size: 15px;
+		line-height: 1.4;
+		color: rgba(255,255,255,0.92);
+	}
+	.hero-checklist-icon {
+		flex-shrink: 0;
+		width: 20px;
+		height: 20px;
+		margin-top: 1px;
+		border-radius: 50%;
+		background: var(--gold);
+		color: var(--navy-deep);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 12px;
+		font-weight: 700;
+	}
+	.hero-checklist-optional {
+		display: block;
+		font-size: 12.5px;
+		color: rgba(255,255,255,0.55);
+	}
 	.depot-hero-note {
 		display: flex;
 		gap: 14px;

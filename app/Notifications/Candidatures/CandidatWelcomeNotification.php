@@ -19,7 +19,7 @@ class CandidatWelcomeNotification extends NotificationBase
 
 	public function toMail(object $notifiable): CandidatureDepotMail
 	{
-		return ((new CandidatureDepotMail($this->greeting, $notifiable->email, $this->password))->to($notifiable));
+		return ((new CandidatureDepotMail($this->greeting, $notifiable->email, $this->password, $notifiable->numero_dossier_affiche))->to($notifiable));
 	}
 }
 
