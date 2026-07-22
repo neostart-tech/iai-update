@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\GenreEnum;
 use App\Models\Scopes\CurrentAnneeScolaireScope;
 use App\Notifications\Candidatures\PasswordResetLinkSentNotification;
+use App\Traits\LogsActivityWithDefaults;
 use App\Traits\UserIdentityTrait;
 use App\Traits\Routing\{GenerateUniqueSlugTrait, ModelsSlugKeyTrait};
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
@@ -25,7 +26,7 @@ use Illuminate\Support\Str;
 // #[ScopedBy(CurrentAnneeScolaireScope::class)]
 class Candidature extends Authenticatable
 {
-	use \Laravel\Sanctum\HasApiTokens, Notifiable, HasFactory, ModelsSlugKeyTrait, GenerateUniqueSlugTrait, UserIdentityTrait;
+	use \Laravel\Sanctum\HasApiTokens, Notifiable, HasFactory, ModelsSlugKeyTrait, GenerateUniqueSlugTrait, UserIdentityTrait, LogsActivityWithDefaults;
 
 	protected $guarded = false;
 
@@ -138,14 +139,20 @@ class Candidature extends Authenticatable
 	}
 
 	/**
-	 * Identifiant de dossier affiché dans le back-office : le `numero_bordereau`
-	 * si l'école a choisi cette source (voir ConfigHelper::isIdentifiantDossierBordereau)
-	 * et qu'il est renseigné, sinon le `code` de convocation (comportement historique).
+	 * Identifiant de dossier affiché dans le back-office, par ordre de priorité :
+	 * 1. `numero_bordereau` si l'école a choisi cette source (voir
+	 *    ConfigHelper::isIdentifiantDossierBordereau) et qu'il est renseigné ;
+	 * 2. `matricule_concours` s'il existe (candidat inscrit à une session de concours) ;
+	 * 3. le `code` de convocation, en dernier recours (comportement historique).
 	 */
 	public function getNumeroDossierAfficheAttribute(): string
 	{
 		if (\App\Helpers\ConfigHelper::isIdentifiantDossierBordereau() && $this->numero_bordereau) {
 			return $this->numero_bordereau;
+		}
+
+		if ($this->matricule_concours) {
+			return $this->matricule_concours;
 		}
 
 		return str_pad((string) $this->code, 6, '0', STR_PAD_LEFT);

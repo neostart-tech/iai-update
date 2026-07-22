@@ -66,7 +66,11 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
             $user->setRelation('roles', collect([$studentRole]));
         }
     }
-    
+
+    // Permissions effectives (système de permissions dynamique) : uniquement calculées
+    // pour les vrais comptes User (staff/admin) — les étudiants n'ont pas ce mécanisme.
+    $user->setAttribute('permissions', $user instanceof \App\Models\User ? $user->effectivePermissionSlugs() : []);
+
     return $user;
 });
 
@@ -93,7 +97,7 @@ Route::get('load-calendar', MyCalendarController::class)->middleware('auth:sanct
 
 
 
-Route::post('administration/candidature/presence', CandidaturePresenceController::class)->name('admin.candidatures.presence');
+Route::post('administration/candidature/presence', CandidaturePresenceController::class)->name('admin.candidatures.presence')->middleware(['auth:sanctum', 'can:controler-presence-candidature']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::controller(ReclamationController::class)->prefix('reclamations')->group(function () {
@@ -128,17 +132,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('tickets/{ticket}', [SupportTicketController::class, 'show']);
     
     // Actions sur tickets (réservées au staff support dans le contrôleur)
-    Route::post('tickets/{ticket}/assign', [SupportTicketController::class, 'assign']);
-    Route::put('tickets/{ticket}/status', [SupportTicketController::class, 'updateStatus']);
-    
+    Route::post('tickets/{ticket}/assign', [SupportTicketController::class, 'assign'])->middleware('can:update-ticket-support');
+    Route::put('tickets/{ticket}/status', [SupportTicketController::class, 'updateStatus'])->middleware('can:update-ticket-support');
+
     // Évaluation (accessible par le créateur du ticket)
     Route::post('tickets/{ticket}/rate', [SupportTicketController::class, 'rate']);
-    
+
     // Messages
     Route::get('tickets/{ticket}/messages', [SupportMessageController::class, 'index']);
     Route::post('tickets/{ticket}/messages', [SupportMessageController::class, 'store']);
     Route::put('messages/{message}', [SupportMessageController::class, 'update']);
-    Route::delete('messages/{message}', [SupportMessageController::class, 'destroy']);
+    Route::delete('messages/{message}', [SupportMessageController::class, 'destroy']); // self-service : suppression de son propre message uniquement, vérifié dans le contrôleur
 });
 
 
@@ -180,14 +184,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/get-my-course', 'mesCours');
 
         // Enregistrer les présences étudiants
-        Route::post('/save-student-presence', 'enregistrerAbsences');
+        Route::post('/save-student-presence', 'enregistrerAbsences')->middleware('can:enregistrer-presence-cours');
 
         // Nouvelles routes pour le système QR Code
-        Route::post('/cours/{emploiId}/generate-qr', 'generateQrCode');
-        Route::post('/scan-qr', 'scanQrCode');
+        Route::post('/cours/{emploiId}/generate-qr', 'generateQrCode')->middleware('can:enregistrer-presence-cours');
+        Route::post('/scan-qr', 'scanQrCode')->middleware('can:enregistrer-presence-cours');
 
         // Enregistrer présence enseignant
-        Route::post('/save-enseignant-presence', 'enregistrerPresenceEnseignant');
+        Route::post('/save-enseignant-presence', 'enregistrerPresenceEnseignant')->middleware('can:enregistrer-presence-cours');
 
 
         // ========================================
@@ -204,10 +208,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/seance/{seanceId}/etudiants', 'getEtudiantsParSeance');
 
         // Valider une séance
-        Route::post('/seance/{seanceId}/valider', 'validerSeance');
+        Route::post('/seance/{seanceId}/valider', 'validerSeance')->middleware('can:valider-seance-presence');
 
         // Annuler une séance
-        Route::put('/seance/{seanceId}/annuler', 'annulerSeance');
+        Route::put('/seance/{seanceId}/annuler', 'annulerSeance')->middleware('can:valider-seance-presence');
 
 
         // ========================================
@@ -215,7 +219,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // ========================================
 
         // Mettre à jour le comportement d'un étudiant pour une présence
-        Route::put('/presence/{presenceId}/comportement', 'updateComportement');
+        Route::put('/presence/{presenceId}/comportement', 'updateComportement')->middleware('can:update-comportement-etudiant');
 
         // Historique des comportements d'un étudiant
         Route::get('/etudiant/{etudiantId}/comportements', 'getComportementsEtudiant');
@@ -277,10 +281,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/justificatifs/en-attente', 'justificatifsEnAttente');
 
         // Valider un justificatif
-        Route::put('/justificatif/{justificatifId}/valider', 'validerJustificatif');
+        Route::put('/justificatif/{justificatifId}/valider', 'validerJustificatif')->middleware('can:valider-justificatif-presence');
 
         // Refuser un justificatif
-        Route::put('/justificatif/{justificatifId}/refuser', 'refuserJustificatif');
+        Route::put('/justificatif/{justificatifId}/refuser', 'refuserJustificatif')->middleware('can:valider-justificatif-presence');
 
 
         // ========================================
@@ -291,7 +295,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/alertes', 'getAlertes');
 
         // Traiter une alerte
-        Route::put('/alerte/{alerteId}/traiter', 'traiterAlerte');
+        Route::put('/alerte/{alerteId}/traiter', 'traiterAlerte')->middleware('can:traiter-alerte-presence');
 
         // Étudiants à surveiller
         Route::get('/etudiants/a-surveiller', 'etudiantsASurveiller');
@@ -308,7 +312,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/conseil/etudiant/{etudiantId}', 'getFicheEtudiantConseil');
 
         // Générer synthèse PDF pour le conseil
-        Route::post('/conseil/synthese', 'genererSyntheseConseil');
+        Route::post('/conseil/synthese', 'genererSyntheseConseil')->middleware('can:generer-conseil-classe');
     });
 
 
@@ -318,34 +322,34 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::controller(BourseController::class)->prefix('bourse')->group(function () {
         Route::get('/liste', 'index')->name('bourse.index');
-        Route::post('/store', 'store')->name('bourse.store');
+        Route::post('/store', 'store')->name('bourse.store')->middleware('can:create-bourse');
         Route::get('/{bourse}', 'show')->name('bourse.show');
         Route::get('/{bourse}/etudiants', 'getEtudiantsBourse')->name('bourse.etudiants');
-        Route::put('/{bourse}/update', 'update')->name('bourse.update');
-        Route::delete('/{bourse}/delete', 'destroy')->name('bourse.delete');
-        Route::post('/affecter', 'affecter')->name('bourse.affecter');
-        Route::post('/retirer', 'retirer')->name('bourse.retirer');
+        Route::put('/{bourse}/update', 'update')->name('bourse.update')->middleware('can:update-bourse');
+        Route::delete('/{bourse}/delete', 'destroy')->name('bourse.delete')->middleware('can:delete-bourse');
+        Route::post('/affecter', 'affecter')->name('bourse.affecter')->middleware('can:affecter-bourse');
+        Route::post('/retirer', 'retirer')->name('bourse.retirer')->middleware('can:affecter-bourse');
         Route::get('{etudiant}/etudiant', 'getBoursesByEtudiant');
     });
 
     Route::controller(PlanPaiementController::class)->prefix('plan-de-paiement')->group(function () {
         Route::get('/liste', 'index');
-        Route::post('/store', 'store');
+        Route::post('/store', 'store')->middleware('can:create-plan-paiement');
         Route::get('/{plan}', 'show');
         // Route::get('/{plan}/etudiants', 'getEtudiantsBourse')->name('bourse.etudiants');
-        Route::put('/{plan}/update', 'update');
-        Route::delete('/{plan}/delete', 'destroy');
+        Route::put('/{plan}/update', 'update')->middleware('can:update-plan-paiement');
+        Route::delete('/{plan}/delete', 'destroy')->middleware('can:delete-plan-paiement');
         // Route::post('/affecter', 'affecter')->name('bourse.affecter');
         // Route::post('/retirer', 'retirer')->name('bourse.retirer');
     });
 
     Route::controller(TranchePaiementController::class)->prefix('tranche-de-paiement')->group(function () {
         Route::get('/liste', 'index');
-        Route::post('/store', 'store');
+        Route::post('/store', 'store')->middleware('can:create-tranche-paiement');
         Route::get('/{frais}', 'show');
         // Route::get('/{plan}/etudiants', 'getEtudiantsBourse')->name('bourse.etudiants');
-        Route::put('/{tranche}/update', 'update');
-        Route::delete('/{tranche}/delete', 'destroy');
+        Route::put('/{tranche}/update', 'update')->middleware('can:update-tranche-paiement');
+        Route::delete('/{tranche}/delete', 'destroy')->middleware('can:delete-tranche-paiement');
         // Route::post('/affecter', 'affecter')->name('bourse.affecter');
         // Route::post('/retirer', 'retirer')->name('bourse.retirer');
     });
@@ -358,8 +362,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::controller(NegociationController::class)->prefix('admin')->group(function () {
         Route::get('negociations/dashboard', 'dashboard');
         Route::get('negociations/etudiant/{etudiantId}', 'getByEtudiant');
-        Route::resource('negociations', NegociationController::class);
-        Route::post('negociations/{id}/ajouter-paiement', 'ajouterPaiement')->name('negociations.ajouter-paiement');
+        Route::resource('negociations', NegociationController::class)->except(['store', 'update', 'destroy']);
+        Route::post('negociations', 'store')->name('negociations.store')->middleware('can:create-negociation');
+        Route::put('negociations/{negociation}', 'update')->name('negociations.update')->middleware('can:update-negociation');
+        Route::patch('negociations/{negociation}', 'update')->middleware('can:update-negociation');
+        Route::delete('negociations/{negociation}', 'destroy')->name('negociations.destroy')->middleware('can:delete-negociation');
+        Route::post('negociations/{id}/ajouter-paiement', 'ajouterPaiement')->name('negociations.ajouter-paiement')->middleware('can:create-paiement-negociation');
     });
 
     Route::controller(PaiementController::class)->prefix('paiements')->group(function () {
@@ -376,11 +384,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/historique/{etudiantId?}', 'getHistorique');
 
         // Effectuer un paiement
-        Route::post('/store', 'store');
-        Route::post('/', 'store');
-        
+        Route::post('/store', 'store')->middleware('can:create-paiement');
+        Route::post('/', 'store')->middleware('can:create-paiement');
+
         // Modifier un paiement
-        Route::post('/{id}/update', 'update');
+        Route::post('/{id}/update', 'update')->middleware('can:update-paiement');
     });
     // Route::controller(PaiementGlobalController::class)->prefix('paiements')->group(function () {
     //     Route::get('rechercher-etudiant', 'rechercherEtudiant');
@@ -404,8 +412,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/situation/statistiques', [EtudiantSituationController::class, 'statistiques']);
         Route::get('/situation/{id}', [EtudiantSituationController::class, 'show']);
         Route::get('/situation/export/csv', [EtudiantSituationController::class, 'exportCSV']);
-        Route::post('/situation/bulk-status', [EtudiantSituationController::class, 'bulkUpdateStatut']);
-        Route::put('/situation/{id}/statut', [EtudiantSituationController::class, 'updateStatut']);
+        Route::post('/situation/bulk-status', [EtudiantSituationController::class, 'bulkUpdateStatut'])->middleware('can:update-situation-etudiant');
+        Route::put('/situation/{id}/statut', [EtudiantSituationController::class, 'updateStatut'])->middleware('can:update-situation-etudiant');
     });
 
 
@@ -487,28 +495,40 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('evaluations/{evaluationId}')->group(function () {
         Route::get('/parts', [ExamPartController::class, 'index']);
     });
-    Route::apiResource('exam-parts', ExamPartController::class);
-    Route::post('exam-parts/reorder', [ExamPartController::class, 'reorder']);
+    Route::apiResource('exam-parts', ExamPartController::class)->except(['store', 'update', 'destroy']);
+    Route::post('exam-parts', [ExamPartController::class, 'store'])->middleware('can:create-question-examen');
+    Route::put('exam-parts/{exam_part}', [ExamPartController::class, 'update'])->middleware('can:update-question-examen');
+    Route::patch('exam-parts/{exam_part}', [ExamPartController::class, 'update'])->middleware('can:update-question-examen');
+    Route::delete('exam-parts/{exam_part}', [ExamPartController::class, 'destroy'])->middleware('can:delete-question-examen');
+    Route::post('exam-parts/reorder', [ExamPartController::class, 'reorder'])->middleware('can:update-question-examen');
 
     // ==================== QUESTIONS ====================
     Route::prefix('exam-parts/{partId}')->group(function () {
         Route::get('/questions', [ExamQuestionController::class, 'index']);
     });
-    Route::apiResource('exam-questions', ExamQuestionController::class);
-    Route::post('exam-questions/reorder', [ExamQuestionController::class, 'reorder']);
-    Route::patch('exam-questions/{id}/toggle-active', [ExamQuestionController::class, 'toggleActive']);
+    Route::apiResource('exam-questions', ExamQuestionController::class)->except(['store', 'update', 'destroy']);
+    Route::post('exam-questions', [ExamQuestionController::class, 'store'])->middleware('can:create-question-examen');
+    Route::put('exam-questions/{exam_question}', [ExamQuestionController::class, 'update'])->middleware('can:update-question-examen');
+    Route::patch('exam-questions/{exam_question}', [ExamQuestionController::class, 'update'])->middleware('can:update-question-examen');
+    Route::delete('exam-questions/{exam_question}', [ExamQuestionController::class, 'destroy'])->middleware('can:delete-question-examen');
+    Route::post('exam-questions/reorder', [ExamQuestionController::class, 'reorder'])->middleware('can:update-question-examen');
+    Route::patch('exam-questions/{id}/toggle-active', [ExamQuestionController::class, 'toggleActive'])->middleware('can:update-question-examen');
 
     // ==================== OPTIONS ====================
     Route::prefix('exam-questions/{questionId}')->group(function () {
         Route::get('/options', [ExamQuestionOptionController::class, 'index']);
     });
-    Route::apiResource('exam-question-options', ExamQuestionOptionController::class);
-    Route::post('exam-question-options/reorder', [ExamQuestionOptionController::class, 'reorder']);
-    Route::patch('exam-question-options/{id}/mark-correct', [ExamQuestionOptionController::class, 'markCorrect']);
+    Route::apiResource('exam-question-options', ExamQuestionOptionController::class)->except(['store', 'update', 'destroy']);
+    Route::post('exam-question-options', [ExamQuestionOptionController::class, 'store'])->middleware('can:create-question-examen');
+    Route::put('exam-question-options/{exam_question_option}', [ExamQuestionOptionController::class, 'update'])->middleware('can:update-question-examen');
+    Route::patch('exam-question-options/{exam_question_option}', [ExamQuestionOptionController::class, 'update'])->middleware('can:update-question-examen');
+    Route::delete('exam-question-options/{exam_question_option}', [ExamQuestionOptionController::class, 'destroy'])->middleware('can:delete-question-examen');
+    Route::post('exam-question-options/reorder', [ExamQuestionOptionController::class, 'reorder'])->middleware('can:update-question-examen');
+    Route::patch('exam-question-options/{id}/mark-correct', [ExamQuestionOptionController::class, 'markCorrect'])->middleware('can:update-question-examen');
 
     // ==================== IA QUESTIONS ====================
-    Route::post('exam-questions/generate-ai', [ExamQuestionController::class, 'aiGenerate']);
-    Route::post('exam-questions/refine-ai', [ExamQuestionController::class, 'aiRefine']);
+    Route::post('exam-questions/generate-ai', [ExamQuestionController::class, 'aiGenerate'])->middleware('can:create-question-examen');
+    Route::post('exam-questions/refine-ai', [ExamQuestionController::class, 'aiRefine'])->middleware('can:update-question-examen');
 
     // ==================== SESSIONS & SOUMISSIONS (ÉTUDIANTS) ====================
     Route::prefix('exam/{evaluationId}')->group(function () {
@@ -528,26 +548,29 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/statistics', [ExamSubmissionController::class, 'statistics']);
 
         // Validation et déverrouillage des notes
-        Route::post('/validate-corrections', [ExamSubmissionController::class, 'validateCorrections']);
-        Route::post('/unlock-corrections', [ExamSubmissionController::class, 'unlockCorrections']);
+        Route::post('/validate-corrections', [ExamSubmissionController::class, 'validateCorrections'])->middleware('can:grade-examen');
+        Route::post('/unlock-corrections', [ExamSubmissionController::class, 'unlockCorrections'])->middleware('can:grade-examen');
     });
 
     Route::get('/exam/{evaluationId}/submissions/all', [ExamSubmissionController::class, 'allSubmissions']);
     Route::get('/exam/{evaluationId}/all-submissions', [ExamSubmissionController::class, 'allSubmissions']);
     Route::get('/exam/{evaluationId}/submissions/submitted', [ExamSubmissionController::class, 'submittedOnlySubmissions']);
-    Route::post('/exam/{evaluationId}/finalize-grade/{etudiantId}', [ExamSubmissionController::class, 'finalizeEtudiantGrade']);
+    Route::post('/exam/{evaluationId}/finalize-grade/{etudiantId}', [ExamSubmissionController::class, 'finalizeEtudiantGrade'])->middleware('can:grade-examen');
 
     // ==================== SESSIONS (GESTION) ====================
     Route::get('/evaluations/{evaluationId}/sessions', [ExamSessionController::class, 'examSessions']);
-    Route::apiResource('exam-sessions', ExamSessionController::class)->except(['index', 'store']);
+    Route::apiResource('exam-sessions', ExamSessionController::class)->except(['index', 'store', 'update', 'destroy']);
+    Route::put('exam-sessions/{exam_session}', [ExamSessionController::class, 'update'])->middleware('can:manage-exam-session');
+    Route::patch('exam-sessions/{exam_session}', [ExamSessionController::class, 'update'])->middleware('can:manage-exam-session');
+    Route::delete('exam-sessions/{exam_session}', [ExamSessionController::class, 'destroy'])->middleware('can:manage-exam-session');
     Route::post('/exam-sessions/{id}/ping', [ExamSessionController::class, 'ping']);
 
     // ==================== SOUMISSIONS (GESTION) ====================
     Route::get('/exam-submissions/{id}', [ExamSubmissionController::class, 'show']);
-    Route::post('/exam-sessions/clean-duplicates', [ExamSessionController::class, 'cleanDuplicates']);
+    Route::post('/exam-sessions/clean-duplicates', [ExamSessionController::class, 'cleanDuplicates'])->middleware('can:manage-exam-session');
 
-    Route::post('/exam-submissions/{id}/grade', [ExamSubmissionController::class, 'grade']);
-    Route::post('/exam-submissions/{id}/suggest-grade', [ExamSubmissionController::class, 'suggestGrade']);
+    Route::post('/exam-submissions/{id}/grade', [ExamSubmissionController::class, 'grade'])->middleware('can:grade-examen');
+    Route::post('/exam-submissions/{id}/suggest-grade', [ExamSubmissionController::class, 'suggestGrade'])->middleware('can:grade-examen');
 
 Route::post('/exam/{evaluationId}/submit-complex', [ExamSubmissionController::class, 'submitComplex']);
 Route::get('/exam-submissions/{id}/details', [ExamSubmissionController::class, 'details']);
@@ -604,8 +627,8 @@ Route::prefix('tickets')->group(function(){
     // Syllabuses
     Route::controller(\App\Http\Controllers\SyllabusController::class)->prefix('syllabuses')->group(function () {
         Route::get('/{uvSlug}', 'show');
-        Route::post('/{uvSlug}', 'store');
-        Route::post('/{uvSlug}/upload-attachment', 'uploadFile');
+        Route::post('/{uvSlug}', 'store')->middleware('can:update-syllabus');
+        Route::post('/{uvSlug}/upload-attachment', 'uploadFile')->middleware('can:update-syllabus');
     });
 
     // Enseignant Courses

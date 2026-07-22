@@ -89,7 +89,8 @@ trait IndexTrait
 
 	public function payementCandidaturesIndex()
 	{
-		$payementCandidatures = Candidature::query()->where('dossier_valide', true)
+		$payementCandidatures = Candidature::query()->with(['niveau', 'filiere', 'album'])
+			->where('dossier_valide', true)
 			->whereNull('motif')
 			->where('frais_paye', false)
 			->where('participation', false)

@@ -53,9 +53,12 @@ class AuthenticatedSessionController extends Controller
 			], 422);
 		}
 
+		$user->load('roles');
+		$user->setAttribute('permissions', $user->effectivePermissionSlugs());
+
 		return response()->json([
 			'message' => 'Connexion réussie.',
-			'user' => $user->load('roles'),
+			'user' => $user,
 			'token' => $token,
 		], 200);
 	}

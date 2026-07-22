@@ -30,5 +30,13 @@ class AuthServiceProvider extends ServiceProvider
             // Autoriser uniquement certains rôles (ex: 13,14 = administrateurs)
             return $user->hasRoles(13, 14);
         });
+
+        // Système de permissions dynamique : toute ability demandée via can:xxx-slug
+        // (middleware ou $user->can()) est résolue contre les permissions réellement
+        // assignées aux rôles de l'utilisateur en base. Retourner null laisse la main
+        // aux Gate::define()/Policies explicites (ex: manage-gallery ci-dessus).
+        Gate::before(function (User $user, string $ability) {
+            return $user->hasPermissionSlug($ability) ? true : null;
+        });
     }
 }
