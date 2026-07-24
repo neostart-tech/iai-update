@@ -146,8 +146,15 @@ class ActivityDescriber
 		$route = $activity->properties['route'] ?? null;
 		$method = $activity->properties['method'] ?? 'GET';
 
+		// Route sans nom (closure) : impossible de déduire quoi que ce soit du nom
+		// de route, mais on ne veut jamais afficher un "a consulté" nu — on retombe
+		// sur le chemin de l'URL, humanisé de la même façon qu'un domaine inconnu.
 		if (!$route) {
-			return self::METHOD_FALLBACK[$method] ?? 'a effectué une action sur ' . ($activity->properties['path'] ?? 'le système');
+			$verb = self::METHOD_FALLBACK[$method] ?? 'a effectué une action sur';
+			$path = trim((string) ($activity->properties['path'] ?? ''), '/');
+			$lastSegment = $path !== '' ? collect(explode('/', $path))->last() : '';
+
+			return "{$verb} " . self::humanizeFallback($lastSegment);
 		}
 
 		$segments = explode('.', $route);
@@ -155,16 +162,17 @@ class ActivityDescriber
 		$actionKey = end($segments);
 
 		$domainLabel = self::DOMAIN_LABELS[$domainKey] ?? self::humanizeFallback($domainKey);
+		$subjectLabel = $activity->properties['subject_label'] ?? null;
 
 		foreach (self::VERB_LABELS as $needle => $verb) {
 			if (str_contains($actionKey, $needle)) {
-				return "{$verb} {$domainLabel}";
+				return "{$verb} {$domainLabel}" . self::withLabel($subjectLabel);
 			}
 		}
 
 		$verb = self::METHOD_FALLBACK[$method] ?? 'a effectué une action sur';
 
-		return "{$verb} {$domainLabel}";
+		return "{$verb} {$domainLabel}" . self::withLabel($subjectLabel);
 	}
 
 	private static function describeModelEvent(Activity $activity): string
@@ -172,7 +180,43 @@ class ActivityDescriber
 		$modelLabel = self::MODEL_LABELS[class_basename((string) $activity->subject_type)] ?? 'un élément';
 		$verb = self::EVENT_VERBS[$activity->event] ?? (self::EVENT_VERBS[$activity->description] ?? 'a modifié');
 
-		return "{$verb} {$modelLabel}";
+		// $activity->subject peut être null si l'élément a depuis été supprimé
+		// (ex: on consulte le journal après qu'un utilisateur a été effacé).
+		$subject = $activity->subject;
+		$subjectLabel = $subject ? self::extractModelLabel($subject) : null;
+
+		return "{$verb} {$modelLabel}" . self::withLabel($subjectLabel);
+	}
+
+	/**
+	 * Formatte le nom précis de l'élément concerné, quand on l'a — pour que
+	 * l'utilisateur sache EXACTEMENT qui/quoi a été touché, pas juste la
+	 * catégorie ("a modifié un utilisateur : Jean Dupont", pas juste
+	 * "a modifié un utilisateur").
+	 */
+	private static function withLabel(?string $label): string
+	{
+		return $label ? " : {$label}" : '';
+	}
+
+	/**
+	 * Même logique de priorité de champs que LogActivity::extractSubjectLabel(),
+	 * mais appliquée directement au modèle Eloquent (disponible sans détour par
+	 * la requête HTTP pour les logs d'évènement de modèle).
+	 */
+	private static function extractModelLabel(\Illuminate\Database\Eloquent\Model $model): ?string
+	{
+		if (filled($model->nom ?? null) && filled($model->prenom ?? null)) {
+			return trim($model->nom . ' ' . $model->prenom);
+		}
+
+		foreach (['nom', 'libelle', 'titre', 'label', 'nom_affichage', 'email'] as $field) {
+			if (filled($model->{$field} ?? null)) {
+				return (string) $model->{$field};
+			}
+		}
+
+		return null;
 	}
 
 	private static function humanizeFallback(string $key): string

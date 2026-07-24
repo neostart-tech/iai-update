@@ -509,7 +509,7 @@ public function getStatistiquesPresencesAttribute()
      */
     public static function generateNextMatricule(int $year): string
     {
-        $code = "ESC"; // Fixé selon demande
+        $code = env('MATRICULE_PREFIX', 'ESC');
         
         // Compter le nombre d'étudiants déjà inscrits pour cette année d'admission
         $count = self::where('annee_admission', $year)->count();

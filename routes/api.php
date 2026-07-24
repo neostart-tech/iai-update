@@ -646,6 +646,15 @@ Route::prefix('public')->group(function () {
     Route::get('filieres/liste', [\App\Http\Controllers\Admin\FiliereController::class, 'index']);
     Route::post('candidature/soumettre', [\App\Http\Controllers\CandidatureController::class, 'storeByAdmin']);
 
+    // Inscription en plusieurs étapes (escen-website) : création à l'étape 1, puis
+    // complétée par mises à jour successives via le draft_token retourné à la création.
+    Route::post('candidature/etape1', [\App\Http\Controllers\CandidatureController::class, 'soumettreEtape1']);
+    Route::get('candidature/{draftToken}/brouillon', [\App\Http\Controllers\CandidatureController::class, 'recupererBrouillon']);
+    Route::patch('candidature/{draftToken}/etape1', [\App\Http\Controllers\CandidatureController::class, 'mettreAJourEtape1']);
+    Route::patch('candidature/{draftToken}/etape2-bac', [\App\Http\Controllers\CandidatureController::class, 'soumettreEtape2Bac']);
+    Route::post('candidature/{draftToken}/etape3-documents', [\App\Http\Controllers\CandidatureController::class, 'soumettreEtape3Documents']);
+    Route::post('candidature/{draftToken}/etape4-finaliser', [\App\Http\Controllers\CandidatureController::class, 'soumettreEtape4Finaliser']);
+
     Route::get('galeries', [\App\Http\Controllers\Api\PublicGalleryController::class, 'index']);
     Route::get('galeries/{id}', [\App\Http\Controllers\Api\PublicGalleryController::class, 'show']);
     Route::post('contact', [\App\Http\Controllers\Api\PublicContactController::class, 'store']);

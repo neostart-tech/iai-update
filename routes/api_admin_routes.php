@@ -201,6 +201,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('modules', 'modules')->name('modules');
     });
 
+    // Historique personnel (self-service, sans permission dédiée : chacun voit son propre journal)
+    Route::get('logs/mine', [ActivityLogController::class, 'mine'])->name('logs.mine');
+
     // Gestion des Rôles par l'administration — système de permissions dynamique
     Route::controller(RoleController::class)->prefix('roles')->name('roles.')->group(function () {
         Route::get('liste', 'index')->name('index');
@@ -259,6 +262,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('export/excel', 'exportCandidatsAdmisExcel')->name('export.excel');
         Route::get('export/etude-dossier', 'exportEtudeDossierExcel')->name('export.etude-dossier');
         Route::get('liste-des-rejets', 'liste_des_rejets')->name('index.rejections');
+        Route::get('dossiers-incomplets', 'listeDossiersIncomplets')->name('index.incomplets');
+        Route::delete('{candidature}/supprimer-brouillon', 'supprimerBrouillon')->name('delete-brouillon')->middleware('can:delete-brouillon-candidature');
         Route::get('{candidature}/evaluer', 'show')->name('show');
         Route::get('choix-de-groupe', 'chooseClassAssignmentGroupView')->name('choose-class-assignment-group-view');
         Route::get('attribution-de-groupe/{group}', 'showGroupClassAssignmentView')->name('show-class-assignment-view');

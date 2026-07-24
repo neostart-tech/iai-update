@@ -94,6 +94,15 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			// Divers
 			'Voir la liste des payements de ses enfants' => 'view-payements-enfants',
 			"Modifier le profil d'un autre utilisateur" => 'update-profil-autre-utilisateur',
+
+			// Utilisateurs (module oublié lors de la bascule initiale : ces lignes
+			// existaient déjà en base sans jamais avoir été sluggées, ce qui a cassé
+			// silencieusement can:create-user/update-user/delete-user pour tout le
+			// monde, y compris les rôles à accès complet -- détecté via permissions:audit).
+			'Ajouter un utilisateur' => 'create-user',
+			'Voir tous les utilisateurs' => 'view-user',
+			'Modifier un utilisateur' => 'update-user',
+			'Supprimer un utilisateur' => 'delete-user',
 		];
 
 		foreach ($bySlug as $nom => $slug) {
@@ -298,6 +307,16 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			'controler-admission-candidature' => "Controler l'admission d'un candidat",
 			'inscrire-etudiant-candidature' => "Inscrire un candidat en tant qu'etudiant",
 			'payer-participation-candidature' => 'Enregistrer le paiement des frais de participation',
+			'delete-brouillon-candidature' => "Supprimer un dossier de candidature incomplet (jamais soumis)",
+
+			// Gestion des rôles : aucune permission n'existait pour ce module (jamais
+			// seedée par aucun seeder existant) -- can:create-role/update-role/delete-role/
+			// assign-role-permissions étaient donc cassés pour tout le monde, y compris les
+			// rôles à accès complet (détecté via permissions:audit).
+			'create-role' => 'Ajouter un rôle',
+			'update-role' => 'Modifier un rôle',
+			'delete-role' => 'Supprimer un rôle',
+			'assign-role-permissions' => "Attribuer les permissions d'un rôle",
 
 			'update-surveillant' => "Modifier le statut/type d'un surveillant",
 
@@ -478,7 +497,7 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 				'valider-candidature', 'rejeter-candidature', 'rectifier-candidature', 'transmettre-candidature',
 				'reorienter-candidature', 'attribuer-groupe-candidature', 'controler-presence-candidature',
 				'controler-admission-candidature', 'payer-participation-candidature',
-				'reply-message-contact', 'delete-message-contact',
+				'reply-message-contact', 'delete-message-contact', 'delete-brouillon-candidature',
 			])));
 
 		// Académique : suite du traitement du dossier après transmission, gestion des
@@ -488,7 +507,7 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			->get()
 			->each(fn (Role $role) => $role->permissions()->syncWithoutDetaching($slugs([
 				'valider-candidature', 'rejeter-candidature', 'rectifier-candidature',
-				'reorienter-candidature', 'inscrire-etudiant-candidature',
+				'reorienter-candidature', 'inscrire-etudiant-candidature', 'delete-brouillon-candidature',
 				'create-concours-session', 'update-concours-session', 'publish-concours-session',
 				'create-concours-matiere', 'update-concours-matiere', 'delete-concours-matiere',
 				'create-concours-session-matiere', 'update-concours-session-matiere', 'delete-concours-session-matiere',

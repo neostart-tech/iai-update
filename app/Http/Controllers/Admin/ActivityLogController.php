@@ -47,6 +47,41 @@ class ActivityLogController extends Controller
 	}
 
 	/**
+	 * Activité de l'utilisateur connecté uniquement (self-service, pas de
+	 * permission dédiée : chacun peut consulter son propre historique — voir
+	 * le module Paramètre). `causer_id` est forcé sur l'utilisateur authentifié,
+	 * jamais pris depuis la requête, pour ne jamais exposer l'activité d'un tiers.
+	 */
+	public function mine(Request $request)
+	{
+		$query = Activity::query()
+			->with('causer')
+			->where('causer_type', \App\Models\User::class)
+			->where('causer_id', $request->user()->id)
+			->latest('id');
+
+		if ($request->filled('date_from')) {
+			$query->whereDate('created_at', '>=', $request->input('date_from'));
+		}
+
+		if ($request->filled('date_to')) {
+			$query->whereDate('created_at', '<=', $request->input('date_to'));
+		}
+
+		if ($request->filled('search')) {
+			$search = $request->input('search');
+			$query->where(function ($q) use ($search) {
+				$q->where('description', 'like', "%{$search}%")
+					->orWhere('properties->path', 'like', "%{$search}%");
+			});
+		}
+
+		$logs = $query->paginate($request->integer('per_page', 25));
+
+		return ActivityLogResource::collection($logs);
+	}
+
+	/**
 	 * Modules distincts (log_name) déjà présents, pour peupler le filtre côté front
 	 * sans coder en dur la liste (les noms de modèles suivent class_basename()).
 	 */

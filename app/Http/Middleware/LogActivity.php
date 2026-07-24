@@ -38,8 +38,19 @@ class LogActivity
 	protected array $excludedPathPatterns = [
 		'sanctum/csrf-cookie',
 		'notifications/unread',
+		'api/notifications/unread',
 		'_nuxt/*',
 		'up',
+		// Rafraîchissement automatique de l'utilisateur connecté (toutes les 60s,
+		// voir gestion-ecole/app/plugins/permissions-refresh.client.ts) : aucune
+		// valeur d'audit, et sans nom de route ⇒ s'affichait comme "a consulté"
+		// tout court dans le journal.
+		'api/user',
+		// Configuration générale du site (nom, logo...), chargée en arrière-plan sur
+		// à peu près toutes les pages, y compris publiques ⇒ apparaissait comme
+		// "Système / anonyme a consulté ... (configuration)", ce qui n'a aucun sens
+		// pour l'utilisateur du journal.
+		'api/parametre/configuration',
 	];
 
 	public function handle(Request $request, Closure $next): Response
@@ -86,6 +97,14 @@ class LogActivity
 			'payload' => $this->sanitize($request->except(array_merge($this->redactedKeys, ['_token']))),
 		];
 
+		// Nom/libellé lisible de l'élément concerné (ex: "Jean Dupont" pour
+		// {user}/{candidature}...), quand la route a un paramètre résolu en modèle
+		// Eloquent (binding implicite). Permet à ActivityDescriber d'écrire
+		// "a modifié un utilisateur : Jean Dupont" plutôt que juste "un utilisateur".
+		if ($subjectLabel = $this->extractSubjectLabel($request)) {
+			$properties['subject_label'] = $subjectLabel;
+		}
+
 		if ($exception) {
 			$properties['exception'] = get_class($exception);
 		}
@@ -94,6 +113,41 @@ class LogActivity
 			->causedBy($request->user())
 			->withProperties($properties)
 			->log($request->method() . ' ' . $request->path());
+	}
+
+	/**
+	 * Cherche parmi les paramètres de route déjà résolus par Laravel (route model
+	 * binding implicite, donc de vrais modèles Eloquent, pas de simples ID) celui
+	 * qui correspond le mieux à "l'élément concerné" par la requête, et en tire un
+	 * libellé humain (nom + prénom, nom, libellé...). Renvoie null si aucun
+	 * paramètre de route n'est un modèle, ou si aucun champ usuel n'est trouvé.
+	 */
+	protected function extractSubjectLabel(Request $request): ?string
+	{
+		$route = $request->route();
+		if (!$route) {
+			return null;
+		}
+
+		foreach ($route->parameters() as $value) {
+			if (!$value instanceof \Illuminate\Database\Eloquent\Model) {
+				continue;
+			}
+
+			if (filled($value->nom ?? null) && filled($value->prenom ?? null)) {
+				return trim($value->nom . ' ' . $value->prenom);
+			}
+
+			foreach (['nom', 'libelle', 'titre', 'label', 'nom_affichage', 'email'] as $field) {
+				if (filled($value->{$field} ?? null)) {
+					return (string) $value->{$field};
+				}
+			}
+
+			return '#' . $value->getKey();
+		}
+
+		return null;
 	}
 
 	protected function sanitize(array $data): array
