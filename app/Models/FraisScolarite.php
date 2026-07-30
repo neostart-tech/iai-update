@@ -110,7 +110,19 @@ class FraisScolarite extends Model
                       ->first();
         if ($res) return $res;
 
-        // 5. Fallback final sur niveau uniquement
+        // 5. Fallback : Niveau + Mode spécifique + Sans filière (on ignore le genre strict)
+        $res = self::withoutGlobalScopes()
+            ->where('annee_scolaire_id', $anneeTargetId)
+            ->where('niveau_id', $niveauId)
+            ->whereNull('filiere_id')
+            ->where(function($q) {
+                $q->where('genre', 'Tous')->orWhereNull('genre');
+            })
+            ->where('mode_formation', $modeFormation)
+            ->first();
+        if ($res) return $res;
+
+        // 6. Fallback final sur niveau uniquement
         $res = self::withoutGlobalScopes()
             ->where('annee_scolaire_id', $anneeTargetId)
             ->where('niveau_id', $niveauId)

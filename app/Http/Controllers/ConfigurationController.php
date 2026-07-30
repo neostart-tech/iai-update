@@ -28,6 +28,8 @@ class ConfigurationController extends Controller
                 'group' => 'Candidatures',
                 'options' => 'dossier|Dossier uniquement (dépôt / étude / inscription finale),concours|Concours avec épreuve écrite (paiement / présence / notes / admission)',
             ],
+            ['key' => 'matricule_prefix', 'value' => 'ESC', 'type' => 'text', 'name' => 'Préfixe des matricules (ex: ESCEN, IAEC)', 'group' => 'Candidatures'],
+            ['key' => 'email_domain', 'value' => 'escen.university', 'type' => 'text', 'name' => "Domaine de l'email pro (ex: escen.university)", 'group' => 'Candidatures'],
         ];
         foreach($keys as $k) {
             if (!\App\Models\Configuration::where('key', $k['key'])->exists()) {
@@ -36,9 +38,9 @@ class ConfigurationController extends Controller
         }
         
         return ParametreResource::collection(Configuration::all());
-        return view('admin.config.index', [
-            'configurations' => Configuration::all()
-        ]);
+        // return view('admin.config.index', [
+        //     'configurations' => Configuration::all()
+        // ]);
     }
 public function update(Request $request)
 {

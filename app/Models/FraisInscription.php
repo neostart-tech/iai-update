@@ -16,4 +16,24 @@ class FraisInscription extends Model
     {
         return $this->belongsTo(AnneeScolaire::class, 'annee_scolaire_id');
     }
+
+    public function niveau()
+    {
+        return $this->belongsTo(Niveau::class, 'niveau_id');
+    }
+
+    public function filiere()
+    {
+        return $this->belongsTo(Filiere::class, 'filiere_id');
+    }
+
+    public function paiements()
+    {
+        return $this->morphMany(Paiement::class, 'payable');
+    }
+
+    public function getHasPaymentsAttribute()
+    {
+        return $this->paiements()->exists();
+    }
 }

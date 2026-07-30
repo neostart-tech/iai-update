@@ -90,8 +90,8 @@ class EtudiantRessource extends JsonResource
             'est_nouveau' => (int) $this->annee_admission === (int) \Carbon\Carbon::parse(\App\Models\AnneeScolaire::where('active', true)->value('date_debut'))->year,
             'advertiser' => new AdvertiserResource($this->advertiser),
             'album' => $this->relationLoaded('submittedDocuments') ? $this->submittedDocuments->pluck('file_path', 'document_key')->toArray() : null,
-            'tuteur' => $this->tuteur,
-            'responsable' => $this->responsable,
+            'tuteurs' => $this->whenLoaded('tuteurs'),
+            'responsables' => $this->whenLoaded('responsables'),
             'roles' => $this->roles->map(function ($role) {
                 return [
                     'id' => $role->id,

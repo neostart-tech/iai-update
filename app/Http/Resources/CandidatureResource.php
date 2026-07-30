@@ -67,7 +67,44 @@ class CandidatureResource extends JsonResource
             'promotion' => $this->promotion,
             'advertiser_id' => $this->advertiser_id,
             'advertiser' => new AdvertiserResource($this->advertiser),
+            'next_matricule' => $this->computeNextMatricule(),
+            'active_annee_scolaire' => $this->computeActiveAnneeScolaire(),
+            'frais_scolarite_attendu' => $this->computeFraisScolariteAttendu(),
         ];
+    }
+
+    private function computeActiveAnneeScolaire()
+    {
+        $activeAnnee = \App\Models\AnneeScolaire::where('active', true)->first();
+        if (!$activeAnnee) return null;
+        return [
+            'id' => $activeAnnee->id,
+            'libelle' => $activeAnnee->libelle,
+            'date_debut' => $activeAnnee->date_debut
+        ];
+    }
+
+    private function computeNextMatricule(): string
+    {
+        $activeAnnee = \App\Models\AnneeScolaire::where('active', true)->first();
+        $year = $activeAnnee && $activeAnnee->date_debut ? \Carbon\Carbon::parse($activeAnnee->date_debut)->year : today()->year;
+        return \App\Models\Etudiant::generateNextMatricule($year);
+    }
+
+    private function computeFraisScolariteAttendu(): float
+    {
+        $activeAnnee = \App\Models\AnneeScolaire::where('active', true)->first();
+        if (!$activeAnnee) return 0;
+        
+        $fraisScolarite = \App\Models\FraisScolarite::getFraisForEtudiant(
+            $this->niveau_id,
+            $this->genre,
+            $this->filiere_id,
+            $activeAnnee->id,
+            'Tous'
+        );
+
+        return $fraisScolarite ? (float) $fraisScolarite->montant : 0;
     }
 
     private function computeStatut(): string

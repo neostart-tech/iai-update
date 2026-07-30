@@ -46,6 +46,9 @@ Route::group([],function () {
 			Route::delete('/{id}', [\App\Http\Controllers\Api\DepenseController::class, 'destroy'])->middleware('can:delete-depense');
 			Route::get('/stats', [\App\Http\Controllers\Api\DepenseController::class, 'stats']);
 		});
+        
+        Route::get('/diagnostic/anomalies', [\App\Http\Controllers\DiagnosticFinancierController::class, 'index']);
+        Route::post('/diagnostic/changer-mode-formation', [\App\Http\Controllers\DiagnosticFinancierController::class, 'changerModeFormation']);
 	});
 
 

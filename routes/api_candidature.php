@@ -13,7 +13,7 @@ use App\Http\Controllers\CandidatureAuth\{
 use App\Http\Controllers\Officiel\MySpaceController;
 use Illuminate\Support\Facades\Route;
 
-Route::group([], function () {
+Route::name('candidature.')->group(function () {
 
 	Route::controller(MySpaceController::class)->middleware('auth:sanctum')->name('my-space.')->prefix('mon-dossier')->group(function () {
 

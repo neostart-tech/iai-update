@@ -66,6 +66,37 @@ class CandidatureController extends Controller
 		unset($candidature->album);
 		$candidature->setAttribute('album', (object) array_merge($originalAlbum, $albumFiles));
 
+        $activeAnnee = \App\Models\AnneeScolaire::where('active', true)->first();
+        $year = $activeAnnee && $activeAnnee->date_debut ? \Carbon\Carbon::parse($activeAnnee->date_debut)->year : today()->year;
+        
+        $candidature->setAttribute('next_matricule', \App\Models\Etudiant::generateNextMatricule($year));
+        
+        $activeAnneeData = null;
+        $fraisScolariteAttendu = 0;
+        
+        if ($activeAnnee) {
+            $activeAnneeData = [
+                'id' => $activeAnnee->id,
+                'nom' => $activeAnnee->nom,
+                'date_debut' => $activeAnnee->date_debut
+            ];
+            
+            $fraisScolarite = \App\Models\FraisScolarite::getFraisForEtudiant(
+                $candidature->niveau_id,
+                $candidature->genre,
+                $candidature->filiere_id,
+                $activeAnnee->id,
+                'Tous'
+            );
+            $fraisScolariteAttendu = $fraisScolarite ? (float) $fraisScolarite->montant : 0;
+        }
+        
+        $candidature->setAttribute('active_annee_scolaire', $activeAnneeData);
+        $candidature->setAttribute('frais_scolarite_attendu', $fraisScolariteAttendu);
+        
+        $emailDomain = \App\Models\Configuration::where('key', 'email_domain')->value('value') ?: 'escen.university';
+        $candidature->setAttribute('email_domain', $emailDomain);
+
 		if (request()->ajax() || request()->wantsJson()) {
 			return response()->json([
 				'data' => $candidature,
@@ -79,6 +110,13 @@ class CandidatureController extends Controller
 			'filiere' => $candidature->filiere,
 			'filieres' => Filiere::all(),
 			'niveaux' => Niveau::all(),
+		]);
+	}
+
+	public function generateMatricule($year)
+	{
+		return response()->json([
+			'matricule' => Etudiant::generateNextMatricule((int)$year)
 		]);
 	}
 
@@ -1176,14 +1214,19 @@ class CandidatureController extends Controller
 			->whereIn('slug', $request->input('candidats'))
 			->get();
 
-		$candidatures->each(fn (Candidature $candidature) => $candidature->update([
-			'niveau_id' => $group->niveau_id,
-			'filiere_id' => $group->filiere_id,
-		]));
+		$successCount = 0;
+		foreach ($candidatures as $candidature) {
+			$candidature->update([
+				'niveau_id' => $group->niveau_id,
+				'filiere_id' => $group->filiere_id,
+				'group_id' => $group->id, // On sauvegarde juste le choix du groupe ici
+			]);
+			$successCount++;
+		}
 
 		return response()->json([
 			'success' => true,
-			'message' => 'Groupe attribué avec succès à ' . $candidatures->count() . ' candidat(s).'
+			'message' => 'Groupe pré-attribué avec succès pour ' . $successCount . ' candidat(s). L\'inscription finale génèrera la scolarité.'
 		]);
 	}
 
@@ -1205,7 +1248,8 @@ class CandidatureController extends Controller
 			], 404);
 		}
 
-		$activeAnnee = AnneeScolaire::where('active', true)->first();
+		$anneeId = $request->input('annee_scolaire_id');
+		$activeAnnee = $anneeId ? \App\Models\AnneeScolaire::find($anneeId) : \App\Models\AnneeScolaire::where('active', true)->first();
 		if (!$activeAnnee) {
 			return response()->json([
 				'success' => false,
@@ -1245,6 +1289,9 @@ class CandidatureController extends Controller
 					'annee_admission' => $year,
 				]);
 			} else {
+				$emailPro = $request->filled('email_pro') ? $request->input('email_pro') : $candidature->email;
+				$passwordHash = $request->filled('password') ? bcrypt($request->input('password')) : $candidature->password;
+
 				$etudiant = Etudiant::create([
 					'nom' => $candidature->nom,
 					'nom_jeune_fille' => $candidature->nom_jeune_fille,
@@ -1254,13 +1301,13 @@ class CandidatureController extends Controller
 					'lieu_naissance' => $candidature->lieu_naissance,
 					'nationalite' => $candidature->nationalite,
 					'tel' => $candidature->tel,
-					'email' => $candidature->email,
-					'password' => $candidature->password,
+					'email' => $emailPro,
+					'password' => $passwordHash,
 					'image' => config('images.etudiants.woman'),
 					'annee_admission' => $year,
 					'promotion' => $promotion,
 					'advertiser_id' => $request->input('advertiser_id', $candidature->advertiser_id),
-					'matricule' => Etudiant::generateNextMatricule($year),
+					'matricule' => $request->input('matricule') ?: Etudiant::generateNextMatricule($year),
 				]);
 
 				$roleEtudiant = Role::where('nom', 'Etudiant')->first();
@@ -1384,7 +1431,10 @@ class CandidatureController extends Controller
 				'end_accessibility_date' => now()->addDays(3)
 			]);
 
-			$etudiant->notify(new CandidatToEtudiantWelcomeNotification($etudiant->greeting()));
+			$emailProToSend = $request->input('email_pro', $etudiant->email);
+			$passwordToSend = $request->input('password', 'Votre ancien mot de passe de candidature');
+
+			$etudiant->notify(new CandidatToEtudiantWelcomeNotification($etudiant->greeting(), $emailProToSend, $passwordToSend));
 
 			return response()->json([
 				'success' => true,

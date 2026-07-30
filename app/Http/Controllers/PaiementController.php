@@ -35,7 +35,8 @@ class PaiementController extends Controller
                 $etudiantId = $user->etudiant_id ?? $user->id;
             }
             
-            $infos = $this->paiementService->getInfosPaiement($etudiantId);
+            $anneeScolaireId = request()->input('annee_id') ?? request()->header('X-Annee-Scolaire-Id');
+            $infos = $this->paiementService->getInfosPaiement($etudiantId, $anneeScolaireId);
             
             return response()->json([
                 'success' => true,
@@ -65,7 +66,8 @@ class PaiementController extends Controller
                 $etudiantId = $user->etudiant_id ?? $user->id;
             }
 
-            $recap = $this->paiementService->getRecap($etudiantId);
+            $anneeScolaireId = request()->input('annee_id') ?? request()->header('X-Annee-Scolaire-Id');
+            $recap = $this->paiementService->getRecap($etudiantId, $anneeScolaireId);
             
             return response()->json([
                 'success' => true,
@@ -95,7 +97,8 @@ class PaiementController extends Controller
                 $etudiantId = $user->etudiant_id ?? $user->id;
             }
 
-            $historique = $this->paiementService->getHistorique($etudiantId);
+            $anneeScolaireId = request()->input('annee_id') ?? request()->header('X-Annee-Scolaire-Id');
+            $historique = $this->paiementService->getHistorique($etudiantId, $anneeScolaireId);
             
             return response()->json([
                 'success' => true,
@@ -140,6 +143,7 @@ class PaiementController extends Controller
         }
 
         try {
+            $anneeScolaireId = $request->input('annee_id') ?? $request->header('X-Annee-Scolaire-Id');
             $result = $this->paiementService->traiterPaiement(
                 $request->etudiant_id,
                 $request->montant,
@@ -150,7 +154,8 @@ class PaiementController extends Controller
                 $request->get('nature_paiement', 'scolarite'),
                 $request->get('frais_retrait_mm', 0),
                 $request->commentaire,
-                $justificatifPath
+                $justificatifPath,
+                $anneeScolaireId
             );
             
             return response()->json($result);

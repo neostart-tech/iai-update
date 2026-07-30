@@ -85,6 +85,11 @@ class Candidature extends Authenticatable
 		return $this->morphOne(ResponsableFrais::class, 'owner');
 	}
 
+	public function responsables(): \Illuminate\Database\Eloquent\Relations\MorphMany
+	{
+		return $this->morphMany(ResponsableFrais::class, 'owner');
+	}
+
 	public function Reorientations()
 	{
 		return $this->hasMany(Reorientation::class);

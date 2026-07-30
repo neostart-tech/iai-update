@@ -102,8 +102,8 @@ class EtudiantController extends Controller
                 'etudiantGroups.group',
                 'etudiantGroups.filiere',
                 'etudiantGroups.niveau',
-                'tuteur',
-                'responsable',
+                'tuteurs',
+                'responsables',
                 'submittedDocuments'
             ])
             ->firstOrFail(); // renvoie 404 si non trouvé
@@ -308,20 +308,22 @@ class EtudiantController extends Controller
             'nom_jeune_fille' => 'nullable|string|max:255',
             'biographie' => 'nullable|string',
             'mode_formation' => 'required|string',
-            // Tuteur
-            'tuteur.nom' => 'nullable|string|max:255',
-            'tuteur.prenom' => 'nullable|string|max:255',
-            'tuteur.tel' => 'nullable|string|max:20',
-            'tuteur.email' => 'nullable|email',
-            'tuteur.profession' => 'nullable|string|max:255',
-            'tuteur.adresse' => 'nullable|string|max:255',
-            // Responsable
-            'responsable.nom' => 'nullable|string|max:255',
-            'responsable.prenom' => 'nullable|string|max:255',
-            'responsable.tel' => 'nullable|string|max:20',
-            'responsable.email' => 'nullable|email',
-            'responsable.profession' => 'nullable|string|max:255',
-            'responsable.adresse' => 'nullable|string|max:255',
+            // Tuteurs
+            'tuteurs' => 'nullable|array',
+            'tuteurs.*.nom' => 'nullable|string|max:255',
+            'tuteurs.*.prenom' => 'nullable|string|max:255',
+            'tuteurs.*.tel' => 'nullable|string|max:20',
+            'tuteurs.*.email' => 'nullable|email',
+            'tuteurs.*.profession' => 'nullable|string|max:255',
+            'tuteurs.*.adresse' => 'nullable|string|max:255',
+            // Responsables
+            'responsables' => 'nullable|array',
+            'responsables.*.nom' => 'nullable|string|max:255',
+            'responsables.*.prenom' => 'nullable|string|max:255',
+            'responsables.*.tel' => 'nullable|string|max:20',
+            'responsables.*.email' => 'nullable|email',
+            'responsables.*.profession' => 'nullable|string|max:255',
+            'responsables.*.adresse' => 'nullable|string|max:255',
             // Fichiers
             'photo_identite_file' => 'nullable|file|image|max:2048',
             'naissance_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
@@ -358,26 +360,37 @@ class EtudiantController extends Controller
 
         $etudiant->update($updateData);
 
-        // Tuteur
-        if ($request->has('tuteur')) {
-            $etudiant->tuteur()->updateOrCreate(
-                ['owner_id' => $etudiant->id, 'owner_type' => get_class($etudiant)],
-                $request->input('tuteur')
-            );
+        // Tuteurs
+        if ($request->has('tuteurs')) {
+            $etudiant->tuteurs()->delete();
+            foreach ($request->input('tuteurs') as $tuteurData) {
+                if (!empty($tuteurData['nom'])) {
+                    $etudiant->tuteurs()->create($tuteurData);
+                }
+            }
         }
 
-        // Responsable
-        if ($request->has('responsable')) {
-            $etudiant->responsable()->updateOrCreate(
-                ['owner_id' => $etudiant->id, 'owner_type' => get_class($etudiant)],
-                $request->input('responsable')
-            );
+        // Responsables
+        if ($request->has('responsables')) {
+            $etudiant->responsables()->delete();
+            foreach ($request->input('responsables') as $respData) {
+                if (!empty($respData['nom'])) {
+                    $etudiant->responsables()->create($respData);
+                }
+            }
         }
 
         // Mettre à jour le groupe si nécessaire
         $etudiantGroup = $etudiant->etudiantGroups()
             ->where('annee_scolaire_id', $anneeActiveId)
             ->first();
+
+        $financialImpact = false;
+
+        // Detecter si le genre a change (peut impacter le tarif)
+        if ($etudiant->wasChanged('genre')) {
+            $financialImpact = true;
+        }
 
         if ($etudiantGroup) {
             // Vérifier que le nouveau groupe appartient au même niveau
@@ -388,16 +401,33 @@ class EtudiantController extends Controller
                 ], 422);
             }
 
+            if ($etudiantGroup->group_id != $request->group_id || $etudiantGroup->mode_formation != $request->mode_formation) {
+                $financialImpact = true;
+            }
+
             $etudiantGroup->update([
                 'group_id' => $request->group_id,
                 'mode_formation' => $request->mode_formation
             ]);
         }
 
+        // Synchroniser les frais si un changement financier est detecte
+        if ($financialImpact) {
+            try {
+                $fraisService = new \App\Services\FraisEtudiantService();
+                $fraisService->synchroniserApresModificationProfil($etudiant, $anneeActiveId);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error("Erreur sync frais apres modif profil: " . $e->getMessage());
+            }
+        }
+
         // Mettre à jour l'album (fichiers)
         $this->updateEtudiantAlbum($request, $etudiant);
 
-        return new EtudiantRessource($etudiant->load(['etudiantGroups.group', 'etudiantGroups.filiere', 'etudiantGroups.niveau', 'tuteur', 'responsable', 'submittedDocuments']));
+        return response()->json([
+            'data' => new EtudiantRessource($etudiant->load(['etudiantGroups.group', 'etudiantGroups.filiere', 'etudiantGroups.niveau', 'tuteurs', 'responsables', 'submittedDocuments'])),
+            'financial_impact' => $financialImpact
+        ]);
     }
 
     private function updateEtudiantAlbum(Request $request, Etudiant $etudiant)

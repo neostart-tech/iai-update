@@ -302,7 +302,6 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			'rectifier-candidature' => 'Demander une rectification de dossier',
 			'transmettre-candidature' => "Transmettre un dossier a l'academie",
 			'reorienter-candidature' => 'Reorienter un candidat',
-			'attribuer-groupe-candidature' => 'Attribuer un groupe/classe a des candidats',
 			'controler-presence-candidature' => "Controler la presence d'un candidat au concours",
 			'controler-admission-candidature' => "Controler l'admission d'un candidat",
 			'inscrire-etudiant-candidature' => "Inscrire un candidat en tant qu'etudiant",
@@ -495,7 +494,7 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			->get()
 			->each(fn (Role $role) => $role->permissions()->syncWithoutDetaching($slugs([
 				'valider-candidature', 'rejeter-candidature', 'rectifier-candidature', 'transmettre-candidature',
-				'reorienter-candidature', 'attribuer-groupe-candidature', 'controler-presence-candidature',
+				'reorienter-candidature', 'controler-presence-candidature',
 				'controler-admission-candidature', 'payer-participation-candidature',
 				'reply-message-contact', 'delete-message-contact', 'delete-brouillon-candidature',
 			])));

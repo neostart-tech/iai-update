@@ -145,6 +145,7 @@ class EtudiantSituationService
         return [
             // Infos de base
             'id' => $etudiant->id,
+            'slug' => $fraisEtudiant ? $fraisEtudiant->slug : $etudiant->slug,
             'statut_global' => $etudiant->statut ?? 'actif',
             'matricule' => $etudiant->matricule,
             'nom' => $etudiant->nom,
@@ -193,15 +194,22 @@ class EtudiantSituationService
             // Détails des paiements
             'paiements' => $paiements,
             
-            // Frais négociés
+            // Frais negocies
             'a_frais_negocies' => !is_null($fraisEtudiant),
             'frais_negocies' => $fraisEtudiant ? [
                 'montant_initial' => (float)$fraisEtudiant->montant_initial,
                 'montant_apres_bourse' => (float)$fraisEtudiant->montant_apres_bourse,
-                'bourse' => (float)($fraisEtudiant->bourse > 0 ? $fraisEtudiant->bourse : 
-                    ($fraisEtudiant->montant_initial > $fraisEtudiant->montant_apres_bourse ? 
-                        round((($fraisEtudiant->montant_initial - $fraisEtudiant->montant_apres_bourse) / $fraisEtudiant->montant_initial) * 100) : 0)),
-                'type_bourse' => $fraisEtudiant->type_bourse ?: ($fraisEtudiant->montant_initial > $fraisEtudiant->montant_apres_bourse ? 'Réduction' : 'Standard'),
+                'bourse' => $fraisEtudiant->bourse_etudiant_id ? (float)(
+                    $fraisEtudiant->bourseEtudiant && $fraisEtudiant->bourseEtudiant->bourse 
+                        ? $fraisEtudiant->bourseEtudiant->bourse->valeur 
+                        : 0
+                ) : null,
+                'type_bourse' => $fraisEtudiant->bourse_etudiant_id ? (
+                    $fraisEtudiant->bourseEtudiant && $fraisEtudiant->bourseEtudiant->bourse 
+                        ? $fraisEtudiant->bourseEtudiant->bourse->type 
+                        : null
+                ) : null,
+                'est_negociation' => $fraisEtudiant->type_paiement === 'negociation',
             ] : null,
             
             // Date de dernière activité - CORRIGÉ

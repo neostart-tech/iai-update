@@ -230,6 +230,11 @@ public function echeances()
 		return $this->morphOne(Tuteur::class, 'owner');
 	}
 
+	public function tuteurs(): MorphMany
+	{
+		return $this->morphMany(Tuteur::class, 'owner');
+	}
+
 
 	public function album(): MorphOne
 	{
@@ -244,6 +249,11 @@ public function echeances()
 	public function responsable(): MorphOne
 	{
 		return $this->morphOne(ResponsableFrais::class, 'owner');
+	}
+
+	public function responsables(): MorphMany
+	{
+		return $this->morphMany(ResponsableFrais::class, 'owner');
 	}
 
 	public function announcements(): BelongsToMany
@@ -509,14 +519,21 @@ public function getStatistiquesPresencesAttribute()
      */
     public static function generateNextMatricule(int $year): string
     {
-        $code = env('MATRICULE_PREFIX', 'ESC');
+        // Try to get prefix from DB, fallback to ESC
+        $configPrefix = \App\Models\Configuration::where('key', 'matricule_prefix')->value('value');
+        $code = $configPrefix ? $configPrefix : 'ESC';
         
-        // Compter le nombre d'étudiants déjà inscrits pour cette année d'admission
+        // Count base start
         $count = self::where('annee_admission', $year)->count();
-        
         $nextNumber = $count + 1;
         
-        // Formatage: XXX-ESC-YYYY avec padding de 3 chiffres
-        return sprintf('%03d-%s-%d', $nextNumber, $code, $year);
+        // Ensure uniqueness
+        while (true) {
+            $matricule = sprintf('%03d-%s-%d', $nextNumber, $code, $year);
+            if (!self::where('matricule', $matricule)->exists()) {
+                return $matricule;
+            }
+            $nextNumber++;
+        }
     }
 }

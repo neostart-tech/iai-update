@@ -17,6 +17,8 @@ class BlogRequest extends FormRequest
 			'title' => ['required', 'string', 'max:255'],
 			'author_name' => ['nullable', 'string', 'max:255'],
 			'content' => ['required', 'string'],
+			'status' => ['nullable', 'string', 'in:published,draft'],
+			'publication_date' => ['nullable', 'date'],
 		];
 
 		// Si c'est une création (POST) l'image est requise

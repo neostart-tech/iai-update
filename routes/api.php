@@ -416,6 +416,23 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/situation/{id}/statut', [EtudiantSituationController::class, 'updateStatut'])->middleware('can:update-situation-etudiant');
     });
 
+    // Routes de diagnostic financier
+    Route::prefix('diagnostic-financier')->group(function () {
+        Route::get('/anomalies-tarif', function () {
+            $service = new \App\Services\DiagnosticFinancierService();
+            return response()->json($service->detecterAnomaliesTarif());
+        });
+        Route::post('/corriger-anomalies', function () {
+            $service = new \App\Services\DiagnosticFinancierService();
+            return response()->json($service->corrigerAnomalies());
+        });
+        Route::get('/comparer', function () {
+            $service = new \App\Services\DiagnosticFinancierService();
+            return response()->json($service->comparerCalculs());
+        });
+        Route::post('/changer-mode-formation', [\App\Http\Controllers\DiagnosticFinancierController::class, 'changerModeFormation']);
+    });
+
 
 
 

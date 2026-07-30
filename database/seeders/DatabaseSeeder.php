@@ -13,7 +13,7 @@ class DatabaseSeeder extends Seeder
 			RoleSeeder::class,
 			AnneeScolaireSeeder::class,
 			CurrentEnvSeeder::class,
-//			PeriodeSeeder::class,
+				//			PeriodeSeeder::class,
 			FiliereSeeder::class,
 			PermissionSeeder::class,
 			PermissionRoleSeeder::class,

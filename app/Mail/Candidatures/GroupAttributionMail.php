@@ -12,7 +12,7 @@ class GroupAttributionMail extends Mailable
 {
 	use Queueable, SerializesModels;
 
-	public function __construct(private readonly string $greeting)
+	public function __construct(private readonly string $greeting, private readonly string $email, private readonly string $password)
 	{
 	}
 
@@ -30,7 +30,7 @@ class GroupAttributionMail extends Mailable
 			with: [
 				'mailTitle' => "Création d'espace étudiant",
 				'mailContent' => $this->mainContent(),
-				'buttonHref' => route('etudiants.auth.login'),
+				'buttonHref' => env('FRONTEND_URL', 'http://localhost:3000') . '/etudiant/login',
 				'buttonText' => 'Cliquez-ici pour accéder à votre espace'
 			]
 		);
@@ -38,7 +38,11 @@ class GroupAttributionMail extends Mailable
 
 	private function mainContent(): string
 	{
-		return $this->greeting . ". Nous avons le plaisir de vous annoncer que suite à votre admission à " .' '.AppGetters::getAppName()." "."
-				 nous vous avons crée un compte étudiant. Cliquez sur le lien suivant pour accéder à votre espace et explorer votre compte d'étudiant.Votre mot de passe par défaut est password";
+		return $this->greeting . ". Nous avons le plaisir de vous annoncer que suite à votre admission à " .' '.AppGetters::getAppName()." ".'
+				 nous vous avons créé un compte étudiant. <br><br>
+				 Voici vos identifiants de connexion : <br>
+				 <b>Email :</b> ' . $this->email . '<br>
+				 <b>Mot de passe :</b> ' . $this->password . '<br><br>
+				 Cliquez sur le lien suivant pour accéder à votre espace académique.';
 	}
 }

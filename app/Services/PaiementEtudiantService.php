@@ -42,12 +42,20 @@ class PaiementEtudiantService
             // Vérifier d'abord s'il a un frais négocié
             $fraisEtudiant = $this->getFraisNegocie($etudiantId, $anneeScolaireId);
 
+            $infos = null;
             if ($fraisEtudiant) {
-                return $this->formatInfosFraisNegocie($fraisEtudiant, $etudiant);
+                $infos = $this->formatInfosFraisNegocie($fraisEtudiant, $etudiant);
+            } else {
+                // Sinon, récupérer les frais par défaut
+                $infos = $this->getInfosFraisParDefaut($etudiant, $anneeScolaireId);
             }
 
-            // Sinon, récupérer les frais par défaut
-            return $this->getInfosFraisParDefaut($etudiant, $anneeScolaireId);
+            // Anomaly Check
+            $diagnosticService = new \App\Services\DiagnosticFinancierService();
+            $anomalie = $diagnosticService->verifierAnomalieEtudiant($etudiant, $anneeScolaireId);
+            $infos['anomalie'] = $anomalie;
+
+            return $infos;
         } catch (Exception $e) {
             Log::error('Erreur getInfosPaiement: ' . $e->getMessage(), [
                 'etudiant_id' => $etudiantId,
@@ -82,6 +90,19 @@ class PaiementEtudiantService
         $dernierGroupe = $etudiant->etudiantGroups->first();
         $niveau = $dernierGroupe && $dernierGroupe->niveau ? $dernierGroupe->niveau->libelle : null;
         $filiere = $dernierGroupe && $dernierGroupe->filiere ? $dernierGroupe->filiere->nom : null;
+        $modeFormation = $dernierGroupe && $dernierGroupe->mode_formation ? 
+            ($dernierGroupe->mode_formation instanceof \UnitEnum ? $dernierGroupe->mode_formation->value : $dernierGroupe->mode_formation) 
+            : 'Tous';
+
+        // Anomaly Check
+        $diagnosticService = new \App\Services\DiagnosticFinancierService();
+        $anomalie = $diagnosticService->verifierAnomalieEtudiant($etudiant, $fraisEtudiant->annee_scolaire_id);
+
+        // Recalculer les échéances pour s'assurer que les paiements sont bien ventilés
+        if ($fraisEtudiant->echeances->isNotEmpty()) {
+            $this->recalculerEcheancesNegociees($fraisEtudiant, $etudiant->id);
+            $fraisEtudiant->refresh();
+        }
 
         $totalPaye = $fraisEtudiant->echeances->sum('montant_paye');
         $montantTotal = $fraisEtudiant->montant_apres_bourse;
@@ -97,8 +118,11 @@ class PaiementEtudiantService
                 'matricule' => $etudiant->matricule,
                 'niveau' => $niveau,
                 'filiere' => $filiere,
+                'mode_formation' => $modeFormation,
                 'telephone' => $etudiant->tel,
+                'slug' => $etudiant->slug,
             ],
+            'anomalie' => $anomalie,
             'frais' => [
                 'id' => $fraisEtudiant->id,
                 'montant_initial' => (float) $fraisEtudiant->montant_initial,
@@ -287,17 +311,25 @@ class PaiementEtudiantService
      */
     private function getTranchesWithPaiements($fraisScolariteId, $etudiantId)
     {
+        // Sum all valid scolarite payments made by the student
+        $totalPayeScolarite = Paiement::where('etudiant_id', $etudiantId)
+            ->where('status', 'valide')
+            ->where(function($q) {
+                $q->where('payable_type', TranchePaiement::class)
+                  ->orWhere('nature_paiement', 'scolarite');
+            })
+            ->sum('montant');
+
+        $resteVentilation = $totalPayeScolarite;
+
         return TranchePaiement::where('frais_scolarite_id', $fraisScolariteId)
             ->orderBy('id')
             ->get()
-            ->map(function ($tranche) use ($etudiantId) {
-                $totalPaye = Paiement::where('payable_type', TranchePaiement::class)
-                    ->where('payable_id', $tranche->id)
-                    ->where('etudiant_id', $etudiantId)
-                    ->where('status', 'valide')
-                    ->sum('montant');
+            ->map(function ($tranche) use (&$resteVentilation) {
+                $paye = min($resteVentilation, (float)$tranche->montant);
+                $resteVentilation = max(0, $resteVentilation - $paye);
 
-                $tranche->total_paye = $totalPaye;
+                $tranche->total_paye = $paye;
                 return $tranche;
             });
     }
@@ -438,9 +470,7 @@ class PaiementEtudiantService
                 $echeances = collect($infos['echeances']);
                 
                 // 1. Chercher d'abord dans la table dédiée frais_inscriptions
-                $fraisInscTable = \App\Models\FraisInscription::where('annee_scolaire_id', AnneeScolaire::courante()->id)
-                    ->where('active', true)
-                    ->first();
+                $fraisInscTable = $this->getFraisInscriptionForEtudiant($etudiantId, $anneeScolaireId);
                 
                 $montantInscription = $fraisInscTable ? (float)$fraisInscTable->montant : 0;
 
@@ -493,9 +523,7 @@ class PaiementEtudiantService
                 $tranches = collect($infos['tranches']);
                 
                 // 1. Chercher d'abord dans la table dédiée frais_inscriptions
-                $fraisInscTable = \App\Models\FraisInscription::where('annee_scolaire_id', AnneeScolaire::courante()->id)
-                    ->where('active', true)
-                    ->first();
+                $fraisInscTable = $this->getFraisInscriptionForEtudiant($etudiantId, $anneeScolaireId);
                 
                 $montantInscription = $fraisInscTable ? (float)$fraisInscTable->montant : 0;
 
@@ -554,10 +582,12 @@ class PaiementEtudiantService
     /**
      * Récupère l'historique des paiements d'un étudiant
      */
-    public function getHistorique($etudiantId)
+    public function getHistorique($etudiantId, $anneeScolaireId = null)
     {
         try {
+            $anneeScolaireId = $anneeScolaireId ?? AnneeScolaire::courante()->id;
             $paiements = Paiement::where('etudiant_id', $etudiantId)
+                ->where('annee_scolaire_id', $anneeScolaireId)
                 ->with(['payable'])
                 ->where('status', 'valide')
                 ->orderBy('created_at', 'desc')
@@ -649,8 +679,18 @@ class PaiementEtudiantService
             throw new Exception("Impossible de déterminer l'élément à payer.");
         }
 
+        $finalAnneeId = $anneeScolaireId;
+        if ($payable instanceof \App\Models\Echeance && $payable->fraisEtudiant) {
+            $finalAnneeId = $payable->fraisEtudiant->annee_scolaire_id;
+        } elseif ($payable instanceof \App\Models\FraisInscription) {
+            $finalAnneeId = $payable->annee_scolaire_id;
+        } elseif ($payable instanceof \App\Models\TranchePaiement) {
+            $finalAnneeId = $payable->annee_scolaire_id ?? $finalAnneeId;
+        }
+
         $paiement = new Paiement();
         $paiement->etudiant_id = $etudiantId;
+        $paiement->annee_scolaire_id = $finalAnneeId;
         $paiement->montant = $montant;
         $paiement->mode_paiement = $modePaiement;
         $paiement->nature_paiement = $naturePaiement;
@@ -669,12 +709,12 @@ class PaiementEtudiantService
     /**
      * Traite un nouveau paiement
      */
-    public function traiterPaiement($etudiantId, $montant, $modePaiement, $reference = null, $payableId = null, $payableType = null, $naturePaiement = 'scolarite', $fraisRetraitMM = 0, $commentaire = null, $justificatif = null)
+    public function traiterPaiement($etudiantId, $montant, $modePaiement, $reference = null, $payableId = null, $payableType = null, $naturePaiement = 'scolarite', $fraisRetraitMM = 0, $commentaire = null, $justificatif = null, $anneeScolaireId = null)
     {
         DB::beginTransaction();
 
         try {
-            $anneeScolaireId = getAnneeScolaireId();
+            $anneeScolaireId = $anneeScolaireId ?? getAnneeScolaireId();
 
             // Vérifier l'étudiant
             $etudiant = Etudiant::findOrFail($etudiantId);
@@ -689,21 +729,59 @@ class PaiementEtudiantService
                 throw new Exception("Impossible de déterminer l'élément à payer (tous les frais sont peut-être déjà soldés).");
             }
 
-            // Vérifier que le montant ne dépasse pas le reste à payer
-            $resteAPayer = $this->calculerResteAPayer($payable, $etudiantId);
+            // Vérifier que le montant ne dépasse pas le reste à payer global ou de l'élément
+            if ($naturePaiement === 'scolarite') {
+                $infos = $this->getInfosPaiement($etudiantId, $anneeScolaireId);
+                $resteGlobalScolarite = $infos['total']['reste_a_payer'] ?? 0;
 
-            if ($resteAPayer <= 0) {
-                $libelle = $this->getLibellePayable($payable);
-                throw new Exception("L'élément \"$libelle\" est déjà entièrement payé.");
+                if ($resteGlobalScolarite <= 0) {
+                    throw new Exception("Tous les frais de scolarité de cet étudiant sont déjà entièrement réglés.");
+                }
+
+                if ($montant > $resteGlobalScolarite) {
+                    throw new Exception("Le montant saisi (" . number_format($montant, 0, ',', ' ') . " FCFA) dépasse le reste total à payer pour la scolarité (" . number_format($resteGlobalScolarite, 0, ',', ' ') . " FCFA).");
+                }
+            } elseif ($naturePaiement === 'inscription') {
+                $recap = $this->getRecap($etudiantId, $anneeScolaireId);
+                if (!empty($recap['inscription_payee'])) {
+                    throw new Exception("Les frais d'inscription pour cet étudiant ont déjà été entièrement réglés pour cette année scolaire.");
+                }
+
+                $resteAPayer = $this->calculerResteAPayer($payable, $etudiantId, $anneeScolaireId);
+
+                if ($resteAPayer <= 0) {
+                    throw new Exception("Les frais d'inscription de cet étudiant sont déjà entièrement réglés.");
+                }
+
+                if ($montant > $resteAPayer) {
+                    throw new Exception("Le montant saisi (" . number_format($montant, 0, ',', ' ') . " FCFA) dépasse le reste à payer pour l'inscription (" . number_format($resteAPayer, 0, ',', ' ') . " FCFA)");
+                }
+            } else {
+                $resteAPayer = $this->calculerResteAPayer($payable, $etudiantId, $anneeScolaireId);
+
+                if ($resteAPayer <= 0) {
+                    $libelle = $this->getLibellePayable($payable);
+                    throw new Exception("L'élément \"$libelle\" est déjà entièrement payé.");
+                }
+
+                if ($montant > $resteAPayer) {
+                    throw new Exception("Le montant saisi (" . number_format($montant, 0, ',', ' ') . " FCFA) dépasse le reste à payer (" . number_format($resteAPayer, 0, ',', ' ') . " FCFA)");
+                }
             }
 
-            if ($montant > $resteAPayer) {
-                throw new Exception("Le montant saisi (" . number_format($montant, 0, ',', ' ') . ") dépasse le reste à payer (" . number_format($resteAPayer, 0, ',', ' ') . " FCFA)");
+            $finalAnneeId = $anneeScolaireId;
+            if ($payable instanceof \App\Models\Echeance && $payable->fraisEtudiant) {
+                $finalAnneeId = $payable->fraisEtudiant->annee_scolaire_id;
+            } elseif ($payable instanceof \App\Models\FraisInscription) {
+                $finalAnneeId = $payable->annee_scolaire_id;
+            } elseif ($payable instanceof \App\Models\TranchePaiement) {
+                $finalAnneeId = $payable->annee_scolaire_id ?? $finalAnneeId;
             }
 
             // Créer le paiement
             $paiement = new Paiement();
             $paiement->etudiant_id = $etudiantId;
+            $paiement->annee_scolaire_id = $finalAnneeId;
             $paiement->montant = $montant;
             $paiement->mode_paiement = $modePaiement;
             $paiement->nature_paiement = $naturePaiement;
@@ -748,69 +826,40 @@ class PaiementEtudiantService
      */
     private function determinerPayable($etudiantId, $payableId, $payableType, $anneeScolaireId, $naturePaiement = 'scolarite')
     {
-        // Si la nature est inscription, on cherche d'abord le frais d'inscription actif
-        if ($naturePaiement === 'inscription') {
-            // Si un payable est forcé mais que ce n'est pas un frais d'inscription, c'est une erreur de logique
-            if ($payableId && $payableType !== 'frais_inscription') {
-                return null; 
+        // 1. Si un payableId et payableType sont spécifiés
+        if ($payableId && $payableType) {
+            if ($payableType === 'echeance' || $payableType === \App\Models\Echeance::class) {
+                $e = \App\Models\Echeance::find($payableId);
+                if ($e) return $e;
             }
+            if ($payableType === 'tranche' || $payableType === \App\Models\TranchePaiement::class) {
+                $t = \App\Models\TranchePaiement::find($payableId);
+                if ($t) return $t;
+            }
+            if ($payableType === 'frais_inscription' || $payableType === \App\Models\FraisInscription::class) {
+                $f = \App\Models\FraisInscription::find($payableId);
+                if ($f) return $f;
+            }
+        }
 
-            $fraisInsc = FraisInscription::where('annee_scolaire_id', $anneeScolaireId)
-                ->where('active', true)
-                ->first();
+        // 2. Si la nature est inscription
+        if ($naturePaiement === 'inscription') {
+            $fraisInsc = $this->getFraisInscriptionForEtudiant($etudiantId, $anneeScolaireId);
             
             if ($fraisInsc) {
-                // Si on a un ID spécifique, on vérifie que c'est bien celui-là
-                if ($payableId && $payableId != $fraisInsc->id) return null;
-
-                // Vérifier s'il est déjà payé
-                $reste = $this->calculerResteAPayer($fraisInsc, $etudiantId);
-                if ($reste > 0) return $fraisInsc;
-                
-                // Si le reste est 0, on retourne null pour déclencher l'erreur "Déjà à jour"
-                return null;
+                return $fraisInsc;
             }
         }
 
-        // Si on a un payable spécifique
-        if ($payableId && $payableType) {
-            if ($payableType === 'echeance') {
-                return \App\Models\Echeance::find($payableId);
-            }
-            if ($payableType === 'tranche') {
-                return \App\Models\TranchePaiement::find($payableId);
-            }
-            if ($payableType === 'frais_inscription') {
-                return \App\Models\FraisInscription::find($payableId);
-            }
-        }
-
-        // Sinon, trouver la première échéance/tranche non payée
+        // 3. Fallback sur la première échéance ou tranche non payée
         $fraisEtudiant = $this->getFraisNegocie($etudiantId, $anneeScolaireId);
 
         if ($fraisEtudiant) {
-            // Cas négocié: privilégier l'échéance d'inscription si c'est la nature
-            if ($naturePaiement === 'inscription') {
-                $inscriptionEcheance = $fraisEtudiant->echeances()
-                    ->where('statut', '!=', 'paye')
-                    ->where(function($q) {
-                        $q->where('libelle', 'like', '%Inscrip%')
-                          ->orWhere('libelle', 'like', '%Admis%');
-                    })
-                    ->orderBy('date_limite')
-                    ->first();
-                
-                if ($inscriptionEcheance) return $inscriptionEcheance;
-            }
-
-            // Sinon première échéance non payée
             return $fraisEtudiant->echeances()
                 ->where('statut', '!=', 'paye')
                 ->orderBy('date_limite')
                 ->first();
         } else {
-            // Cas standard: première tranche non payée
-            // Charger l'étudiant avec ses groupes
             $etudiant = Etudiant::with([
                 'etudiantGroups' => function ($query) use ($anneeScolaireId) {
                     $query->where('annee_scolaire_id', $anneeScolaireId)
@@ -818,33 +867,14 @@ class PaiementEtudiantService
                 }
             ])->find($etudiantId);
 
-            if (!$etudiant) {
-                return null;
-            }
+            if (!$etudiant) return null;
 
             $infos = $this->getInfosFraisParDefaut($etudiant, $anneeScolaireId);
-
-            if ($naturePaiement === 'inscription') {
-                $inscriptionTranche = collect($infos['tranches'])
-                    ->filter(function ($tranche) {
-                        return $tranche['statut'] !== 'paye' && 
-                               (stripos($tranche['libelle'], 'Inscrip') !== false || stripos($tranche['libelle'], 'Admis') !== false);
-                    })
-                    ->sortBy('date_limite')
-                    ->first();
-                
-                if ($inscriptionTranche) return TranchePaiement::find($inscriptionTranche['id']);
-            }
-
-            $premiereTrancheNonPayee = collect($infos['tranches'])
-                ->filter(function ($tranche) {
-                    return $tranche['statut'] !== 'paye';
-                })
-                ->sortBy('date_limite')
-                ->first();
-
-            if ($premiereTrancheNonPayee) {
-                return TranchePaiement::find($premiereTrancheNonPayee['id']);
+            if (!empty($infos['tranches'])) {
+                $premiereTranche = collect($infos['tranches'])->firstWhere('statut', '!=', 'paye') ?? $infos['tranches'][0] ?? null;
+                if ($premiereTranche) {
+                    return \App\Models\TranchePaiement::find($premiereTranche['id']);
+                }
             }
         }
 
@@ -854,7 +884,7 @@ class PaiementEtudiantService
     /**
      * Calcule le reste à payer pour un payable
      */
-    private function calculerResteAPayer($payable, $etudiantId)
+    private function calculerResteAPayer($payable, $etudiantId, $anneeScolaireId = null)
     {
         if ($payable instanceof \App\Models\Echeance) {
             return $payable->reste_a_payer;
@@ -868,7 +898,7 @@ class PaiementEtudiantService
                 ->sum('montant');
 
             // Récupérer la bourse pour ajuster le montant
-            $anneeScolaireId = getAnneeScolaireId();
+            $anneeScolaireId = $anneeScolaireId ?? getAnneeScolaireId();
             $bourseEtudiant = $this->getBourseEtudiant($etudiantId, $anneeScolaireId);
             $coefficient = $this->calculerCoefficientBourse($bourseEtudiant);
             $montantApresBourse = round($payable->montant * $coefficient);
@@ -890,20 +920,96 @@ class PaiementEtudiantService
     }
 
     /**
+     * Récupère le paramétrage des frais d'inscription approprié pour un étudiant
+     */
+    private function getFraisInscriptionForEtudiant($etudiantId, $anneeScolaireId = null)
+    {
+        $anneeScolaireId = $anneeScolaireId ?? getAnneeScolaireId();
+        
+        $etudiant = Etudiant::with(['etudiantGroups.niveau', 'etudiantGroups.filiere'])->find($etudiantId);
+        $niveauId = null;
+        $filiereId = null;
+        
+        if ($etudiant && $etudiant->etudiantGroups->isNotEmpty()) {
+            $dernierGroupe = $etudiant->etudiantGroups->first();
+            $niveauId = $dernierGroupe->niveau->id ?? null;
+            $filiereId = $dernierGroupe->filiere->id ?? null;
+        }
+
+        $query = FraisInscription::where('annee_scolaire_id', $anneeScolaireId)->where('active', true);
+
+        // Priorité 1: Niveau ET Filière
+        if ($niveauId && $filiereId) {
+            $frais = (clone $query)->where('niveau_id', $niveauId)->where('filiere_id', $filiereId)->first();
+            if ($frais) return $frais;
+        }
+
+        // Priorité 2: Niveau uniquement
+        if ($niveauId) {
+            $frais = (clone $query)->where('niveau_id', $niveauId)->whereNull('filiere_id')->first();
+            if ($frais) return $frais;
+        }
+
+        // Priorité 3: Filière uniquement
+        if ($filiereId) {
+            $frais = (clone $query)->whereNull('niveau_id')->where('filiere_id', $filiereId)->first();
+            if ($frais) return $frais;
+        }
+
+        // Priorité 4: Global (aucun niveau, aucune filière)
+        $fraisGlobal = (clone $query)->whereNull('niveau_id')->whereNull('filiere_id')->first();
+        if ($fraisGlobal) return $fraisGlobal;
+
+        // Fallback ultime: le premier tarif global (sans filtre spécifique)
+        return FraisInscription::where('active', true)->whereNull('niveau_id')->whereNull('filiere_id')->first()
+            ?? FraisInscription::where('annee_scolaire_id', $anneeScolaireId)->whereNull('niveau_id')->whereNull('filiere_id')->first()
+            ?? FraisInscription::whereNull('niveau_id')->whereNull('filiere_id')->latest()->first();
+    }
+
+    /**
      * Met à jour le statut d'un payable après paiement
      */
     private function mettreAJourStatutPayable($payable, $etudiantId)
     {
         if ($payable instanceof \App\Models\Echeance) {
-            $payable->updateMontantPaye();
-
-            // Mettre à jour le frais étudiant associé
             if ($payable->fraisEtudiant) {
-                $payable->fraisEtudiant->updateStatut();
+                $this->recalculerEcheancesNegociees($payable->fraisEtudiant, $etudiantId);
+            } else {
+                $payable->updateMontantPaye();
             }
+        } elseif ($payable instanceof \App\Models\FraisInscription) {
+            // Frais d'inscription
+        }
+    }
+
+    /**
+     * Recalcule et ventile automatiquement les paiements sur les échéances négociées
+     */
+    private function recalculerEcheancesNegociees($fraisEtudiant, $etudiantId)
+    {
+        $totalPayeScolarite = Paiement::where('etudiant_id', $etudiantId)
+            ->where('status', 'valide')
+            ->where(function($q) {
+                $q->where('payable_type', \App\Models\Echeance::class)
+                  ->orWhere('nature_paiement', 'scolarite');
+            })
+            ->sum('montant');
+
+        $resteVentilation = $totalPayeScolarite;
+
+        $echeances = $fraisEtudiant->echeances()->orderBy('ordre')->orderBy('id')->get();
+
+        foreach ($echeances as $echeance) {
+            $du = (float) $echeance->montant;
+            $paye = min($resteVentilation, $du);
+            $resteVentilation = max(0, $resteVentilation - $paye);
+
+            $echeance->montant_paye = $paye;
+            $echeance->updateStatut();
+            $echeance->save();
         }
 
-        // Pour les tranches, pas de statut à mettre à jour car c'est dynamique
+        $fraisEtudiant->updateStatut();
     }
 
     /**
@@ -911,9 +1017,7 @@ class PaiementEtudiantService
      */
     private function getFraisInscriptionInfos($etudiantId, $anneeScolaireId)
     {
-        $frais = FraisInscription::where('annee_scolaire_id', $anneeScolaireId)
-            ->where('active', true)
-            ->first();
+        $frais = $this->getFraisInscriptionForEtudiant($etudiantId, $anneeScolaireId);
 
         if (!$frais) return null;
 

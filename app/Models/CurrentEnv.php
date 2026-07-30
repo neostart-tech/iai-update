@@ -17,9 +17,11 @@ class CurrentEnv extends Model
 
 	public static function getAnneeScolaireId(): int
 	{
-		// return (int)static::query()->firstWhere('nom', '=', 'annee_scolaire_id')->getAttribute('valeur');
+		\Illuminate\Support\Facades\Log::info('Header X-Annee-Scolaire-Id: ' . request()->header('X-Annee-Scolaire-Id'));
+		if (request() && request()->hasHeader('X-Annee-Scolaire-Id')) {
+			return (int) request()->header('X-Annee-Scolaire-Id');
+		}
 		return AnneeScolaire::query()->where('active', true)->first()->id;
-		
 	}
 
 	public static function getPeriodeAnneeScolaireId(): int

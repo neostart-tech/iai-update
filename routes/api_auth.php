@@ -11,8 +11,7 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
-// Route::middleware('guest')->group(function () {
-Route::group([], function () {
+Route::name('api.')->group(function () {
 	Route::get('login', [AuthenticatedSessionController::class, 'create'])
 		->name('login');
 
@@ -34,8 +33,7 @@ Route::group([], function () {
 	Route::post('/reset-password/store', [ForgotPasswordController::class, 'resetPassword']);
 });
 
-// Route::middleware('auth')->group(function () {
-Route::group([], function () {
+Route::name('api.')->group(function () {
 	Route::get('verify-email', EmailVerificationPromptController::class)
 		->name('verification.notice');
 

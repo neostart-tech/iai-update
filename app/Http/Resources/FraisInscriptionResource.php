@@ -24,6 +24,17 @@ class FraisInscriptionResource extends JsonResource
                 "id" => $this->resource->anneeScolaire->id,
                 "nom" => $this->resource->anneeScolaire->nom,
             ] : null,
+            "niveau_id" => $this->resource->niveau_id,
+            "niveau" => $this->resource->niveau ? [
+                "id" => $this->resource->niveau->id,
+                "nom" => $this->resource->niveau->nom ?? $this->resource->niveau->libelle,
+            ] : null,
+            "filiere_id" => $this->resource->filiere_id,
+            "filiere" => $this->resource->filiere ? [
+                "id" => $this->resource->filiere->id,
+                "nom" => $this->resource->filiere->nom,
+            ] : null,
+            "has_payments" => $this->resource->has_payments,
             "created_at" => $this->resource->created_at,
         ];
     }

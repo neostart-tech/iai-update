@@ -277,6 +277,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('{candidature}/demander-rectification', 'askForRectificationOnCandidature')->name('ask-for-rectification')->middleware('can:rectifier-candidature');
         Route::post('{candidature}/reorienter', 'reorienter')->name('reorienter')->middleware('can:reorienter-candidature');
         Route::post('{candidature}/inscrire-un-etudiant', 'insertStudent')->name('inscrire-un-etudiant')->middleware('can:inscrire-etudiant-candidature');
+        Route::get('{year}/generer-matricule', 'generateMatricule')->name('generer-matricule');
     });
 
 
@@ -391,7 +392,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
 
-    Route::controller(EtudiantController::class)->prefix('etudiants')->name('etudiants.')->group(function () {
+    Route::controller(EtudiantController::class)->prefix('etudiants')->name('etudiants_actions.')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('{etudiant}/details', 'show')->name('show');
         Route::put('{etudiant}/changer-de-groupe', 'changeGroup')->name('change-group')->middleware('can:update-etudiant');
@@ -484,7 +485,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
 
-    Route::controller(AnnouncementController::class)->prefix('opportunites')->name('announcements.')->group(function () {
+    Route::controller(AnnouncementController::class)->prefix('opportunites')->name('api.announcements.')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('ajouter', 'create')->name('create');
         Route::get('{announcement}/details', 'show')->name('show');
