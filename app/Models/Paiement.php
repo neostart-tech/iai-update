@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Traits\LogsActivityWithDefaults;
 use App\Traits\Routing\GenerateUniqueSlugTrait;
 use App\Traits\Routing\ModelsSlugKeyTrait;
 use Illuminate\Database\Eloquent\Model;
 
 class Paiement extends Model
 {
-    use GenerateUniqueSlugTrait, ModelsSlugKeyTrait;
+    use GenerateUniqueSlugTrait, ModelsSlugKeyTrait, LogsActivityWithDefaults;
     
     protected $guarded = ['id'];
 

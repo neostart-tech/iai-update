@@ -8,7 +8,7 @@ use App\Http\Resources\CandidatureResource;
 use App\Notifications\Candidatures\CandidatAbsentNotification;
 use App\Notifications\Candidatures\CandidatPresentNotification;
 use App\Jobs\{CandidatureFraisPayementJob, ConcoursResultJob, SmsSendingProcess};
-use App\Models\{AnneeScolaire, Bourse, BourseEtudiant, Candidature, CandidatureDocument, Echeance, Etudiant, FiliereGroup, FraisEtudiant, FraisInscription, FraisScolarite, Group, Inscription, Paiement, Reorientation, Role, TranchePaiement};
+use App\Models\{AnneeScolaire, Bourse, BourseEtudiant, Candidature, CandidatureDocument, CandidatureFieldConfig, Echeance, Etudiant, FiliereGroup, FraisEtudiant, FraisInscription, FraisScolarite, Group, Inscription, Paiement, Reorientation, Role, TranchePaiement, TypeDiplome, TypeDiplomeChamp};
 use App\Notifications\Candidatures\CandidatWelcomeNotification;
 use App\Traits\ActionsTraits\{IndexTrait, CandidatureFirstValidationTrait};
 use App\Traits\FileManagementTrait;
@@ -47,7 +47,7 @@ class CandidatureController extends Controller
 
 	public function show(Candidature $candidature)
 	{
-		$candidature->load(['album', 'tuteur', 'tuteurs', 'responsable', 'niveau', 'filiere', 'advertiser', 'submittedDocuments', 'concoursSession']);
+		$candidature->load(['album', 'tuteur', 'tuteurs', 'responsable', 'niveau', 'filiere', 'advertiser', 'submittedDocuments', 'concoursSession', 'typeDiplome', 'moyenConnaissance']);
 
 		$requirements = [];
 		if ($candidature->niveau_id) {
@@ -66,6 +66,37 @@ class CandidatureController extends Controller
 		unset($candidature->album);
 		$candidature->setAttribute('album', (object) array_merge($originalAlbum, $albumFiles));
 
+        $activeAnnee = \App\Models\AnneeScolaire::where('active', true)->first();
+        $year = $activeAnnee && $activeAnnee->date_debut ? \Carbon\Carbon::parse($activeAnnee->date_debut)->year : today()->year;
+        
+        $candidature->setAttribute('next_matricule', \App\Models\Etudiant::generateNextMatricule($year));
+        
+        $activeAnneeData = null;
+        $fraisScolariteAttendu = 0;
+        
+        if ($activeAnnee) {
+            $activeAnneeData = [
+                'id' => $activeAnnee->id,
+                'nom' => $activeAnnee->nom,
+                'date_debut' => $activeAnnee->date_debut
+            ];
+            
+            $fraisScolarite = \App\Models\FraisScolarite::getFraisForEtudiant(
+                $candidature->niveau_id,
+                $candidature->genre,
+                $candidature->filiere_id,
+                $activeAnnee->id,
+                'Tous'
+            );
+            $fraisScolariteAttendu = $fraisScolarite ? (float) $fraisScolarite->montant : 0;
+        }
+        
+        $candidature->setAttribute('active_annee_scolaire', $activeAnneeData);
+        $candidature->setAttribute('frais_scolarite_attendu', $fraisScolariteAttendu);
+        
+        $emailDomain = \App\Models\Configuration::where('key', 'email_domain')->value('value') ?: 'escen.university';
+        $candidature->setAttribute('email_domain', $emailDomain);
+
 		if (request()->ajax() || request()->wantsJson()) {
 			return response()->json([
 				'data' => $candidature,
@@ -79,6 +110,13 @@ class CandidatureController extends Controller
 			'filiere' => $candidature->filiere,
 			'filieres' => Filiere::all(),
 			'niveaux' => Niveau::all(),
+		]);
+	}
+
+	public function generateMatricule($year)
+	{
+		return response()->json([
+			'matricule' => Etudiant::generateNextMatricule((int)$year)
 		]);
 	}
 
@@ -107,17 +145,151 @@ class CandidatureController extends Controller
 			? Filiere::whereHas('groups', fn ($q) => $q->where('niveau_id', $niveauCandidature->id))->first()
 			: null;
 
+		// Configuration des champs (par école) : quels champs simples sont affichés/obligatoires,
+		// et quels types de diplôme (+ leurs champs de parcours scolaire) proposer. Seuls les
+		// champs avec `afficher = true` sont transmis à la vue — leur simple présence dans
+		// $champsConfig suffit donc à décider s'il faut afficher le bloc correspondant.
+		$champsConfig = CandidatureFieldConfig::where('afficher', true)->get()->keyBy('champ_key');
+		$typesDiplome = TypeDiplome::actifs()->with('champs:id,type_diplome_id,champ_key,obligatoire')->get(['id', 'nom', 'ordre']);
+		$moyensConnaissance = \App\Models\MoyenConnaissance::actifs()->get(['id', 'libelle']);
+
 		return view('candidatures.create')->with([
 			'candidature' => new Candidature(),
 			'countries' => CountryListFacade::getList(config('app.locale')),
 			'documentRequirements' => $documentRequirements,
 			'niveauCandidatureId' => $niveauCandidature?->id,
 			'filiereCandidatureId' => $filiereCandidature?->id,
+			'champsConfig' => $champsConfig,
+			'typesDiplome' => $typesDiplome,
+			'moyensConnaissance' => $moyensConnaissance,
+			'sigleEtablissement' => \App\Helpers\ConfigHelper::getSigle(),
 		]);
+	}
+
+	/**
+	 * Construit dynamiquement les règles de validation des champs "libres"
+	 * (configurables par l'école via /parametre/champs-obligatoires et
+	 * /parametre/types-diplome) à ajouter aux règles fixes du dossier.
+	 *
+	 * Champs du parcours scolaire (mention_bac, serie, numero_table,
+	 * etablissement_diplome, annee_bac) : si la requête fournit un
+	 * `type_diplome_id`, on applique la configuration de ce type précis.
+	 * Sinon (formulaire pas encore mis à jour pour envoyer ce champ), on
+	 * reproduit exactement l'ancien comportement figé, pour ne rien casser :
+	 * mention/série/numéro de table/année obligatoires, établissement libre.
+	 */
+	private function reglesChampsConfigurables(Request $request, ?Candidature $candidature = null): array
+	{
+		$rules = [];
+
+		$configs = CandidatureFieldConfig::get()->keyBy('champ_key');
+
+		// Un champ non affiché ne peut jamais être exigé, quelle que soit la valeur
+		// de `obligatoire` enregistrée en base pour lui.
+		$estObligatoire = function (string $champKey, bool $defaut = false) use ($configs) {
+			$config = $configs[$champKey] ?? null;
+			if (!$config) return $defaut;
+			return $config->afficher && $config->obligatoire;
+		};
+
+		$champsSimples = [
+			'nom_jeune_fille' => ['string', 'max:255'],
+			'tel2' => ['string'],
+			'tel3' => ['string'],
+			'bp' => ['string', 'max:255'],
+			'fax' => ['string', 'max:255'],
+			'adresse' => ['string', 'max:255'],
+		];
+		foreach ($champsSimples as $champ => $extra) {
+			$rules[$champ] = [...($estObligatoire($champ) ? ['required'] : ['nullable']), ...$extra];
+		}
+
+		// Traité à part (règle `unique` en plus du string/max), pas dans la boucle
+		// générique ci-dessus : deux dossiers ne doivent jamais partager le même bordereau.
+		$rules['numero_bordereau'] = [
+			...($estObligatoire('numero_bordereau') ? ['required'] : ['nullable']),
+			'string',
+			'max:50',
+			\Illuminate\Validation\Rule::unique('candidatures', 'numero_bordereau')->ignore($candidature?->id),
+		];
+
+		// "Comment avez-vous connu {sigle} ?" : select alimenté par la liste des
+		// moyens de connaissance gérée dans Paramètres > Moyens de connaissance.
+		$rules['moyen_connaissance_id'] = [
+			...($estObligatoire('comment_connu_ecole') ? ['required'] : ['nullable']),
+			'exists:moyens_connaissances,id',
+		];
+
+		$champsTuteur = [
+			'nom' => true,
+			'prenom' => true,
+			'profession' => false,
+			'employeur' => false,
+			'email' => false,
+			'tel' => false,
+			'adresse' => false,
+		];
+		foreach ($champsTuteur as $champ => $defaut) {
+			// tuteur_nom/tuteur_prenom : jamais masqués, donc pas de vérification `afficher`,
+			// mais leur `obligatoire` stocké reste respecté comme avant.
+			$obligatoire = in_array($champ, ['nom', 'prenom'])
+				? (bool) ($configs['tuteur_' . $champ]->obligatoire ?? $defaut)
+				: $estObligatoire('tuteur_' . $champ, $defaut);
+			$rules["tuteurs.*.$champ"] = [$obligatoire ? 'required' : 'nullable', 'string'];
+		}
+
+		$typeDiplomeId = $request->input('type_diplome_id');
+		if ($typeDiplomeId) {
+			$champsDuType = TypeDiplomeChamp::where('type_diplome_id', $typeDiplomeId)->pluck('obligatoire', 'champ_key');
+			foreach (TypeDiplomeChamp::CHAMPS_DISPONIBLES as $champ => $label) {
+				$rules[$champ] = isset($champsDuType[$champ])
+					? [$champsDuType[$champ] ? 'required' : 'nullable']
+					: ['nullable']; // champ non configuré pour ce diplôme => non exigé
+			}
+		} else {
+			// Rétrocompatibilité : aucun type de diplôme transmis, on garde le
+			// comportement historique figé plutôt que de tout rendre optionnel.
+			$rules['mention_bac'] = ['required', 'string'];
+			$rules['serie'] = ['required', 'string'];
+			$rules['numero_table'] = ['required', 'digits_between:1,7'];
+			$rules['annee_bac'] = ['required', 'integer', 'min:1990', 'max:' . date('Y')];
+			$rules['etablissement_diplome'] = ['nullable', 'string'];
+		}
+
+		return $rules;
+	}
+
+	/**
+	 * En mode concours, une candidature doit obligatoirement être rattachée à une
+	 * session de concours ouverte pour l'année scolaire en cours — sinon elle reste
+	 * orpheline (concours_session_id = null) et bascule silencieusement en admission
+	 * directe sans jamais passer par le paiement, le contrôle de présence ou les
+	 * notes de concours. On bloque donc l'inscription tant qu'aucune session ouverte
+	 * n'existe, plutôt que de laisser passer un dossier mal rattaché.
+	 */
+	private function sessionConcoursIndisponible(): bool
+	{
+		if (!\App\Helpers\ConfigHelper::isModeConcoursActif()) {
+			return false;
+		}
+
+		return !\App\Models\ConcoursSession::where('annee_scolaire_id', getAnneeScolaireId())
+			->where('statut', 'ouvert')
+			->exists();
 	}
 
 	public function store(Request $request)
 	{
+		if ($this->sessionConcoursIndisponible()) {
+			$message = "Les inscriptions au concours ne sont pas encore ouvertes. Veuillez réessayer plus tard.";
+
+			if ($request->wantsJson()) {
+				return response()->json(['success' => false, 'message' => $message], 422);
+			}
+
+			return redirect()->back()->withErrors(['email' => $message])->withInput();
+		}
+
 		$anneeScolaireId = getAnneeScolaireId();
 
 		// 1. Vérification d'unicité de candidature par année scolaire
@@ -155,7 +327,10 @@ class CandidatureController extends Controller
 			return redirect()->back()->withErrors(['email' => $message])->withInput();
 		}
 
-		// 2bis. Vérification des champs obligatoires du dossier
+		// 2bis. Vérification des champs obligatoires du dossier — les champs fixes
+		// (identité) restent toujours requis ; les champs configurables (parcours
+		// scolaire selon le type de diplôme, tuteur, coordonnées secondaires...)
+		// suivent la configuration de l'école, voir reglesChampsConfigurables().
 		$request->validate([
 			'nom' => ['required', 'string', 'max:255'],
 			'prenom' => ['required', 'string', 'max:255'],
@@ -163,13 +338,10 @@ class CandidatureController extends Controller
 			'date_naissance' => ['required', 'date'],
 			'lieu_naissance' => ['required', 'string', 'max:255'],
 			'nationalite' => ['required', 'string'],
-			'numero_table' => ['required', 'digits_between:1,7'],
-			'annee_bac' => ['required', 'integer', 'min:1990', 'max:' . date('Y')],
-			'serie' => ['required', 'string'],
-			'mention_bac' => ['required', 'string'],
 			'tel' => ['required', 'string'],
 			'email' => ['required', 'email', 'max:255'],
 			'accept_cgu' => ['accepted'],
+			...$this->reglesChampsConfigurables($request),
 		], [
 			'annee_bac.max' => "L'année du BAC ne peut pas être postérieure à l'année en cours (" . date('Y') . ").",
 			'numero_table.digits_between' => "Le numéro de table doit contenir uniquement des chiffres (7 maximum).",
@@ -181,6 +353,10 @@ class CandidatureController extends Controller
 		// échoue, tout est annulé plutôt que de laisser une candidature orpheline sans
 		// documents en base (ce qui bloquait ensuite tout nouveau dépôt avec le même email).
 		$candidat = DB::transaction(function () use ($request, &$plainPassword) {
+			$typeDiplome = $request->filled('type_diplome_id')
+				? \App\Models\TypeDiplome::find($request->input('type_diplome_id'))
+				: null;
+
 			$candidat = Candidature::create([
 				...$request->only([
 					'nom',
@@ -205,11 +381,22 @@ class CandidatureController extends Controller
 					'niveau_id',
 					'filiere_id',
 					'adresse',
+					'numero_bordereau',
+					'moyen_connaissance_id',
 				]),
 				...injectAnneeScolaireId(),
 				'concours_session_id' => \App\Models\ConcoursSession::where('annee_scolaire_id', getAnneeScolaireId())->value('id'),
 				'password' => Hash::make($plainPassword = Str::random(8)),
-				'code' => fake()->unique()->numberBetween(9999, 100000)
+				'code' => fake()->unique()->numberBetween(9999, 100000),
+				// Ce flux crée le dossier complet en un seul envoi (pas de brouillon
+				// intermédiaire comme l'inscription en plusieurs étapes) : marqué soumis
+				// immédiatement, sinon il resterait invisible sur les listes filtrées.
+				'soumis_le' => now(),
+				// `type_diplome_id` pilote la validation des champs du parcours scolaire ;
+				// `dernier_diplome` (colonne texte historique) reste renseignée en
+				// parallèle pour tout le code existant qui la lit encore telle quelle.
+				'type_diplome_id' => $typeDiplome?->id,
+				'dernier_diplome' => $typeDiplome?->nom,
 			]);
 
 			// Création des tuteurs/parents (un ou plusieurs) et, pour compatibilité avec le
@@ -275,6 +462,13 @@ class CandidatureController extends Controller
 
 	public function storeByAdmin(Request $request)
 	{
+		if ($this->sessionConcoursIndisponible()) {
+			return response()->json([
+				'success' => false,
+				'message' => "Les inscriptions au concours ne sont pas encore ouvertes. Veuillez créer et ouvrir une session de concours pour l'année scolaire en cours avant d'enregistrer une candidature.",
+			], 422);
+		}
+
 		// Mêmes informations et mêmes règles que le formulaire public (store()), à la
 		// différence près que l'admin choisit lui-même le niveau (le frontend déduit la
 		// filière automatiquement à partir de ce choix, au lieu du "toujours Licence 1"
@@ -282,19 +476,15 @@ class CandidatureController extends Controller
 		$validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
 			'nom' => ['required', 'string', 'max:255'],
 			'prenom' => ['required', 'string', 'max:255'],
-			'nom_jeune_fille' => ['nullable', 'string', 'max:255'],
 			'genre' => ['required', 'string'],
 			'date_naissance' => ['required', 'date'],
 			'lieu_naissance' => ['required', 'string', 'max:255'],
 			'nationalite' => ['required', 'string'],
-			'numero_table' => ['required', 'digits_between:1,7'],
-			'annee_bac' => ['required', 'integer', 'min:1990', 'max:' . date('Y')],
-			'serie' => ['required', 'in:C,D,E,F2'],
-			'mention_bac' => ['required', 'string'],
 			'tel' => ['required', 'string'],
 			'email' => ['required', 'email', 'max:255', 'unique:candidatures,email'],
 			'niveau_id' => ['required', 'exists:niveaux,id'],
 			'filiere_id' => ['nullable', 'exists:filieres,id'],
+			...$this->reglesChampsConfigurables($request),
 		], [
 			'numero_table.digits_between' => "Le numéro de table doit contenir uniquement des chiffres (7 maximum).",
 		]);
@@ -305,6 +495,10 @@ class CandidatureController extends Controller
 				'errors' => $validator->errors()
 			], 422);
 		}
+
+		$typeDiplome = $request->filled('type_diplome_id')
+			? \App\Models\TypeDiplome::find($request->input('type_diplome_id'))
+			: null;
 
 		$candidat = Candidature::create([
 			...$request->only([
@@ -327,10 +521,16 @@ class CandidatureController extends Controller
 				'niveau_id',
 				'filiere_id',
 				'adresse',
+				'numero_bordereau',
+				'moyen_connaissance_id',
 			]),
 			...injectAnneeScolaireId(),
 			'concours_session_id' => \App\Models\ConcoursSession::where('annee_scolaire_id', getAnneeScolaireId())->value('id'),
 			'password' => Hash::make($plainPassword = Str::random(8)),
+			// Comme store() : dossier complet en un seul envoi, marqué soumis immédiatement.
+			'soumis_le' => now(),
+			'type_diplome_id' => $typeDiplome?->id,
+			'dernier_diplome' => $typeDiplome?->nom,
 			'code' => fake()->unique()->numberBetween(9999, 100000)
 		]);
 
@@ -398,6 +598,322 @@ class CandidatureController extends Controller
 		], 201);
 	}
 
+	/**
+	 * Inscription en plusieurs étapes (escen-website) : le dossier est créé dès
+	 * l'étape 1 (identité + coordonnées, l'email étant déjà disponible à ce stade
+	 * une fois les étapes fusionnées côté front) puis complété par les endpoints
+	 * ci-dessous. `draft_token` (aléatoire, distinct du `slug` dérivé du nom et
+	 * donc devinable) permet au candidat de reprendre son dossier sans être
+	 * authentifié, sans exposer d'identifiant prévisible.
+	 */
+	public function soumettreEtape1(Request $request)
+	{
+		if ($this->sessionConcoursIndisponible()) {
+			return response()->json([
+				'success' => false,
+				'message' => "Les inscriptions au concours ne sont pas encore ouvertes. Veuillez réessayer plus tard.",
+			], 422);
+		}
+
+		if (Candidature::where('email', $request->input('email'))->exists()) {
+			return response()->json([
+				'success' => false,
+				'message' => "Vous avez déjà déposé une candidature avec cet email.",
+			], 422);
+		}
+
+		if (Etudiant::where('email', $request->input('email'))->exists()) {
+			return response()->json([
+				'success' => false,
+				'message' => "Un compte étudiant existe déjà avec cet email. Veuillez passer par la procédure de réinscription.",
+			], 422);
+		}
+
+		$validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+			'nom' => ['required', 'string', 'max:255'],
+			'prenom' => ['required', 'string', 'max:255'],
+			'genre' => ['required', 'string'],
+			'date_naissance' => ['required', 'date'],
+			'lieu_naissance' => ['required', 'string', 'max:255'],
+			'nationalite' => ['required', 'string'],
+			'tel' => ['required', 'string'],
+			'email' => ['required', 'email', 'max:255'],
+			'nom_jeune_fille' => ['nullable', 'string', 'max:255'],
+			'tel2' => ['nullable', 'string'],
+			'tel3' => ['nullable', 'string'],
+			'adresse' => ['nullable', 'string', 'max:255'],
+			'bp' => ['nullable', 'string', 'max:255'],
+			'fax' => ['nullable', 'string', 'max:255'],
+			'numero_bordereau' => ['nullable', 'string', 'max:50', 'unique:candidatures,numero_bordereau'],
+			'moyen_connaissance_id' => ['nullable', 'exists:moyens_connaissances,id'],
+		]);
+
+		if ($validator->fails()) {
+			return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+		}
+
+		$candidat = Candidature::create([
+			...$request->only([
+				'nom', 'prenom', 'nom_jeune_fille', 'genre', 'date_naissance', 'lieu_naissance',
+				'nationalite', 'tel', 'tel2', 'tel3', 'email', 'adresse', 'bp', 'fax',
+				'numero_bordereau', 'moyen_connaissance_id',
+			]),
+			...injectAnneeScolaireId(),
+			'concours_session_id' => \App\Models\ConcoursSession::where('annee_scolaire_id', getAnneeScolaireId())->value('id'),
+			'draft_token' => Str::random(48),
+			'password' => Hash::make(Str::random(8)),
+			'code' => fake()->unique()->numberBetween(9999, 100000),
+		]);
+
+		return response()->json([
+			'success' => true,
+			'draft_token' => $candidat->draft_token,
+		], 201);
+	}
+
+	/**
+	 * Mise à jour de l'étape 1 pour un dossier déjà créé (le candidat est revenu en
+	 * arrière puis a corrigé quelque chose avant de continuer) — sans ça, renvoyer
+	 * ces mêmes données à soumettreEtape1() échouerait sur son propre email, déjà
+	 * pris par le brouillon qu'il est justement en train de modifier.
+	 */
+	public function mettreAJourEtape1(Request $request, string $draftToken)
+	{
+		try {
+			$candidat = $this->candidatureParDraftToken($draftToken);
+		} catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+			return response()->json(['success' => false, 'message' => "Dossier introuvable."], 404);
+		}
+
+		if (Candidature::where('email', $request->input('email'))->where('id', '!=', $candidat->id)->exists()) {
+			return response()->json([
+				'success' => false,
+				'message' => "Cet email est déjà utilisé par une autre candidature.",
+			], 422);
+		}
+
+		if (Etudiant::where('email', $request->input('email'))->exists()) {
+			return response()->json([
+				'success' => false,
+				'message' => "Un compte étudiant existe déjà avec cet email. Veuillez passer par la procédure de réinscription.",
+			], 422);
+		}
+
+		$validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+			'nom' => ['required', 'string', 'max:255'],
+			'prenom' => ['required', 'string', 'max:255'],
+			'genre' => ['required', 'string'],
+			'date_naissance' => ['required', 'date'],
+			'lieu_naissance' => ['required', 'string', 'max:255'],
+			'nationalite' => ['required', 'string'],
+			'tel' => ['required', 'string'],
+			'email' => ['required', 'email', 'max:255'],
+			'nom_jeune_fille' => ['nullable', 'string', 'max:255'],
+			'tel2' => ['nullable', 'string'],
+			'tel3' => ['nullable', 'string'],
+			'adresse' => ['nullable', 'string', 'max:255'],
+			'bp' => ['nullable', 'string', 'max:255'],
+			'fax' => ['nullable', 'string', 'max:255'],
+			'numero_bordereau' => [
+				'nullable', 'string', 'max:50',
+				\Illuminate\Validation\Rule::unique('candidatures', 'numero_bordereau')->ignore($candidat->id),
+			],
+			'moyen_connaissance_id' => ['nullable', 'exists:moyens_connaissances,id'],
+		]);
+
+		if ($validator->fails()) {
+			return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+		}
+
+		$candidat->update($request->only([
+			'nom', 'prenom', 'nom_jeune_fille', 'genre', 'date_naissance', 'lieu_naissance',
+			'nationalite', 'tel', 'tel2', 'tel3', 'email', 'adresse', 'bp', 'fax',
+			'numero_bordereau', 'moyen_connaissance_id',
+		]));
+
+		return response()->json(['success' => true]);
+	}
+
+	private function candidatureParDraftToken(string $draftToken): Candidature
+	{
+		return Candidature::where('draft_token', $draftToken)
+			->whereNull('soumis_le') // un dossier déjà soumis n'est plus modifiable par ces endpoints publics
+			->firstOrFail();
+	}
+
+	/**
+	 * Reprise d'un dossier en cours de constitution après un rechargement de page
+	 * (le jeton survit en localStorage côté front, mais pas les champs saisis) —
+	 * renvoie l'état actuel du dossier pour que le formulaire se re-remplisse et
+	 * reprenne à la bonne étape, sans jamais exposer le mot de passe (même hashé).
+	 */
+	public function recupererBrouillon(string $draftToken)
+	{
+		try {
+			$candidat = $this->candidatureParDraftToken($draftToken);
+		} catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+			return response()->json(['success' => false, 'message' => "Dossier introuvable."], 404);
+		}
+
+		return response()->json([
+			'success' => true,
+			'candidat' => $candidat->only([
+				'nom', 'prenom', 'nom_jeune_fille', 'genre', 'date_naissance', 'lieu_naissance',
+				'nationalite', 'numero_bordereau', 'moyen_connaissance_id', 'tel', 'tel2', 'tel3', 'email',
+				'type_diplome_id', 'numero_table', 'annee_bac', 'mention_bac', 'serie', 'etablissement_diplome',
+				'niveau_id', 'filiere_id',
+			]),
+		]);
+	}
+
+	public function soumettreEtape2Bac(Request $request, string $draftToken)
+	{
+		try {
+			$candidat = $this->candidatureParDraftToken($draftToken);
+		} catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+			return response()->json(['success' => false, 'message' => "Dossier introuvable."], 404);
+		}
+
+		$typeDiplome = $request->filled('type_diplome_id')
+			? \App\Models\TypeDiplome::find($request->input('type_diplome_id'))
+			: null;
+
+		$rules = ['type_diplome_id' => ['nullable', 'exists:type_diplomes,id']];
+		if ($typeDiplome) {
+			$champsDuType = TypeDiplomeChamp::where('type_diplome_id', $typeDiplome->id)->pluck('obligatoire', 'champ_key');
+			foreach (TypeDiplomeChamp::CHAMPS_DISPONIBLES as $champ => $label) {
+				$rules[$champ] = isset($champsDuType[$champ]) && $champsDuType[$champ] ? ['required'] : ['nullable'];
+			}
+		} else {
+			$rules += [
+				'mention_bac' => ['required', 'string'],
+				'serie' => ['required', 'string'],
+				'numero_table' => ['required', 'digits_between:1,7'],
+				'annee_bac' => ['required', 'integer', 'min:1990', 'max:' . date('Y')],
+				'etablissement_diplome' => ['nullable', 'string'],
+			];
+		}
+
+		$validator = \Illuminate\Support\Facades\Validator::make($request->all(), $rules, [
+			'numero_table.digits_between' => "Le numéro de table doit contenir uniquement des chiffres (7 maximum).",
+		]);
+		if ($validator->fails()) {
+			return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+		}
+
+		$candidat->update([
+			...$request->only(['numero_table', 'annee_bac', 'mention_bac', 'serie', 'etablissement_diplome']),
+			'type_diplome_id' => $typeDiplome?->id,
+			'dernier_diplome' => $typeDiplome?->nom,
+		]);
+
+		return response()->json(['success' => true]);
+	}
+
+	public function soumettreEtape3Documents(Request $request, string $draftToken)
+	{
+		try {
+			$candidat = $this->candidatureParDraftToken($draftToken);
+		} catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+			return response()->json(['success' => false, 'message' => "Dossier introuvable."], 404);
+		}
+
+		$validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+			'niveau_id' => ['required', 'exists:niveaux,id'],
+			'filiere_id' => ['nullable', 'exists:filieres,id'],
+		]);
+		if ($validator->fails()) {
+			return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+		}
+
+		$candidat->update($request->only(['niveau_id', 'filiere_id']));
+
+		try {
+			$this->updateOrCreateAlbum($request, $candidat);
+		} catch (\Illuminate\Validation\ValidationException $e) {
+			return response()->json(['success' => false, 'errors' => $e->errors()], 422);
+		}
+
+		return response()->json(['success' => true]);
+	}
+
+	public function soumettreEtape4Finaliser(Request $request, string $draftToken)
+	{
+		try {
+			$candidat = $this->candidatureParDraftToken($draftToken);
+		} catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+			return response()->json(['success' => false, 'message' => "Dossier introuvable."], 404);
+		}
+
+		// Note : on ne réutilise pas reglesChampsConfigurables() ici — cette méthode
+		// suppose que TOUTES les données (identité, BAC...) arrivent dans la même
+		// requête que les tuteurs, ce qui n'est plus le cas avec l'inscription en
+		// plusieurs étapes (les champs BAC ont déjà été validés et sauvegardés à
+		// l'étape 2). Seules les règles sur les tuteurs sont pertinentes ici.
+		$configs = CandidatureFieldConfig::get()->keyBy('champ_key');
+		$champsTuteur = ['nom' => true, 'prenom' => true, 'profession' => false, 'employeur' => false, 'email' => false, 'tel' => false, 'adresse' => false];
+		$rules = ['accept_cgu' => ['accepted']];
+		foreach ($champsTuteur as $champ => $defaut) {
+			$obligatoire = in_array($champ, ['nom', 'prenom'])
+				? (bool) ($configs['tuteur_' . $champ]->obligatoire ?? $defaut)
+				: (($configs['tuteur_' . $champ] ?? null)?->afficher && $configs['tuteur_' . $champ]->obligatoire);
+			$rules["tuteurs.*.$champ"] = [$obligatoire ? 'required' : 'nullable', 'string'];
+		}
+
+		$validator = \Illuminate\Support\Facades\Validator::make($request->all(), $rules);
+		if ($validator->fails()) {
+			return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+		}
+
+		DB::transaction(function () use ($request, $candidat) {
+			$tuteursValides = [];
+			foreach ($request->input('tuteurs', []) as $tuteurEntry) {
+				if (blank($tuteurEntry['nom'] ?? null) && blank($tuteurEntry['prenom'] ?? null)) {
+					continue;
+				}
+
+				$donneesTuteur = [
+					'nom' => $tuteurEntry['nom'] ?? null,
+					'prenom' => $tuteurEntry['prenom'] ?? null,
+					'profession' => $tuteurEntry['profession'] ?? null,
+					'employeur' => $tuteurEntry['employeur'] ?? null,
+					'email' => $tuteurEntry['email'] ?? null,
+					'tel' => $tuteurEntry['tel'] ?? null,
+					'adresse' => $tuteurEntry['adresse'] ?? null,
+					'responsable_des_frais' => filter_var($tuteurEntry['responsable_des_frais'] ?? false, FILTER_VALIDATE_BOOLEAN),
+				];
+
+				$candidat->tuteurs()->create($donneesTuteur);
+				$tuteursValides[] = $donneesTuteur;
+			}
+
+			if (!empty($tuteursValides)) {
+				$responsableData = collect($tuteursValides)->firstWhere('responsable_des_frais', true) ?? $tuteursValides[0];
+				$candidat->responsable()->create(collect($responsableData)->except('responsable_des_frais')->all());
+			}
+
+			// Le mot de passe généré à l'étape 1 n'existe plus qu'en clair à cet instant
+			// précis (hashé aussitôt après) : on en régénère un nouveau ici, au moment où
+			// le dossier est réellement complet, pour pouvoir l'envoyer par email au candidat.
+			$plainPassword = Str::random(8);
+			$candidat->update([
+				'soumis_le' => now(),
+				'password' => Hash::make($plainPassword),
+			]);
+
+			$message = $candidat->greeting(true) . ", votre dossier de candidature a été déposé avec succès.";
+			$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message, $plainPassword));
+		});
+
+		Auth::guard('web_candidatures')->login($candidat);
+
+		return response()->json([
+			'success' => true,
+			'message' => 'Le dossier a été déposé avec succès.',
+			'candidat' => $candidat,
+		], 201);
+	}
+
 	public function updateByAdmin(Request $request, Candidature $candidature)
 	{
 		$request->validate([
@@ -407,10 +923,6 @@ class CandidatureController extends Controller
 			'date_naissance' => ['required', 'date'],
 			'lieu_naissance' => ['required', 'string', 'max:255'],
 			'nationalite' => ['required', 'string'],
-			'numero_table' => ['required', 'digits_between:1,7'],
-			'annee_bac' => ['required', 'integer', 'min:1990', 'max:' . date('Y')],
-			'serie' => ['required', 'string'],
-			'mention_bac' => ['required', 'string'],
 			'tel' => ['required', 'string'],
 			'niveau_id' => ['required', 'exists:niveaux,id'],
 			'filiere_id' => ['nullable', 'exists:filieres,id'],
@@ -420,35 +932,46 @@ class CandidatureController extends Controller
 				'max:255',
 				'unique:candidatures,email,' . $candidature->id
 			],
+			...$this->reglesChampsConfigurables($request, $candidature),
 		], [
 			'annee_bac.max' => "L'année du BAC ne peut pas être postérieure à l'année en cours (" . date('Y') . ").",
 			'numero_table.digits_between' => "Le numéro de table doit contenir uniquement des chiffres (7 maximum).",
 		]);
 
-		$candidature->update($request->only([
-			'nom',
-			'prenom',
-			'nom_jeune_fille',
-			'numero_table',
-			'annee_bac',
-			'mention_bac',
-			'serie',
-			'etablissement_diplome',
-			'genre',
-			'date_naissance',
-			'lieu_naissance',
-			'email',
-			'nationalite',
-			'hobbit',
-			'tel',
-			'tel2',
-			'tel3',
-			'bp',
-			'fax',
-			'niveau_id',
-			'filiere_id',
-			'adresse',
-		]));
+		$typeDiplome = $request->filled('type_diplome_id')
+			? \App\Models\TypeDiplome::find($request->input('type_diplome_id'))
+			: null;
+
+		$candidature->update([
+			...$request->only([
+				'nom',
+				'prenom',
+				'nom_jeune_fille',
+				'numero_table',
+				'annee_bac',
+				'mention_bac',
+				'serie',
+				'etablissement_diplome',
+				'genre',
+				'date_naissance',
+				'lieu_naissance',
+				'email',
+				'nationalite',
+				'hobbit',
+				'tel',
+				'tel2',
+				'tel3',
+				'bp',
+				'fax',
+				'niveau_id',
+				'filiere_id',
+				'adresse',
+				'numero_bordereau',
+				'moyen_connaissance_id',
+			]),
+			'type_diplome_id' => $typeDiplome?->id,
+			'dernier_diplome' => $typeDiplome?->nom ?? $candidature->dernier_diplome,
+		]);
 
 		// Tuteurs répétables + responsable des frais — même logique que store()/storeByAdmin() :
 		// on remplace la liste existante par celle envoyée (le formulaire renvoie toujours la
@@ -682,6 +1205,7 @@ class CandidatureController extends Controller
 		$group = Group::findOrFail($request->input('group_id'));
 
 		$candidatures = Candidature::query()
+			->whereNotNull('soumis_le')
 			->where('dossier_valide', true)
 			->where('frais_paye', true)
 			->where('participation', true)
@@ -690,14 +1214,19 @@ class CandidatureController extends Controller
 			->whereIn('slug', $request->input('candidats'))
 			->get();
 
-		$candidatures->each(fn (Candidature $candidature) => $candidature->update([
-			'niveau_id' => $group->niveau_id,
-			'filiere_id' => $group->filiere_id,
-		]));
+		$successCount = 0;
+		foreach ($candidatures as $candidature) {
+			$candidature->update([
+				'niveau_id' => $group->niveau_id,
+				'filiere_id' => $group->filiere_id,
+				'group_id' => $group->id, // On sauvegarde juste le choix du groupe ici
+			]);
+			$successCount++;
+		}
 
 		return response()->json([
 			'success' => true,
-			'message' => 'Groupe attribué avec succès à ' . $candidatures->count() . ' candidat(s).'
+			'message' => 'Groupe pré-attribué avec succès pour ' . $successCount . ' candidat(s). L\'inscription finale génèrera la scolarité.'
 		]);
 	}
 
@@ -719,7 +1248,8 @@ class CandidatureController extends Controller
 			], 404);
 		}
 
-		$activeAnnee = AnneeScolaire::where('active', true)->first();
+		$anneeId = $request->input('annee_scolaire_id');
+		$activeAnnee = $anneeId ? \App\Models\AnneeScolaire::find($anneeId) : \App\Models\AnneeScolaire::where('active', true)->first();
 		if (!$activeAnnee) {
 			return response()->json([
 				'success' => false,
@@ -759,6 +1289,9 @@ class CandidatureController extends Controller
 					'annee_admission' => $year,
 				]);
 			} else {
+				$emailPro = $request->filled('email_pro') ? $request->input('email_pro') : $candidature->email;
+				$passwordHash = $request->filled('password') ? bcrypt($request->input('password')) : $candidature->password;
+
 				$etudiant = Etudiant::create([
 					'nom' => $candidature->nom,
 					'nom_jeune_fille' => $candidature->nom_jeune_fille,
@@ -768,13 +1301,13 @@ class CandidatureController extends Controller
 					'lieu_naissance' => $candidature->lieu_naissance,
 					'nationalite' => $candidature->nationalite,
 					'tel' => $candidature->tel,
-					'email' => $candidature->email,
-					'password' => $candidature->password,
+					'email' => $emailPro,
+					'password' => $passwordHash,
 					'image' => config('images.etudiants.woman'),
 					'annee_admission' => $year,
 					'promotion' => $promotion,
 					'advertiser_id' => $request->input('advertiser_id', $candidature->advertiser_id),
-					'matricule' => Etudiant::generateNextMatricule($year),
+					'matricule' => $request->input('matricule') ?: Etudiant::generateNextMatricule($year),
 				]);
 
 				$roleEtudiant = Role::where('nom', 'Etudiant')->first();
@@ -898,7 +1431,10 @@ class CandidatureController extends Controller
 				'end_accessibility_date' => now()->addDays(3)
 			]);
 
-			$etudiant->notify(new CandidatToEtudiantWelcomeNotification($etudiant->greeting()));
+			$emailProToSend = $request->input('email_pro', $etudiant->email);
+			$passwordToSend = $request->input('password', 'Votre ancien mot de passe de candidature');
+
+			$etudiant->notify(new CandidatToEtudiantWelcomeNotification($etudiant->greeting(), $emailProToSend, $passwordToSend));
 
 			return response()->json([
 				'success' => true,

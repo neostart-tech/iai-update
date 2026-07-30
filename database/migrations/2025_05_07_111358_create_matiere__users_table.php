@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('matiere__users', function (Blueprint $table) {
             $table->id();
-            $table->integer('user_id');
-            $table->integer('uniteValeur_id');
+            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('uniteValeur_id');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade')->onUpdate('cascade');
             $table->foreign('uniteValeur_id')->references('id')->on('unite_valeurs')->onDelete('cascade')->onUpdate('cascade');
             $table->timestamps();

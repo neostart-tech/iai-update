@@ -56,7 +56,17 @@ class FinanceController extends Controller
 
     public function detailRecouvrement(Request $request, $slug)
     {
-        $frais = FraisEtudiant::where('slug', $slug)->with(['etudiant.etudiantGroups.filiere', 'etudiant.etudiantGroups.niveau', 'echeances', 'fraisScolarite.filiere', 'fraisScolarite.niveau'])->firstOrFail();
+        $anneeId = $request->get('annee_id') ?? getAnneeScolaireId();
+        
+        $frais = FraisEtudiant::with(['etudiant.etudiantGroups.filiere', 'etudiant.etudiantGroups.niveau', 'echeances', 'fraisScolarite.filiere', 'fraisScolarite.niveau'])
+            ->where(function($q) use ($slug) {
+                $q->where('slug', $slug)
+                  ->orWhereHas('etudiant', function($q2) use ($slug) {
+                      $q2->where('slug', $slug);
+                  });
+            })
+            ->where('annee_scolaire_id', $anneeId)
+            ->firstOrFail();
         
         $paiements = \App\Models\Paiement::where('etudiant_id', $frais->etudiant_id)
             ->where('status', 'valide')
@@ -116,8 +126,10 @@ class FinanceController extends Controller
             'success' => true,
             'data' => [
                 'etudiant' => [
-                    'id' => $frais->id,
-                    'slug' => $frais->slug,
+                    'id' => $frais->etudiant->id,
+                    'slug' => $frais->etudiant->slug,
+                    'frais_id' => $frais->id,
+                    'frais_slug' => $frais->slug,
                     'nom_complet' => $frais->etudiant->nom_complet ?? ($frais->etudiant->nom . ' ' . $frais->etudiant->prenom),
                     'matricule' => $frais->etudiant->matricule,
                     'statut' => $statutGlobal,
@@ -131,6 +143,7 @@ class FinanceController extends Controller
                     'inscription_statut' => $statutInscr,
                     'montant_inscription_du' => $montantInscr,
                     'montant_inscription_paye' => $totalPayeInscription,
+                    'anomalie' => (new \App\Services\DiagnosticFinancierService())->verifierAnomalieEtudiant($frais->etudiant, $anneeId),
                 ],
                 'echeances' => $echeancesMapped,
                 'historique' => $historique
@@ -179,7 +192,18 @@ class FinanceController extends Controller
 
     public function envoyerRappel(Request $request, $slug)
     {
-        $frais = \App\Models\FraisEtudiant::where('slug', $slug)->with(['etudiant', 'echeances'])->firstOrFail();
+        $anneeId = $request->get('annee_id') ?? getAnneeScolaireId();
+        
+        $frais = \App\Models\FraisEtudiant::with(['etudiant', 'echeances'])
+            ->where(function($q) use ($slug) {
+                $q->where('slug', $slug)
+                  ->orWhereHas('etudiant', function($q2) use ($slug) {
+                      $q2->where('slug', $slug);
+                  });
+            })
+            ->where('annee_scolaire_id', $anneeId)
+            ->firstOrFail();
+
         $etudiant = $frais->etudiant;
 
         // Sécurité : ne pas envoyer si le compte est soldé ou abandonné
@@ -267,7 +291,18 @@ class FinanceController extends Controller
 
     public function declarerAbandonUI(Request $request, $slug)
     {
-        $frais = \App\Models\FraisEtudiant::where('slug', $slug)->with('etudiant')->firstOrFail();
+        $anneeId = $request->get('annee_id') ?? getAnneeScolaireId();
+        
+        $frais = \App\Models\FraisEtudiant::with('etudiant')
+            ->where(function($q) use ($slug) {
+                $q->where('slug', $slug)
+                  ->orWhereHas('etudiant', function($q2) use ($slug) {
+                      $q2->where('slug', $slug);
+                  });
+            })
+            ->where('annee_scolaire_id', $anneeId)
+            ->firstOrFail();
+
         $etudiant = $frais->etudiant;
 
         $frais->annoncerAbandon(

@@ -17,6 +17,16 @@ class ConfigHelper
         return $config ? $config->getAttribute('value') : null;
     }
 
+    /**
+     * Sigle de l'établissement (ex: IAI, ESCEN, ESA), utilisé notamment pour
+     * construire dynamiquement le label "Comment avez-vous connu {sigle} ?".
+     */
+    public static function getSigle()
+    {
+        $config = Configuration::where('key', 'sigle_etablissement')->first();
+        return $config ? $config->getAttribute('value') : null;
+    }
+
     public static function getAppTitreDe()
     {
         $config = Configuration::where('key', 'titre_du_directeur_des_etudes')->first();
@@ -54,5 +64,20 @@ class ConfigHelper
     public static function isModeConcoursActif(): bool
     {
         return self::getModeSelectionCandidats() === 'concours';
+    }
+
+    /**
+     * Quel champ sert d'identifiant de dossier affiché dans le back-office :
+     * 'code' (numéro de convocation, comportement par défaut) ou 'numero_bordereau'.
+     */
+    public static function getIdentifiantDossierSource(): string
+    {
+        $config = Configuration::where('key', 'identifiant_dossier_source')->first();
+        return $config ? $config->getAttribute('value') : 'code';
+    }
+
+    public static function isIdentifiantDossierBordereau(): bool
+    {
+        return self::getIdentifiantDossierSource() === 'numero_bordereau';
     }
 }

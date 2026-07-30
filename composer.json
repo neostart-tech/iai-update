@@ -24,7 +24,8 @@
         "propaganistas/laravel-phone": "^5.3",
         "rlanvin/php-rrule": "^2.6",
         "simplesoftwareio/simple-qrcode": "^4.2",
-        "spatie/browsershot": "^5.0"
+        "spatie/browsershot": "^5.0",
+        "spatie/laravel-activitylog": "^4.12"
     },
     "require-dev": {
         "barryvdh/laravel-debugbar": "^3.13",

@@ -115,12 +115,16 @@ class NegociationRequest extends FormRequest
                         "echeances.{$index}.date_limite", 
                         "La date limite de l'échéance n°{$position} est obligatoire"
                     );
-                } elseif (!$isExisting && strtotime($echeance['date_limite']) < strtotime('today')) {
-                    // On n'autorise les dates passées QUE pour les échéances déjà existantes
-                    $validator->errors()->add(
-                        "echeances.{$index}.date_limite", 
-                        "La date limite de la nouvelle échéance n°{$position} ne peut pas être dans le passé"
-                    );
+                }
+                
+                // Vérifier que la date de la tranche N n'est pas antérieure à la date de la tranche N-1
+                if ($index > 0 && !empty($echeances[$index - 1]['date_limite']) && !empty($echeance['date_limite'])) {
+                    if (strtotime($echeance['date_limite']) < strtotime($echeances[$index - 1]['date_limite'])) {
+                        $validator->errors()->add(
+                            "echeances.{$index}.date_limite", 
+                            "La date limite de l'échéance n°{$position} ne peut pas être antérieure à celle de l'échéance n°" . ($position - 1)
+                        );
+                    }
                 }
             }
         });

@@ -9,6 +9,7 @@ return new class extends Migration
     public function up()
     {
         Schema::create('seances', function (Blueprint $table) {
+            $table->engine = 'InnoDB';
             $table->id();
             $table->foreignId('emploi_du_temps_id')->constrained()->onDelete('cascade');
             $table->date('date_seance');

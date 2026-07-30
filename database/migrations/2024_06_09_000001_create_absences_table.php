@@ -17,7 +17,8 @@ class CreateAbsencesTable extends Migration
             $table->timestamps();
 
             $table->foreign('etudiant_id')->references('id')->on('etudiants')->onDelete('cascade');
-            $table->foreign('cours_id')->references('id')->on('cours')->onDelete('cascade');
+            // Pas de contrainte FK vers `cours` : cette table a été abandonnée tôt dans le
+            // projet (absente de la base de référence escendb) et n'est plus jamais créée.
         });
     }
 

@@ -90,7 +90,13 @@ class NegociationController extends Controller
                 'statut' => 'en_cours'
             ]);
 
-            if ($request->type_paiement === 'negociation') {
+            if ($request->type_paiement === 'negociation' && $request->has('echeances')) {
+                // Alignement logique : la somme des échéances négociées devient le montant final dû
+                $sommeEcheances = collect($request->echeances)->sum('montant');
+                if ($sommeEcheances != $montantApresBourse) {
+                    $fraisEtudiant->update(['montant_apres_bourse' => $sommeEcheances]);
+                }
+
                 $echeancier = Echeancier::create([
                     'frais_etudiant_id' => $fraisEtudiant->id,
                     'created_by' => Auth::id(),
@@ -139,9 +145,9 @@ class NegociationController extends Controller
         return response()->json($response);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, $slug)
     {
-        $fraisEtudiant = FraisEtudiant::with(['echeances', 'echeancier'])->findOrFail($id);
+        $fraisEtudiant = FraisEtudiant::with(['echeances', 'echeancier'])->where('slug', $slug)->firstOrFail();
 
         $request->validate([
             'type_paiement' => 'required|in:tranches_globales,negociation',
@@ -154,6 +160,12 @@ class NegociationController extends Controller
         DB::beginTransaction();
         try {
             // Recalcul du montant après bourse si bourse ou frais fournis
+            if ($request->has('frais_scolarite_id')) {
+                $frais = FraisScolarite::findOrFail($request->frais_scolarite_id);
+                $fraisEtudiant->frais_scolarite_id = $frais->id;
+                $fraisEtudiant->montant_initial = $frais->montant;
+            }
+
             $montantInitial = $fraisEtudiant->montant_initial;
             $bourseEtudiantId = $fraisEtudiant->bourse_etudiant_id;
 
@@ -177,12 +189,36 @@ class NegociationController extends Controller
                     $fraisEtudiant->montant_apres_bourse = $montantInitial;
                 }
                 $fraisEtudiant->bourse_etudiant_id = $bourseEtudiantId;
+            } else {
+                // Si on a changé le frais mais pas envoyé de bourse, il faut recalculer la bourse existante ou mettre le nouveau montant
+                if ($bourseEtudiantId) {
+                    $bourseEtudiant = BourseEtudiant::with('bourse')->find($bourseEtudiantId);
+                    if ($bourseEtudiant) {
+                        $bourse = $bourseEtudiant->bourse;
+                        if ($bourse->type === 'pourcentage') {
+                            $fraisEtudiant->montant_apres_bourse = $montantInitial * (1 - $bourse->valeur / 100);
+                        } else {
+                            $fraisEtudiant->montant_apres_bourse = max(0, $montantInitial - $bourse->valeur);
+                        }
+                    } else {
+                        $fraisEtudiant->montant_apres_bourse = $montantInitial;
+                    }
+                } else {
+                    $fraisEtudiant->montant_apres_bourse = $montantInitial;
+                }
             }
 
             $fraisEtudiant->type_paiement = $request->type_paiement;
             if ($request->has('frequence_paiement')) {
                 $fraisEtudiant->frequence_paiement = $request->frequence_paiement;
             }
+
+            // AJUSTEMENT IMPORTANT : Si c'est une négociation, le nouveau montant final DEVIENT la somme des échéances négociées.
+            if ($request->type_paiement === 'negociation' && $request->has('echeances')) {
+                $sommeEcheances = collect($request->echeances)->sum('montant');
+                $fraisEtudiant->montant_apres_bourse = $sommeEcheances;
+            }
+
             $fraisEtudiant->save();
 
             $idsRecus = [];

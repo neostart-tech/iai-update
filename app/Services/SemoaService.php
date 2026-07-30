@@ -2,101 +2,12 @@
 
 namespace App\Services;
 
-use Illuminate\Database\Eloquent\Casts\Json;
-use Illuminate\Http\Client\{PendingRequest, Response};
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Exception;
-use Throwable;
 
 class SemoaService
 {
-	private string $accessToken;
-
-	/**
-	 * @return string
-	 */
-	public function getAccessToken(): string
-	{
-		return $this->accessToken;
-	}
-
-	private bool $isBooted;
-
-	/**
-	 * @return string
-	 */
-	public function getExpiresIn(): string
-	{
-		return $this->expiresIn;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getRefreshExpiresIin(): string
-	{
-		return $this->refreshExpiresIin;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getRefreshToken(): string
-	{
-		return $this->refreshToken;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getTokenType(): string
-	{
-		return $this->tokenType;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getSessionState(): string
-	{
-		return $this->sessionState;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getScope(): string
-	{
-		return $this->scope;
-	}
-
-	private string $expiresIn = '';
-
-	private string $refreshExpiresIin = '';
-
-	private string $refreshToken = '';
-
-	private string $tokenType = '';
-
-	private string $sessionState = '';
-
-	private string $scope = '';
-
-	/**
-	 * @var PendingRequest $response
-	 */
-	public mixed $request;
-
-	public string $notBeforePolicy = '';
-
-	public array $headers = [
-		'Content-Type' => 'application/json',
-		'Accept' => 'Application/json'
-	];
-
 	private static string $url = '';
 
 	private static string $userName;
@@ -143,7 +54,7 @@ class SemoaService
 
             $data = $response->json();
             \Log::debug('SEMOA Auth Success:', ['data' => array_keys($data)]); // On logue les clés reçues
-            
+
             if (is_string($data)) {
                 $data = json_decode($data, true);
             }
@@ -156,43 +67,13 @@ class SemoaService
         });
     }
 
-    private function getHeaders(string $token): array
-    {
-        $salt = (string) random_int(0, 999999);
-        // Signature basée sur le Username (demo_escen) + Api Key + Salt, en MINUSCULES
-        $signature = hash('sha256', self::$userName . self::$apiKey . $salt);
-        
-        $headers = [
-            "Authorization" => "Bearer $token",
-            "login" => self::$userName, // demo_escen
-            "apisecure" => $signature,
-            "apireference" => self::$apiReference, // 20
-            "api-key" => self::$apiKey,
-            "salt" => $salt,
-            "Content-Type" => "application/json",
-            "Accept" => "application/json"
-        ];
-        
-        \Log::debug('SEMOA Headers Debug (USERNAME-LOWER-SIG):', [
-            'login' => $headers['login'],
-            'apireference' => $headers['apireference'],
-            'salt' => $headers['salt'],
-            'apisecure' => $headers['apisecure']
-        ]);
-
-        return $headers;
-    }
-
-    /**
-     * Initialise un paiement Link2Pay
-     */
     /**
      * Initialise un paiement Link2Pay (V3 Partner API)
      */
     public function initializePayment(array $data, bool $isRetry = false): array
     {
         $token = $this->getToken();
-        
+
         $gatewayRef = $data['gateway_reference'] ?? self::$gatewayReference;
 
         $payload = [
@@ -208,7 +89,7 @@ class SemoaService
 
         // On ajoute les infos de callback et description s'ils sont présents
         if (isset($data['description'])) $payload["description"] = $data['description'];
-        
+
         // Sécurité : Forcer l'URL Ngrok si configurée dans le .env
         $baseUrl = rtrim(env('APP_URL'), '/');
         $payload["callback_url"] = $data['callback_url'] ?? ($baseUrl . '/api/semoa-callback-url');
@@ -235,13 +116,40 @@ class SemoaService
         return $response->json();
     }
 
+    private function getHeaders(string $token): array
+    {
+        $salt = (string) random_int(0, 999999);
+        // Signature basée sur le Username (demo_escen) + Api Key + Salt, en MINUSCULES
+        $signature = hash('sha256', self::$userName . self::$apiKey . $salt);
+
+        $headers = [
+            "Authorization" => "Bearer $token",
+            "login" => self::$userName, // demo_escen
+            "apisecure" => $signature,
+            "apireference" => self::$apiReference, // 20
+            "api-key" => self::$apiKey,
+            "salt" => $salt,
+            "Content-Type" => "application/json",
+            "Accept" => "application/json"
+        ];
+
+        \Log::debug('SEMOA Headers Debug (USERNAME-LOWER-SIG):', [
+            'login' => $headers['login'],
+            'apireference' => $headers['apireference'],
+            'salt' => $headers['salt'],
+            'apisecure' => $headers['apisecure']
+        ]);
+
+        return $headers;
+    }
+
     /**
      * Vérifie le statut d'une commande
      */
     public function checkPaymentStatus(string $reference): array
     {
         $token = $this->getToken();
-        
+
         $response = Http::withHeaders($this->getHeaders($token))
             ->get(self::$url . "orders/{$reference}");
 

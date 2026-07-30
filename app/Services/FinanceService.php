@@ -40,9 +40,8 @@ class FinanceService
 
         $previsionsInscriptions = $fraisInscriptionActif ? $totalEtudiantsActifs * $fraisInscriptionActif->montant : 0;
 
-        // Calcul des frais de retrait MM
         $fraisRetraitMM = Paiement::where('status', 'valide')
-            ->whereHas('etudiant.etudiantGroups', fn($q) => $q->where('annee_scolaire_id', $this->anneeId))
+            ->where('annee_scolaire_id', $this->anneeId)
             ->sum('frais_retrait_mm');
 
         return [
@@ -93,9 +92,7 @@ class FinanceService
     {
         // 1. Base des paiements validés pour l'année
         $queryBase = Paiement::where('status', 'valide')
-            ->whereHas('etudiant.etudiantGroups', function($q) {
-                $q->where('annee_scolaire_id', $this->anneeId);
-            });
+            ->where('annee_scolaire_id', $this->anneeId);
             
         if ($periode !== 'annee' && $periode !== 'tout') {
             $this->applyTimeFilter($queryBase, $periode, $dateDebut, $dateFin);
@@ -193,7 +190,7 @@ class FinanceService
                 $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement');
             })
             ->select(DB::raw('DATE(date_paiement) as date'), DB::raw('SUM(montant) as montant'), DB::raw('COUNT(*) as nombre'))
-            ->whereHas('etudiant.etudiantGroups', fn($q) => $q->where('annee_scolaire_id', $this->anneeId))
+            ->where('annee_scolaire_id', $this->anneeId)
             ->groupBy('date')
             ->orderBy('date');
 
@@ -269,6 +266,7 @@ class FinanceService
             
             // Paiements scolarité
             $paye = Paiement::where('status', 'valide')
+                ->where('annee_scolaire_id', $this->anneeId)
                 ->where(function($q){
                     $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement');
                 })
@@ -298,6 +296,7 @@ class FinanceService
             
             // On ne compte que les paiements de scolarité (pas d'inscription)
             $paye = Paiement::where('status', 'valide')
+                ->where('annee_scolaire_id', $this->anneeId)
                 ->where(function($q) {
                     $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement');
                 })
@@ -322,6 +321,7 @@ class FinanceService
     {
         return Niveau::all()->map(function($niveau) use ($periode, $dateDebut, $dateFin) {
             $queryBase = Paiement::where('status', 'valide')
+                ->where('annee_scolaire_id', $this->anneeId)
                 ->whereHas('etudiant.etudiantGroups', fn($q) =>
                     $q->where('niveau_id', $niveau->id)->where('annee_scolaire_id', $this->anneeId)
                 );
@@ -356,8 +356,16 @@ class FinanceService
 
     private function getTopPerformers()
     {
-        return Etudiant::withSum(['paiements' => function($q) {
+        return Etudiant::whereHas('paiements', function($q) {
                 $q->where('status', 'valide')
+                  ->where('annee_scolaire_id', $this->anneeId)
+                  ->where(function($sub){
+                      $sub->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement');
+                  });
+            })
+            ->withSum(['paiements' => function($q) {
+                $q->where('status', 'valide')
+                  ->where('annee_scolaire_id', $this->anneeId)
                   ->where(function($sub){
                       $sub->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement');
                   });
@@ -371,6 +379,7 @@ class FinanceService
                 'matricule' => $e->matricule,
                 'total_paye' => $e->paiements_sum_montant ?? 0,
                 'nombre_paiements' => \App\Models\Paiement::where('etudiant_id', $e->id)->where('status','valide')
+                                    ->where('annee_scolaire_id', $this->anneeId)
                                     ->where(function($sq){ $sq->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement'); })->count()
             ]);
     }
@@ -378,12 +387,14 @@ class FinanceService
     public function getExtraKPIs()
     {
         // 1. Encaissement abandon
-        $caAbandons = Paiement::where('status', 'valide')->whereHas('etudiant.etudiantGroups', function($q) {
-            $q->where('annee_scolaire_id', $this->anneeId)->where('statut_scolaire', 'abandon');
-        })->sum('montant');
+        $caAbandons = Paiement::where('status', 'valide')
+            ->where('annee_scolaire_id', $this->anneeId)
+            ->whereHas('etudiant.etudiantGroups', function($q) {
+                $q->where('annee_scolaire_id', $this->anneeId)->where('statut_scolaire', 'abandon');
+            })->sum('montant');
         
         $totalEncaisse = Paiement::where('status', 'valide')
-            ->whereHas('etudiant.etudiantGroups', fn($q) => $q->where('annee_scolaire_id', $this->anneeId))
+            ->where('annee_scolaire_id', $this->anneeId)
             ->sum('montant');
             
         $tauxAbandon = $totalEncaisse > 0 ? round(($caAbandons / $totalEncaisse) * 100, 1) : 0;
@@ -408,6 +419,7 @@ class FinanceService
 
             $payeScolarite = Paiement::where('etudiant_id', $f->etudiant_id)
                 ->where('status', 'valide')
+                ->where('annee_scolaire_id', $this->anneeId)
                 ->where(fn($q) => $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement'))
                 ->sum('montant');
 
@@ -421,7 +433,7 @@ class FinanceService
         // 3. Non échues
         // Montant non échu = Total Prévu - (Total Payé + Montant Retards) en gros.
         $totalPrevu = $this->getPrevisionsTotales();
-        $totalPayeGlobal = Paiement::where('status', 'valide')->whereHas('etudiant.etudiantGroups', fn($q) => $q->where('annee_scolaire_id', $this->anneeId))->sum('montant');
+        $totalPayeGlobal = Paiement::where('status', 'valide')->where('annee_scolaire_id', $this->anneeId)->sum('montant');
         $nonEchues = max(0, $totalPrevu - $totalPayeGlobal - $montantRetards);
 
         return [
@@ -463,6 +475,7 @@ class FinanceService
 
             foreach ($dates as $date) {
                 $montantJour = Paiement::where('status', 'valide')
+                    ->where('annee_scolaire_id', $this->anneeId)
                     ->where(function($q) { $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement'); })
                     ->whereDate('date_paiement', $date)
                     ->whereHas('etudiant.etudiantGroups', fn($q) => 
@@ -504,6 +517,7 @@ class FinanceService
                 if ($expectedToDate > 0) {
                     $payeScolarite = \App\Models\Paiement::where('etudiant_id', $f->etudiant_id)
                         ->where('status', 'valide')
+                        ->where('annee_scolaire_id', $this->anneeId)
                         ->where(function($q) { 
                             $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement'); 
                         })
@@ -612,6 +626,7 @@ class FinanceService
 
             // Montant recouvré sur le mois
             $recouvreMois = (float) \App\Models\Paiement::where('status', 'valide')
+                ->where('annee_scolaire_id', $this->anneeId)
                 ->where(function($q) { $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement'); })
                 ->whereBetween('date_paiement', [$startDate, $endDate])
                 ->whereHas('etudiant.etudiantGroups', fn($q) => 
@@ -620,6 +635,7 @@ class FinanceService
 
             // Recouvré jusqu'à M-1
             $recouvreTotalPrev = (float) \App\Models\Paiement::where('status', 'valide')
+                ->where('annee_scolaire_id', $this->anneeId)
                 ->where(function($q) { $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement'); })
                 ->where('date_paiement', '<=', $endPrevMonth)
                 ->whereHas('etudiant.etudiantGroups', fn($q) => 
@@ -679,6 +695,7 @@ class FinanceService
             
             if ($expectedToDate > 0) {
                 $paye = \App\Models\Paiement::where('etudiant_id', $f->etudiant_id)->where('status', 'valide')
+                    ->where('annee_scolaire_id', $this->anneeId)
                     ->where(function($q) { $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement'); })
                     ->sum('montant');
                     
@@ -703,6 +720,7 @@ class FinanceService
     private function getPaiementsRecents($limit)
     {
         return Paiement::with('etudiant')->where('status', 'valide')
+            ->where('annee_scolaire_id', $this->anneeId)
             ->latest('date_paiement')
             ->take($limit)
             ->get()
@@ -782,7 +800,7 @@ class FinanceService
                 $q->where('nature_paiement', '!=', 'inscription')->orWhereNull('nature_paiement');
             })
             ->select(DB::raw('MONTH(date_paiement) as mois'), DB::raw('SUM(montant) as total'))
-            ->whereHas('etudiant.etudiantGroups', fn($q) => $q->where('annee_scolaire_id', $this->anneeId))
+            ->where('annee_scolaire_id', $this->anneeId)
             ->groupBy('mois')
             ->pluck('total', 'mois');
 
@@ -790,7 +808,9 @@ class FinanceService
         $previsions = [];
         try {
             $previsions = DB::table('echeances')
-                ->select(DB::raw('MONTH(date_limite) as mois'), DB::raw('SUM(montant) as total'))
+                ->join('frais_etudiant', 'echeances.frais_etudiant_id', '=', 'frais_etudiant.id')
+                ->where('frais_etudiant.annee_scolaire_id', $this->anneeId)
+                ->select(DB::raw('MONTH(echeances.date_limite) as mois'), DB::raw('SUM(echeances.montant) as total'))
                 ->groupBy('mois')
                 ->pluck('total', 'mois');
         } catch (\Exception $e) {
@@ -800,7 +820,6 @@ class FinanceService
         // Courbe 3 : Dépenses
         $depenses = Depense::where('annee_scolaire_id', $this->anneeId)
             ->select(DB::raw('MONTH(date_depense) as mois'), DB::raw('SUM(montant) as total'))
-            ->whereYear('date_depense', Carbon::now()->year)
             ->groupBy('mois')
             ->pluck('total', 'mois');
 

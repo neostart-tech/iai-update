@@ -421,11 +421,11 @@ Route::controller(CarteEtudiantController::class)->prefix('carte')->name('carte.
 Route::controller(AdminEtudiantController::class)->prefix('etudiants')->name('etudiants.')->group(function () {
 	Route::get('liste', 'index')->name('index');
 	Route::post('import', 'importEtudiant')->name('import');
-	$anneActive = AnneeScolaire::where('active', true)->first()->nom;
-	Route::get('export', function () use ($anneActive) {
+	Route::get('export', function () {
+		$anneActive = AnneeScolaire::where('active', true)->first()?->nom;
 		return Excel::download(
 			new EtudiantsExport,
-			'liste_des_etudiants_' . $anneActive . '.xlsx' 
+			'liste_des_etudiants_' . $anneActive . '.xlsx'
 		);
 	})->name('export');
 });

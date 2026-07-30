@@ -160,8 +160,8 @@ class DashboardPaiementController extends Controller
     public function getHistoriquePaiements(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'date_debut' => 'required|date',
-            'date_fin' => 'required|date|after_or_equal:date_debut',
+            'date_debut' => 'nullable|date',
+            'date_fin' => 'nullable|date|after_or_equal:date_debut',
             'page' => 'nullable|integer|min:1',
             'per_page' => 'nullable|integer|min:1|max:100',
         ]);

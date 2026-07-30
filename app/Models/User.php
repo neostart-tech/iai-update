@@ -7,6 +7,7 @@ use App\Models\Support\SupportMessage;
 use App\Models\Support\SupportTicket;
 use App\Notifications\admins\PasswordResetLinkSentNotification;
 use App\Traits\Routing\{GenerateUniqueSlugTrait, ModelsSlugKeyTrait};
+use App\Traits\LogsActivityWithDefaults;
 use App\Traits\UserIdentityTrait;
 use Illuminate\Database\Eloquent\{Builder, Collection};
 use Illuminate\Database\Eloquent\Relations\{BelongsToMany, HasMany, HasManyThrough, MorphMany, MorphToMany};
@@ -26,7 +27,7 @@ use Laravel\Sanctum\HasApiTokens;
  */
 class User extends Authenticatable
 {
-	use Notifiable, GenerateUniqueSlugTrait, ModelsSlugKeyTrait, UserIdentityTrait, HasApiTokens;
+	use Notifiable, GenerateUniqueSlugTrait, ModelsSlugKeyTrait, UserIdentityTrait, HasApiTokens, LogsActivityWithDefaults;
 
 	public function hasComplexSlug(): bool
 	{
@@ -205,6 +206,30 @@ public function isInformaticien(): bool
 	public function permissions(): HasManyThrough
 	{
 		return $this->hasManyThrough(Permission::class, Role::class);
+	}
+
+	/**
+	 * Slugs des permissions accordées à l'utilisateur via l'ensemble de ses rôles
+	 * (calculé, contrairement à permissions() ci-dessus qui ne reflète pas la vraie
+	 * structure des tables pivots role_user/permission_role).
+	 */
+	public function effectivePermissionSlugs(): array
+	{
+		return $this->roles()
+			->with('permissions')
+			->get()
+			->pluck('permissions')
+			->flatten()
+			->pluck('slug')
+			->filter()
+			->unique()
+			->values()
+			->all();
+	}
+
+	public function hasPermissionSlug(string $slug): bool
+	{
+		return in_array($slug, $this->effectivePermissionSlugs(), true);
 	}
 
 	public function rolesId(): SupportCollection

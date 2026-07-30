@@ -11,7 +11,7 @@ class FraisInscriptionController extends Controller
 {
     public function index()
     {
-        $frais = FraisInscription::with('anneeScolaire')->latest()->get();
+        $frais = FraisInscription::with(['anneeScolaire', 'niveau', 'filiere'])->latest()->get();
         return FraisInscriptionResource::collection($frais);
     }
 
@@ -23,10 +23,14 @@ class FraisInscriptionController extends Controller
 
         $request->validate([
             'montant' => 'required|integer|min:0',
+            'niveau_id' => 'nullable|exists:niveaux,id',
+            'filiere_id' => 'nullable|exists:filieres,id',
         ]);
 
         $frais = FraisInscription::create([
             'montant' => $request->montant,
+            'niveau_id' => $request->niveau_id,
+            'filiere_id' => $request->filiere_id,
             'slug' => Str::uuid(),
             ...injectAnneeScolaireId()
         ]);
@@ -48,10 +52,17 @@ class FraisInscriptionController extends Controller
 
         $request->validate([
             'montant' => 'required|integer|min:0',
+            'niveau_id' => 'nullable|exists:niveaux,id',
+            'filiere_id' => 'nullable|exists:filieres,id',
         ]);
 
         $frais = FraisInscription::findOrFail($id);
-        $frais->update($request->only('montant'));
+
+        if ($frais->has_payments) {
+            return response()->json(['message' => 'Impossible de modifier ce tarif car il est déjà lié à des paiements.'], 422);
+        }
+
+        $frais->update($request->only('montant', 'niveau_id', 'filiere_id'));
 
         return new FraisInscriptionResource($frais);
     }
@@ -63,6 +74,11 @@ class FraisInscriptionController extends Controller
         }
 
         $frais = FraisInscription::findOrFail($id);
+
+        if ($frais->has_payments) {
+            return response()->json(['message' => 'Impossible de supprimer ce tarif car il est déjà lié à des paiements.'], 422);
+        }
+
         $frais->delete();
         return response()->json(['message' => 'Frais supprimé avec succès']);
     }
@@ -73,12 +89,10 @@ class FraisInscriptionController extends Controller
             return response()->json(['message' => 'Action non autorisée'], 403);
         }
 
-        // On désactive tout
-        FraisInscription::query()->update(['active' => false]);
-        
-        // On active celui-ci
         $frais = FraisInscription::findOrFail($id);
-        $frais->update(['active' => true]);
+        
+        // On bascule simplement l'état actuel (sans impacter les autres)
+        $frais->update(['active' => !$frais->active]);
 
         return new FraisInscriptionResource($frais);
     }

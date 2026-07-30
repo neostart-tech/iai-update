@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\GenreEnum;
 use App\Models\Scopes\CurrentAnneeScolaireScope;
 use App\Notifications\Candidatures\PasswordResetLinkSentNotification;
+use App\Traits\LogsActivityWithDefaults;
 use App\Traits\UserIdentityTrait;
 use App\Traits\Routing\{GenerateUniqueSlugTrait, ModelsSlugKeyTrait};
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
@@ -25,11 +26,13 @@ use Illuminate\Support\Str;
 // #[ScopedBy(CurrentAnneeScolaireScope::class)]
 class Candidature extends Authenticatable
 {
-	use \Laravel\Sanctum\HasApiTokens, Notifiable, HasFactory, ModelsSlugKeyTrait, GenerateUniqueSlugTrait, UserIdentityTrait;
+	use \Laravel\Sanctum\HasApiTokens, Notifiable, HasFactory, ModelsSlugKeyTrait, GenerateUniqueSlugTrait, UserIdentityTrait, LogsActivityWithDefaults;
 
 	protected $guarded = false;
 
 	protected $hidden = ['password', 'remember_token'];
+
+	protected $appends = ['numero_dossier_affiche'];
 
 
 	protected $casts = [
@@ -82,6 +85,11 @@ class Candidature extends Authenticatable
 		return $this->morphOne(ResponsableFrais::class, 'owner');
 	}
 
+	public function responsables(): \Illuminate\Database\Eloquent\Relations\MorphMany
+	{
+		return $this->morphMany(ResponsableFrais::class, 'owner');
+	}
+
 	public function Reorientations()
 	{
 		return $this->hasMany(Reorientation::class);
@@ -123,6 +131,34 @@ class Candidature extends Authenticatable
 	public function filiere()
 	{
 		return $this->belongsTo(Filiere::class, 'filiere_id');
+	}
+
+	public function typeDiplome()
+	{
+		return $this->belongsTo(\App\Models\TypeDiplome::class, 'type_diplome_id');
+	}
+
+	public function moyenConnaissance()
+	{
+		return $this->belongsTo(\App\Models\MoyenConnaissance::class, 'moyen_connaissance_id');
+	}
+
+	/**
+	 * Numéro de dossier "pur", indépendant du concours : le `numero_bordereau` si
+	 * l'école a choisi cette source (voir ConfigHelper::isIdentifiantDossierBordereau)
+	 * et qu'il est renseigné, sinon le `code` de convocation. Ne contient JAMAIS le
+	 * matricule de concours — les pages qui doivent prioriser le matricule (contrôle
+	 * de présence, notes de concours...) le font elles-mêmes côté frontend, dans une
+	 * colonne "Identifiant" séparée ; cette colonne "Numéro de dossier" reste stable
+	 * quel que soit le mode (dossier ou concours).
+	 */
+	public function getNumeroDossierAfficheAttribute(): string
+	{
+		if (\App\Helpers\ConfigHelper::isIdentifiantDossierBordereau() && $this->numero_bordereau) {
+			return $this->numero_bordereau;
+		}
+
+		return str_pad((string) $this->code, 6, '0', STR_PAD_LEFT);
 	}
 
 	public function tranches()

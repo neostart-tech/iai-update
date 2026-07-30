@@ -41,7 +41,7 @@ class BlogController extends Controller
 
 		$blog = Blog::query()->create([
 			...$request->validated(),
-			'publication_date' => now(),
+			'publication_date' => $request->input('publication_date') ?? now(),
 			'author_name' => auth()->user()->nom . ' ' . auth()->user()->prenom,
 			...compact('image'),
 		]);

@@ -4,7 +4,17 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Déposer mon dossier — {{ config('app.name') }}</title>
-	@php($logoPath = \App\Helpers\ConfigHelper::getAppLogo())
+	@php
+		$logoPath = \App\Helpers\ConfigHelper::getAppLogo();
+
+		// Pièces à fournir pour le niveau visé par ce concours (Licence 1, déduit
+		// automatiquement) : affichées dès l'arrivée sur la page, avant même de
+		// commencer le formulaire, pour que le candidat prépare ses documents.
+		$documentsAFournir = collect($documentRequirements ?? [])->filter(fn ($req) =>
+			(string) $req['niveau_id'] === (string) $niveauCandidatureId
+			&& ($req['filiere_id'] === null || (string) $req['filiere_id'] === (string) $filiereCandidatureId)
+		)->values();
+	@endphp
 	<link rel="icon" href="{{ $logoPath && Storage::disk('public')->exists($logoPath) ? Storage::url($logoPath) : 'https://www.iai-togo.tg/wp-content/uploads/2017/06/logo.jpeg' }}" type="image/x-icon">
 	@include('candidatures._styles')
 	<link rel="stylesheet" href="{{ asset('tel/build/css/intlTelInput.css') }}">
@@ -31,8 +41,29 @@
 				<p class="depot-hero-kicker">Dossier de candidature</p>
 				<h1 class="depot-hero-title">Votre avenir en informatique <br><span>commence ici</span></h1>
 				<p class="depot-hero-lede">
-					Quatre étapes, une quinzaine de minutes. Munissez-vous de vos bulletins, de votre relevé de BAC et d'une pièce d'identité avant de commencer.
+					Quatre étapes, une quinzaine de minutes.
+					@if($documentsAFournir->isNotEmpty())
+						Préparez ces pièces avant de commencer :
+					@else
+						Munissez-vous de vos bulletins, de votre relevé de BAC et d'une pièce d'identité avant de commencer.
+					@endif
 				</p>
+
+				@if($documentsAFournir->isNotEmpty())
+					<ul class="hero-checklist">
+						@foreach($documentsAFournir as $doc)
+							<li>
+								<span class="hero-checklist-icon" aria-hidden="true">✓</span>
+								<span>
+									{{ $doc['nom_affichage'] }}
+									@unless($doc['is_obligatoire'])
+										<span class="hero-checklist-optional">Optionnel</span>
+									@endunless
+								</span>
+							</li>
+						@endforeach
+					</ul>
+				@endif
 			</div>
 
 			<footer class="left-footer">

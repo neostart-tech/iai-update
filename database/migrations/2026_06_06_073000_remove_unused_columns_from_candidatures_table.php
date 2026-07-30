@@ -8,18 +8,24 @@ return new class extends Migration
 {
     public function up()
     {
-        Schema::table('candidatures', function (Blueprint $table) {
-            $table->dropColumn([
-                'connaissance',
-                'autre_connaissance',
-                'nom_recommande',
-                'contact_recommande',
-                'finance_scolarite',
-                'preciser_autre_finance',
-                'nom_sponsor',
-                'tel_sponsor',
-                'email_sponsor',
-            ]);
+        $columns = array_filter([
+            'connaissance',
+            'autre_connaissance',
+            'nom_recommande',
+            'contact_recommande',
+            'finance_scolarite',
+            'preciser_autre_finance',
+            'nom_sponsor',
+            'tel_sponsor',
+            'email_sponsor',
+        ], fn ($column) => Schema::hasColumn('candidatures', $column));
+
+        if (empty($columns)) {
+            return;
+        }
+
+        Schema::table('candidatures', function (Blueprint $table) use ($columns) {
+            $table->dropColumn($columns);
         });
     }
 

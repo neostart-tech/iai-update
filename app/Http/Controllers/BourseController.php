@@ -192,6 +192,15 @@ class BourseController extends Controller
                 'annee_scolaire_id' => $anneeCourante->id,
             ]);
 
+            // Synchroniser le contrat financier
+            $fraisEtudiant = \App\Models\FraisEtudiant::where('etudiant_id', $etudiant->id)
+                ->where('annee_scolaire_id', $anneeCourante->id)
+                ->first();
+                
+            if ($fraisEtudiant) {
+                app(\App\Services\FraisEtudiantService::class)->synchroniserBourse($fraisEtudiant);
+            }
+
             return response()->json([
                 'message' => 'Bourse affectée avec succès',
                 'data' => [
@@ -217,6 +226,18 @@ class BourseController extends Controller
 
         $etudiant = Etudiant::findOrFail($data['etudiant_id']);
         $etudiant->bourses()->detach($data['bourse_id']);
+
+        // Synchroniser le contrat financier
+        $anneeCourante = AnneeScolaire::courante();
+        if ($anneeCourante) {
+            $fraisEtudiant = \App\Models\FraisEtudiant::where('etudiant_id', $etudiant->id)
+                ->where('annee_scolaire_id', $anneeCourante->id)
+                ->first();
+                
+            if ($fraisEtudiant) {
+                app(\App\Services\FraisEtudiantService::class)->synchroniserBourse($fraisEtudiant);
+            }
+        }
 
         return response()->json([
             'message' => 'Bourse retirée avec succès',

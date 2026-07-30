@@ -17,6 +17,7 @@ trait IndexTrait
 	{
 		$candidatures = Candidature::query()
 			->with(['niveau', 'filiere', 'album'])
+			->whereNotNull('soumis_le')
 			->orderBy('nom')
 			->orderBy('prenom')
 			->get();
@@ -34,6 +35,7 @@ trait IndexTrait
 		$roleSlugs = $request->user()->roles->pluck('slug');
 
 		$query = Candidature::query()
+			->whereNotNull('soumis_le')
 			->whereNull('motif')
 			->where('rectification_expected', false)
 			->where('dossier_valide', false);
@@ -52,7 +54,8 @@ trait IndexTrait
 	public function exportEtudeDossierExcel(Request $request)
 	{
 		$query = Candidature::query()
-			->with(['niveau', 'filiere', 'album', 'tuteurs', 'submittedDocuments']);
+			->with(['niveau', 'filiere', 'album', 'tuteurs', 'submittedDocuments'])
+			->whereNotNull('soumis_le');
 
 		if ($request->filled('ids')) {
 			$query->whereIn('id', (array) $request->input('ids'));
@@ -89,7 +92,9 @@ trait IndexTrait
 
 	public function payementCandidaturesIndex()
 	{
-		$payementCandidatures = Candidature::query()->where('dossier_valide', true)
+		$payementCandidatures = Candidature::query()->with(['niveau', 'filiere', 'album'])
+			->whereNotNull('soumis_le')
+			->where('dossier_valide', true)
 			->whereNull('motif')
 			->where('frais_paye', false)
 			->where('participation', false)
@@ -109,6 +114,7 @@ trait IndexTrait
 	public function participantCandidaturesIndex()
 	{
 		$participantCandidatures = Candidature::query()
+			->whereNotNull('soumis_le')
 			->where('dossier_valide', true)
 			->where('frais_paye', true)
 			->where('participation', false)
@@ -129,6 +135,7 @@ trait IndexTrait
 	public function admisCandidaturesIndex()
 	{
 		$admisCandidatures = Candidature::query()
+			->whereNotNull('soumis_le')
 			->where('dossier_valide', true)
 			->whereNotNull('validation_date')
 			->where('frais_paye', true)
@@ -158,14 +165,9 @@ trait IndexTrait
 	public function InscriptionCandidaturesIndex()
 	{
 		$candidatures = Candidature::query()
+			->whereNotNull('soumis_le')
 			->where('dossier_valide', true)
-			->whereNotNull('validation_date')
-			->where('frais_paye', true)
-			->whereNotNull('frai_paye_date')
-			->where('participation', true)
-			->whereNotNull('participation_date')
 			->where('admission', true)
-			->whereNotNull('admission_date')
 			->whereNull('motif')
 			->where(function ($query) {
 				$query->whereDoesntHave('etudiant')
@@ -194,6 +196,7 @@ trait IndexTrait
 	{
 		$candidatures = Candidature::query()
 			->with(['niveau', 'filiere'])
+			->whereNotNull('soumis_le')
 			->where('dossier_valide', true)
 			->whereNotNull('validation_date')
 			->where('frais_paye', true)
@@ -224,14 +227,9 @@ trait IndexTrait
 	public function liste_des_admis()
 	{
 		$admisCandidatures = Candidature::query()
+			->whereNotNull('soumis_le')
 			->where('dossier_valide', true)
-			->whereNotNull('validation_date')
-			->where('frais_paye', true)
-			->whereNotNull('frai_paye_date')
-			->where('participation', true)
-			->whereNotNull('participation_date')
 			->where('admission', true)
-			->whereNotNull('admission_date')
 			->whereNull('motif')
 			->orderBy('nom')
 			->orderBy('prenom')
@@ -252,7 +250,7 @@ trait IndexTrait
 	public function liste_des_rectifications()
 	{
 		return response()->json([
-			'data' => CandidatureResource::collection(Candidature::query()->where('rectification_expected', true)->get()),
+			'data' => CandidatureResource::collection(Candidature::query()->whereNotNull('soumis_le')->where('rectification_expected', true)->get()),
 			'metaData' => [
 				'title' => 'Liste des candidatures en attente de rectification',
 				'page_name' => 'Liste des candidatures en attente de rectification'
@@ -263,8 +261,63 @@ trait IndexTrait
 	public function liste_des_rejets()
 	{
 		return response()->json([
-			'data' => CandidatureResource::collection(Candidature::query()->where('dossier_valide', false)->whereNotNull('motif')->get())
+			'data' => CandidatureResource::collection(Candidature::query()->whereNotNull('soumis_le')->where('dossier_valide', false)->whereNotNull('motif')->get())
 		]);
+	}
+
+	/**
+	 * Dossiers commencés via l'inscription en plusieurs étapes (escen-website) mais
+	 * jamais terminés (soumis_le encore vide) — permet au staff de relancer ces
+	 * candidats par téléphone/email plutôt que de les perdre silencieusement.
+	 */
+	public function listeDossiersIncomplets()
+	{
+		$dossiers = Candidature::query()
+			->whereNull('soumis_le')
+			->orderByDesc('created_at')
+			->get(['id', 'nom', 'prenom', 'email', 'tel', 'type_diplome_id', 'niveau_id', 'created_at', 'updated_at']);
+
+		$data = $dossiers->map(function (Candidature $c) {
+			// Étape la plus avancée atteinte, déduite des champs déjà renseignés
+			// (le dossier n'a pas encore de statut d'étape dédié en base).
+			$etape = 'Identité & Coordonnées';
+			if ($c->type_diplome_id) $etape = 'Diplôme';
+			if ($c->niveau_id) $etape = 'Documents';
+
+			return [
+				'id' => $c->id,
+				'nom' => $c->nom,
+				'prenom' => $c->prenom,
+				'email' => $c->email,
+				'tel' => $c->tel,
+				'derniere_etape_atteinte' => $etape,
+				'commence_le' => $c->created_at,
+				'derniere_activite_le' => $c->updated_at,
+			];
+		});
+
+		return response()->json([
+			'data' => $data,
+			'metaData' => [
+				'title' => 'Dossiers incomplets',
+				'breadcrumbs' => ['Administration', 'Candidatures', 'Dossiers incomplets'],
+				'page_name' => 'Dossiers incomplets',
+			],
+		]);
+	}
+
+	public function supprimerBrouillon(Candidature $candidature)
+	{
+		if ($candidature->soumis_le) {
+			return response()->json([
+				'success' => false,
+				'message' => "Ce dossier est déjà soumis, il ne peut pas être supprimé comme un brouillon.",
+			], 422);
+		}
+
+		$candidature->delete();
+
+		return response()->json(['success' => true]);
 	}
 
 	public function chooseClassAssignmentGroupView()
@@ -281,13 +334,14 @@ trait IndexTrait
 	public function showGroupClassAssignmentView(Group $group)
 	{
 		$candidatures = Candidature::query()
+			->whereNotNull('soumis_le')
 			->where('dossier_valide', true)
-			->where('frais_paye', true)
-			->where('participation', true)
 			->where('admission', true)
 			->whereNull('motif')
 			->whereNull('acceptation_date')
 			->whereNull('etudiant_id')
+			->whereNull('group_id') // <--- IL DISPARAIT DE LA LISTE ICI !
+			->where('niveau_id', $group->niveau_id)
 			->whereIn('filiere_id', $group->filieres()->pluck('filieres.id'))
 			->get();
 

@@ -21,7 +21,7 @@ class BlogResource extends JsonResource
              "status" => $this->resource->status,
             "image" => $this->resource->getFullPath(),
             "content" => $this->resource->content,
-            "date_publication" => date_format(date_create($this->resource->publication_date), 'Y-m-d h:i:s'),
+            "date_publication" => date_format(date_create($this->resource->publication_date), 'Y-m-d H:i:s'),
             "date_publication_detail" => date_format(date_create($this->resource->publication_date), 'd F Y'),
             "slug" => $this->resource->slug,
         ];

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Scopes\CurrentAnneeScolaireScope;
+use App\Traits\LogsActivityWithDefaults;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany};
@@ -15,6 +16,8 @@ use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany};
 #[ScopedBy([CurrentAnneeScolaireScope::class])]
 class Note extends Model
 {
+	use LogsActivityWithDefaults;
+
 	protected $guarded = false;
 
 	public function etudiant(): BelongsTo

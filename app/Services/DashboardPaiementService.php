@@ -14,11 +14,9 @@ use Illuminate\Support\Facades\Log;
 
 class DashboardPaiementService
 {
-    protected $anneeScolaireId;
-
-    public function __construct()
+    protected function getAnneeScolaireId()
     {
-        $this->anneeScolaireId = getAnneeScolaireId();
+        return request()->input('annee_id') ?? request()->header('X-Annee-Scolaire-Id') ?? getAnneeScolaireId();
     }
 
     /**
@@ -48,7 +46,13 @@ class DashboardPaiementService
     protected function determinerPeriode($periode, $dateDebut = null, $dateFin = null)
     {
         $now = Carbon::now();
+        $anneeScolaire = \App\Models\AnneeScolaire::find($this->getAnneeScolaireId());
         
+        // Par défaut, si les dates n'existent pas, on utilise l'année civile
+        $debutAnnee = $anneeScolaire && $anneeScolaire->date_debut ? Carbon::parse($anneeScolaire->date_debut) : $now->copy()->startOfYear();
+        $finAnnee = $anneeScolaire && $anneeScolaire->date_fin ? Carbon::parse($anneeScolaire->date_fin) : $now->copy()->endOfYear();
+        $labelAnnee = $anneeScolaire ? 'Année scolaire ' . $anneeScolaire->nom : 'Cette année';
+
         switch ($periode) {
             case 'semaine':
                 return [
@@ -64,9 +68,9 @@ class DashboardPaiementService
                 ];
             case 'annee':
                 return [
-                    'debut' => $now->copy()->startOfYear(),
-                    'fin' => $now->copy()->endOfYear(),
-                    'label' => 'Cette année'
+                    'debut' => $debutAnnee,
+                    'fin' => $finAnnee,
+                    'label' => $labelAnnee
                 ];
             case 'personnalise':
                 return [
@@ -76,9 +80,9 @@ class DashboardPaiementService
                 ];
             default:
                 return [
-                    'debut' => $now->copy()->startOfYear(),
-                    'fin' => $now->copy()->endOfYear(),
-                    'label' => 'Cette année'
+                    'debut' => $debutAnnee,
+                    'fin' => $finAnnee,
+                    'label' => $labelAnnee
                 ];
         }
     }
@@ -88,12 +92,13 @@ class DashboardPaiementService
      */
     protected function getResumeGlobal($dates)
     {
-        $paiements = Paiement::whereBetween('created_at', [$dates['debut'], $dates['fin']])
+        $paiements = Paiement::where('annee_scolaire_id', $this->getAnneeScolaireId())
+            ->whereBetween('created_at', [$dates['debut'], $dates['fin']])
             ->where('status', 'valide')
             ->get();
 
         $totalEtudiants = Etudiant::whereHas('etudiantGroups', function($q) {
-            $q->where('annee_scolaire_id', $this->anneeScolaireId);
+            $q->where('annee_scolaire_id', $this->getAnneeScolaireId());
         })->count();
 
         // Calcul des montants totaux à payer
@@ -111,7 +116,7 @@ class DashboardPaiementService
 
         return [
             'total_etudiants' => $totalEtudiants,
-            'etudiants_avec_frais' => FraisEtudiant::where('annee_scolaire_id', $this->anneeScolaireId)->count(),
+            'etudiants_avec_frais' => FraisEtudiant::where('annee_scolaire_id', $this->getAnneeScolaireId())->count(),
             'montant_total_a_payer' => $montantTotalAPayer,
             'montant_a_payer_scolarite' => $aPayerDetails['scolarite'],
             'montant_a_payer_inscription' => $aPayerDetails['inscription'],
@@ -136,15 +141,15 @@ class DashboardPaiementService
         $totalInscription = 0;
 
         $etudiants = Etudiant::whereHas('etudiantGroups', function($q) {
-            $q->where('annee_scolaire_id', $this->anneeScolaireId);
+            $q->where('annee_scolaire_id', $this->getAnneeScolaireId());
         })->with(['etudiantGroups' => function($q) {
-            $q->where('annee_scolaire_id', $this->anneeScolaireId);
+            $q->where('annee_scolaire_id', $this->getAnneeScolaireId());
         }, 'fraisEtudiant' => function($q) {
-            $q->where('annee_scolaire_id', $this->anneeScolaireId);
+            $q->where('annee_scolaire_id', $this->getAnneeScolaireId());
         }])->get();
 
         $fraisInscriptionActif = \App\Models\FraisInscription::where('active', true)
-            ->where('annee_scolaire_id', $this->anneeScolaireId)
+            ->where('annee_scolaire_id', $this->getAnneeScolaireId())
             ->first();
 
         foreach ($etudiants as $etudiant) {
@@ -174,7 +179,8 @@ class DashboardPaiementService
             case 'jour':
                 while ($debut <= $fin) {
                     $jourSuivant = $debut->copy()->addDay();
-                    $montant = Paiement::whereBetween('created_at', [$debut, $jourSuivant])
+                    $montant = Paiement::where('annee_scolaire_id', $this->getAnneeScolaireId())
+                        ->whereBetween('created_at', [$debut, $jourSuivant])
                         ->where('status', 'valide')
                         ->where('payable_type', '!=', \App\Models\FraisInscription::class)
                         ->sum('montant');
@@ -183,7 +189,8 @@ class DashboardPaiementService
                         'date' => $debut->format('Y-m-d'),
                         'label' => $debut->format('d/m'),
                         'montant' => $montant,
-                        'nombre' => Paiement::whereBetween('created_at', [$debut, $jourSuivant])
+                        'nombre' => Paiement::where('annee_scolaire_id', $this->getAnneeScolaireId())
+                            ->whereBetween('created_at', [$debut, $jourSuivant])
                             ->where('status', 'valide')
                             ->where('payable_type', '!=', \App\Models\FraisInscription::class)
                             ->count()
@@ -196,7 +203,8 @@ class DashboardPaiementService
             case 'semaine':
                 while ($debut <= $fin) {
                     $finSemaine = $debut->copy()->addWeek();
-                    $montant = Paiement::whereBetween('created_at', [$debut, $finSemaine])
+                    $montant = Paiement::where('annee_scolaire_id', $this->getAnneeScolaireId())
+                        ->whereBetween('created_at', [$debut, $finSemaine])
                         ->where('status', 'valide')
                         ->where('payable_type', '!=', \App\Models\FraisInscription::class)
                         ->sum('montant');
@@ -205,7 +213,8 @@ class DashboardPaiementService
                         'date' => $debut->format('Y-m-d'),
                         'label' => 'Semaine du ' . $debut->format('d/m'),
                         'montant' => $montant,
-                        'nombre' => Paiement::whereBetween('created_at', [$debut, $finSemaine])
+                        'nombre' => Paiement::where('annee_scolaire_id', $this->getAnneeScolaireId())
+                            ->whereBetween('created_at', [$debut, $finSemaine])
                             ->where('status', 'valide')
                             ->where('payable_type', '!=', \App\Models\FraisInscription::class)
                             ->count()
@@ -218,7 +227,8 @@ class DashboardPaiementService
             case 'mois':
                 while ($debut <= $fin) {
                     $finMois = $debut->copy()->addMonth();
-                    $montant = Paiement::whereBetween('created_at', [$debut, $finMois])
+                    $montant = Paiement::where('annee_scolaire_id', $this->getAnneeScolaireId())
+                        ->whereBetween('created_at', [$debut, $finMois])
                         ->where('status', 'valide')
                         ->where('payable_type', '!=', \App\Models\FraisInscription::class)
                         ->sum('montant');
@@ -227,7 +237,8 @@ class DashboardPaiementService
                         'date' => $debut->format('Y-m'),
                         'label' => $debut->format('F Y'),
                         'montant' => $montant,
-                        'nombre' => Paiement::whereBetween('created_at', [$debut, $finMois])
+                        'nombre' => Paiement::where('annee_scolaire_id', $this->getAnneeScolaireId())
+                            ->whereBetween('created_at', [$debut, $finMois])
                             ->where('status', 'valide')
                             ->where('payable_type', '!=', \App\Models\FraisInscription::class)
                             ->count()
@@ -263,7 +274,7 @@ class DashboardPaiementService
 protected function getRepartitionStatuts()
 {
     $total = Etudiant::whereHas('etudiantGroups', function($q) {
-        $q->where('annee_scolaire_id', $this->anneeScolaireId);
+        $q->where('annee_scolaire_id', $this->getAnneeScolaireId());
     })->count();
 
     $stats = [
@@ -275,7 +286,7 @@ protected function getRepartitionStatuts()
     // Récupérer tous les étudiants avec leurs relations
     $etudiants = Etudiant::with([
         'fraisEtudiant' => function($q) {
-            $q->where('annee_scolaire_id', $this->anneeScolaireId);
+            $q->where('annee_scolaire_id', $this->getAnneeScolaireId());
         },
         'fraisEtudiant.echeances',
         'etudiantGroups.niveau',
@@ -310,7 +321,7 @@ protected function determinerStatutEtudiant($etudiant)
     // Vérifier si l'étudiant a un frais négocié
     $fraisEtudiant = $etudiant->fraisEtudiant instanceof \Illuminate\Database\Eloquent\Collection ? 
         $etudiant->fraisEtudiant->first() : 
-        $etudiant->fraisEtudiant()->where('annee_scolaire_id', $this->anneeScolaireId)->first();
+        $etudiant->fraisEtudiant()->where('annee_scolaire_id', $this->getAnneeScolaireId())->first();
 
     if ($fraisEtudiant) {
         return $fraisEtudiant->statut;
@@ -319,14 +330,14 @@ protected function determinerStatutEtudiant($etudiant)
     // Vérifier via les tranches standard
     $dernierGroupe = $etudiant->etudiantGroups instanceof \Illuminate\Database\Eloquent\Collection ? 
         $etudiant->etudiantGroups->first() : 
-        $etudiant->etudiantGroups()->where('annee_scolaire_id', $this->anneeScolaireId)->first();
+        $etudiant->etudiantGroups()->where('annee_scolaire_id', $this->getAnneeScolaireId())->first();
 
     if (!$dernierGroupe || !$dernierGroupe->niveau_id) {
         return 'aucun_frais';
     }
 
     $fraisScolarite = FraisScolarite::where('niveau_id', $dernierGroupe->niveau_id)
-        ->where('annee_scolaire_id', $this->anneeScolaireId)
+        ->where('annee_scolaire_id', $this->getAnneeScolaireId())
         ->first();
 
     if (!$fraisScolarite) {
@@ -335,6 +346,7 @@ protected function determinerStatutEtudiant($etudiant)
 
     // Calculer le total payé pour cet étudiant
     $totalPaye = Paiement::where('etudiant_id', $etudiant->id)
+        ->where('annee_scolaire_id', $this->getAnneeScolaireId())
         ->where('status', 'valide')
         ->sum('montant');
 
@@ -348,6 +360,7 @@ protected function determinerStatutEtudiant($etudiant)
     $aDesRetards = false;
     foreach ($fraisScolarite->tranchepaiement as $tranche) {
         $payeTranche = Paiement::where('etudiant_id', $etudiant->id)
+            ->where('annee_scolaire_id', $this->getAnneeScolaireId())
             ->where('payable_type', TranchePaiement::class)
             ->where('payable_id', $tranche->id)
             ->where('status', 'valide')
@@ -367,7 +380,8 @@ protected function determinerStatutEtudiant($etudiant)
      */
     protected function getTopPerformers($dates, $limit = 5)
     {
-        $top = Paiement::whereBetween('created_at', [$dates['debut'], $dates['fin']])
+        $top = Paiement::where('annee_scolaire_id', $this->getAnneeScolaireId())
+            ->whereBetween('created_at', [$dates['debut'], $dates['fin']])
             ->where('status', 'valide')
             ->select('etudiant_id', DB::raw('SUM(montant) as total_paye'), DB::raw('COUNT(*) as nombre_paiements'))
             ->groupBy('etudiant_id')
@@ -394,7 +408,7 @@ protected function determinerStatutEtudiant($etudiant)
     protected function getEtudiantsEnRetard($limit = 10)
     {
         $etudiants = Etudiant::whereHas('etudiantGroups', function($q) {
-            $q->where('annee_scolaire_id', $this->anneeScolaireId);
+            $q->where('annee_scolaire_id', $this->getAnneeScolaireId());
         })->get()->take(5);
 
         $enRetard = [];
@@ -432,7 +446,7 @@ protected function determinerStatutEtudiant($etudiant)
     protected function calculerMontantRestant($etudiant)
     {
         $fraisEtudiant = $etudiant->fraisEtudiant()
-            ->where('annee_scolaire_id', $this->anneeScolaireId)
+            ->where('annee_scolaire_id', $this->getAnneeScolaireId())
             ->first();
 
         if ($fraisEtudiant) {
@@ -441,7 +455,7 @@ protected function determinerStatutEtudiant($etudiant)
         }
 
         $dernierGroupe = $etudiant->etudiantGroups()
-            ->where('annee_scolaire_id', $this->anneeScolaireId)
+            ->where('annee_scolaire_id', $this->getAnneeScolaireId())
             ->first();
 
         if (!$dernierGroupe || !$dernierGroupe->niveau_id) {
@@ -449,7 +463,7 @@ protected function determinerStatutEtudiant($etudiant)
         }
 
         $fraisScolarite = FraisScolarite::where('niveau_id', $dernierGroupe->niveau_id)
-            ->where('annee_scolaire_id', $this->anneeScolaireId)
+            ->where('annee_scolaire_id', $this->getAnneeScolaireId())
             ->first();
 
         if (!$fraisScolarite) {
@@ -458,6 +472,7 @@ protected function determinerStatutEtudiant($etudiant)
 
         $montantTotal = $fraisScolarite->tranchepaiement->sum('montant');
         $totalPaye = Paiement::where('etudiant_id', $etudiant->id)
+            ->where('annee_scolaire_id', $this->getAnneeScolaireId())
             ->where('status', 'valide')
             ->sum('montant');
 
@@ -470,7 +485,7 @@ protected function determinerStatutEtudiant($etudiant)
 protected function getProchaineEcheance($etudiant)
 {
     $fraisEtudiant = $etudiant->fraisEtudiant()
-        ->where('annee_scolaire_id', $this->anneeScolaireId)
+        ->where('annee_scolaire_id', $this->getAnneeScolaireId())
         ->first();
 
     if ($fraisEtudiant) {
@@ -483,7 +498,7 @@ protected function getProchaineEcheance($etudiant)
     }
 
     $dernierGroupe = $etudiant->etudiantGroups()
-        ->where('annee_scolaire_id', $this->anneeScolaireId)
+        ->where('annee_scolaire_id', $this->getAnneeScolaireId())
         ->first();
 
     if (!$dernierGroupe || !$dernierGroupe->niveau_id) {
@@ -491,7 +506,7 @@ protected function getProchaineEcheance($etudiant)
     }
 
     $fraisScolarite = FraisScolarite::where('niveau_id', $dernierGroupe->niveau_id)
-        ->where('annee_scolaire_id', $this->anneeScolaireId)
+        ->where('annee_scolaire_id', $this->getAnneeScolaireId())
         ->first();
 
     if (!$fraisScolarite) {
@@ -503,6 +518,7 @@ protected function getProchaineEcheance($etudiant)
 
     foreach ($tranches as $tranche) {
         $payeTranche = Paiement::where('etudiant_id', $etudiant->id)
+            ->where('annee_scolaire_id', $this->getAnneeScolaireId())
             ->where('payable_type', TranchePaiement::class)
             ->where('payable_id', $tranche->id)
             ->where('status', 'valide')
@@ -521,7 +537,8 @@ protected function getProchaineEcheance($etudiant)
      */
     protected function getPaiementsRecents($dates, $limit = 10)
     {
-        return Paiement::whereBetween('created_at', [$dates['debut'], $dates['fin']])
+        return Paiement::where('annee_scolaire_id', $this->getAnneeScolaireId())
+            ->whereBetween('created_at', [$dates['debut'], $dates['fin']])
             ->where('status', 'valide')
             ->with(['etudiant', 'payable'])
             ->orderByDesc('created_at')
@@ -548,12 +565,12 @@ protected function getProchaineEcheance($etudiant)
     {
         $filieres = \App\Models\Filiere::all();
         $resultats = [];
-        $fraisInscriptionActif = \App\Models\FraisInscription::where('active', true)->where('annee_scolaire_id', $this->anneeScolaireId)->first();
+        $fraisInscriptionActif = \App\Models\FraisInscription::where('active', true)->where('annee_scolaire_id', $this->getAnneeScolaireId())->first();
 
         foreach ($filieres as $filiere) {
             $etudiants = Etudiant::whereHas('etudiantGroups', function($q) use ($filiere) {
                 $q->where('filiere_id', $filiere->id)
-                  ->where('annee_scolaire_id', $this->anneeScolaireId);
+                  ->where('annee_scolaire_id', $this->getAnneeScolaireId());
             })->get();
 
             if ($etudiants->isEmpty()) {
@@ -580,6 +597,7 @@ protected function getProchaineEcheance($etudiant)
 
                 $totalPayeScolarite += $this->getMontantPayeEtudiant($etudiant);
                 $totalPayeInscription += Paiement::where('etudiant_id', $etudiant->id)
+                    ->where('annee_scolaire_id', $this->getAnneeScolaireId())
                     ->where('status', 'valide')
                     ->where('payable_type', \App\Models\FraisInscription::class)
                     ->sum('montant');
@@ -615,12 +633,12 @@ protected function getProchaineEcheance($etudiant)
     {
         $niveaux = \App\Models\Niveau::all();
         $resultats = [];
-        $fraisInscriptionActif = \App\Models\FraisInscription::where('active', true)->where('annee_scolaire_id', $this->anneeScolaireId)->first();
+        $fraisInscriptionActif = \App\Models\FraisInscription::where('active', true)->where('annee_scolaire_id', $this->getAnneeScolaireId())->first();
 
         foreach ($niveaux as $niveau) {
             $etudiants = Etudiant::whereHas('etudiantGroups', function($q) use ($niveau) {
                 $q->where('niveau_id', $niveau->id)
-                  ->where('annee_scolaire_id', $this->anneeScolaireId);
+                  ->where('annee_scolaire_id', $this->getAnneeScolaireId());
             })->get();
 
             if ($etudiants->isEmpty()) {
@@ -647,6 +665,7 @@ protected function getProchaineEcheance($etudiant)
 
                 $totalPayeScolarite += $this->getMontantPayeEtudiant($etudiant);
                 $totalPayeInscription += Paiement::where('etudiant_id', $etudiant->id)
+                    ->where('annee_scolaire_id', $this->getAnneeScolaireId())
                     ->where('status', 'valide')
                     ->where('payable_type', \App\Models\FraisInscription::class)
                     ->sum('montant');
@@ -683,7 +702,7 @@ protected function getProchaineEcheance($etudiant)
         // 1. Priorité au dossier individuel de l'étudiant (Source de vérité absolue)
         $fraisEtudiant = ($etudiant->fraisEtudiant instanceof \Illuminate\Database\Eloquent\Collection) ? 
             $etudiant->fraisEtudiant->first() : 
-            $etudiant->fraisEtudiant()->where('annee_scolaire_id', $this->anneeScolaireId)->first();
+            $etudiant->fraisEtudiant()->where('annee_scolaire_id', $this->getAnneeScolaireId())->first();
 
         if ($fraisEtudiant) {
             return (float) $fraisEtudiant->montant_apres_bourse;
@@ -699,6 +718,7 @@ protected function getProchaineEcheance($etudiant)
     protected function getMontantPayeEtudiant($etudiant)
     {
         return Paiement::where('etudiant_id', $etudiant->id)
+            ->where('annee_scolaire_id', $this->getAnneeScolaireId())
             ->where('status', 'valide')
             ->where('payable_type', '!=', \App\Models\FraisInscription::class)
             ->sum('montant');
@@ -738,7 +758,7 @@ protected function getProchaineEcheance($etudiant)
                 if ($fraisScolarite) {
                     $nbEtudiants = Etudiant::whereHas('etudiantGroups', function($q) use ($fraisScolarite) {
                         $q->where('niveau_id', $fraisScolarite->niveau_id)
-                          ->where('annee_scolaire_id', $this->anneeScolaireId);
+                          ->where('annee_scolaire_id', $this->getAnneeScolaireId());
                         if ($fraisScolarite->filiere_id) {
                             $q->where('filiere_id', $fraisScolarite->filiere_id);
                         }
@@ -772,7 +792,8 @@ protected function getProchaineEcheance($etudiant)
             $moisDate = $aujourdhui->copy()->subMonths($i)->startOfMonth();
             $moisFin = $moisDate->copy()->endOfMonth();
 
-            $collecte = Paiement::whereBetween('created_at', [$moisDate, $moisFin])
+            $collecte = Paiement::where('annee_scolaire_id', $this->getAnneeScolaireId())
+                ->whereBetween('created_at', [$moisDate, $moisFin])
                 ->where('status', 'valide')
                 ->sum('montant');
 
@@ -784,6 +805,47 @@ protected function getProchaineEcheance($etudiant)
         }
 
         return $historique;
+    }
+
+    /**
+     * Historique paginé des paiements pour le dashboard global
+     */
+    public function getHistoriquePaiements($dateDebut, $dateFin, $page = 1, $perPage = 20)
+    {
+        $query = Paiement::with(['etudiant', 'payable'])
+            ->where('annee_scolaire_id', $this->getAnneeScolaireId())
+            ->where('status', 'valide');
+            
+        if ($dateDebut) {
+            $query->whereDate('created_at', '>=', $dateDebut);
+        }
+        if ($dateFin) {
+            $query->whereDate('created_at', '<=', $dateFin);
+        }
+        
+        $paginator = $query->orderByDesc('created_at')->paginate($perPage, ['*'], 'page', $page);
+        
+        $items = $paginator->map(function($paiement) {
+            return [
+                'id' => $paiement->id,
+                'etudiant' => $paiement->etudiant ? ($paiement->etudiant->nom . ' ' . $paiement->etudiant->prenom) : 'N/A',
+                'matricule' => $paiement->etudiant->matricule ?? 'N/A',
+                'montant' => $paiement->montant,
+                'mode' => $paiement->mode_paiement,
+                'banque' => $paiement->mode_paiement === 'banque' ? ($paiement->reference ?? '--') : '--',
+                'numero_recu' => $paiement->reference ?? '--',
+                'date_paiement' => $paiement->created_at->format('Y-m-d H:i'),
+                'libelle' => $this->getLibellePayable($paiement->payable),
+            ];
+        });
+        
+        return [
+            'items' => $items,
+            'total' => $paginator->total(),
+            'per_page' => $paginator->perPage(),
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+        ];
     }
 
     /**

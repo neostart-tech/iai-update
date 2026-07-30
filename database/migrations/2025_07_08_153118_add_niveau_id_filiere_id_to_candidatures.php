@@ -13,12 +13,12 @@ return new class extends Migration
     {
         Schema::table('candidatures', function (Blueprint $table) {
             if (!Schema::hasColumn('candidatures', 'niveau_id')) {
-                $table->unsignedBigInteger('niveau_id')->after('etudiant_id');
+                $table->unsignedBigInteger('niveau_id')->nullable()->after('etudiant_id');
                 $table->foreign('niveau_id')->references('id')->on('niveaux')->nullOnDelete();
             }
 
             if (!Schema::hasColumn('candidatures', 'filiere_id')) {
-                $table->unsignedBigInteger('filiere_id')->after('niveau_id');
+                $table->unsignedBigInteger('filiere_id')->nullable()->after('niveau_id');
                 $table->foreign('filiere_id')->references('id')->on('filieres')->nullOnDelete();
             }
         });
