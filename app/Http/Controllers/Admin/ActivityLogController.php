@@ -13,6 +13,21 @@ class ActivityLogController extends Controller
 	{
 		$query = Activity::query()->with('causer')->latest('id');
 
+		// Masquer les actions anonymes / utilisateurs externes non enregistrés
+		$query->whereNotNull('causer_id');
+
+		// Masquer le bruit des requêtes GET de simple consultation d'arrière-plan
+		$query->where(function ($q) {
+			$q->whereNull('properties->method')
+				->orWhere('properties->method', '!=', 'GET')
+				->orWhere('properties->path', 'like', '%export%')
+				->orWhere('properties->path', 'like', '%download%')
+				->orWhere('properties->path', 'like', '%telecharger%')
+				->orWhere('properties->path', 'like', '%pdf%')
+				->orWhere('properties->path', 'like', '%releve%')
+				->orWhere('properties->path', 'like', '%attestation%');
+		});
+
 		if ($request->filled('user_id')) {
 			$query->where('causer_id', $request->input('user_id'));
 		}
@@ -60,6 +75,17 @@ class ActivityLogController extends Controller
 			->where('causer_id', $request->user()->id)
 			->latest('id');
 
+		$query->where(function ($q) {
+			$q->whereNull('properties->method')
+				->orWhere('properties->method', '!=', 'GET')
+				->orWhere('properties->path', 'like', '%export%')
+				->orWhere('properties->path', 'like', '%download%')
+				->orWhere('properties->path', 'like', '%telecharger%')
+				->orWhere('properties->path', 'like', '%pdf%')
+				->orWhere('properties->path', 'like', '%releve%')
+				->orWhere('properties->path', 'like', '%attestation%');
+		});
+
 		if ($request->filled('date_from')) {
 			$query->whereDate('created_at', '>=', $request->input('date_from'));
 		}
@@ -90,5 +116,35 @@ class ActivityLogController extends Controller
 		return response()->json([
 			'data' => Activity::query()->distinct()->orderBy('log_name')->pluck('log_name'),
 		]);
+	}
+
+	public function destroy($id)
+	{
+		$user = auth()->user();
+		if (!$user->can('delete-log') && !in_array($user->role?->slug ?? '', ['informaticien', 'directeur-general', 'directeur-general-adjoint', 'super-admin'])) {
+			abort(403, 'Action non autorisée');
+		}
+
+		$log = Activity::findOrFail($id);
+		$log->delete();
+
+		return response()->json(['message' => 'Log supprimé avec succès']);
+	}
+
+	public function bulkDestroy(Request $request)
+	{
+		$user = auth()->user();
+		if (!$user->can('delete-log') && !in_array($user->role?->slug ?? '', ['informaticien', 'directeur-general', 'directeur-general-adjoint', 'super-admin'])) {
+			abort(403, 'Action non autorisée');
+		}
+
+		$request->validate([
+			'ids' => 'required|array',
+			'ids.*' => 'integer',
+		]);
+
+		Activity::whereIn('id', $request->input('ids'))->delete();
+
+		return response()->json(['message' => 'Les logs sélectionnés ont été supprimés avec succès']);
 	}
 }

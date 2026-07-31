@@ -72,8 +72,34 @@ class LogActivity
 
 	protected function shouldLog(Request $request): bool
 	{
+		// Ne pas journaliser les requêtes si l'utilisateur n'est pas connecté dans le système
+		// (ex: visiteur externe, consultation du site public sans compte).
+		if (!$request->user()) {
+			return false;
+		}
+
 		foreach ($this->excludedPathPatterns as $pattern) {
 			if ($request->is($pattern)) {
+				return false;
+			}
+		}
+
+		// Ne pas journaliser les requêtes de simple lecture (GET/HEAD) :
+		// Le journal d'activité a pour vocation de tracer les requêtes ayant un impact métier
+		// (Création, Modification, Suppression, Connexion, Exportation/Téléchargement).
+		// Seuls les exports, téléchargements de documents ou impressions sont conservés en GET.
+		if (in_array($request->method(), ['GET', 'HEAD'], true)) {
+			$path = mb_strtolower($request->path());
+			$isExportOrDownload = str_contains($path, 'export')
+				|| str_contains($path, 'download')
+				|| str_contains($path, 'telecharger')
+				|| str_contains($path, 'imprimer')
+				|| str_contains($path, 'print')
+				|| str_contains($path, 'pdf')
+				|| str_contains($path, 'releve')
+				|| str_contains($path, 'attestation')
+				|| str_contains($path, 'facture');
+			if (!$isExportOrDownload) {
 				return false;
 			}
 		}
@@ -116,35 +142,139 @@ class LogActivity
 	}
 
 	/**
-	 * Cherche parmi les paramètres de route déjà résolus par Laravel (route model
-	 * binding implicite, donc de vrais modèles Eloquent, pas de simples ID) celui
-	 * qui correspond le mieux à "l'élément concerné" par la requête, et en tire un
-	 * libellé humain (nom + prénom, nom, libellé...). Renvoie null si aucun
-	 * paramètre de route n'est un modèle, ou si aucun champ usuel n'est trouvé.
+	 * Cherche la désignation lisible de l'élément concerné (titre de la publication,
+	 * nom de l'utilisateur/candidat, libellé de la filière, etc.).
+	 * 1. Depuis la charge utile de la requête ($request->input('titre'), nom, libelle...)
+	 * 2. Depuis les paramètres résolus de la route (modèles Eloquent)
+	 * 3. Depuis la base de données si l'ID est transmis en paramètre de route
 	 */
 	protected function extractSubjectLabel(Request $request): ?string
 	{
+		// 0. Si un etudiant_id / user_id est passé dans le payload
+		if ($etudiantId = $request->input('etudiant_id')) {
+			if (is_numeric($etudiantId) && $etudiant = \App\Models\Etudiant::find($etudiantId)) {
+				return $this->extractLabelFromModel($etudiant);
+			}
+		}
+
+		if ($userId = $request->input('user_id')) {
+			if (is_numeric($userId) && $user = \App\Models\User::find($userId)) {
+				return $this->extractLabelFromModel($user);
+			}
+		}
+
+		if ($candidatureId = $request->input('candidature_id')) {
+			if (is_numeric($candidatureId) && $candidature = \App\Models\Candidature::find($candidatureId)) {
+				return $this->extractLabelFromModel($candidature);
+			}
+		}
+
+		if ($etudiantIds = $request->input('etudiant_ids')) {
+			if (is_array($etudiantIds) && count($etudiantIds) > 0) {
+				return count($etudiantIds) . ' étudiant(s)';
+			}
+		}
+
+		// Extraction spécifique pour les configurations système et champs de candidature
+		if ($request->has('champs') && is_array($request->input('champs'))) {
+			$labels = collect($request->input('champs'))->pluck('label')->filter()->take(3)->implode(', ');
+			if (filled($labels)) {
+				return $labels . (count($request->input('champs')) > 3 ? '...' : '');
+			}
+		}
+
+		if ($request->has('config_value') && is_array($request->input('config_value'))) {
+			$keys = array_keys($request->input('config_value'));
+			$formattedKeys = array_map(fn($k) => str_replace(['_', '-'], ' ', $k), $keys);
+			return implode(', ', array_slice($formattedKeys, 0, 3)) . (count($keys) > 3 ? '...' : '');
+		}
+
+		if ($key = $request->input('key')) {
+			if (is_string($key) && filled($key)) {
+				return str_replace(['_', '-'], ' ', $key);
+			}
+		}
+
+		// 1. Extraire depuis le payload s'il s'agit d'un formulaire (ex: titre de blog, nom d'utilisateur...)
+		$payloadNom = $request->input('nom');
+		$payloadPrenom = $request->input('prenom');
+
+		if (filled($payloadNom) && filled($payloadPrenom)) {
+			return trim($payloadNom . ' ' . $payloadPrenom);
+		}
+
+		foreach (['titre', 'title', 'nom', 'libelle', 'label', 'nom_affichage', 'sujet', 'name'] as $field) {
+			$val = $request->input($field);
+			if (filled($val) && is_string($val)) {
+				return mb_substr(trim($val), 0, 100);
+			}
+		}
+
 		$route = $request->route();
 		if (!$route) {
 			return null;
 		}
 
-		foreach ($route->parameters() as $value) {
-			if (!$value instanceof \Illuminate\Database\Eloquent\Model) {
-				continue;
+		// 2. Parcourir les paramètres de route
+		foreach ($route->parameters() as $key => $value) {
+			if ($value instanceof \Illuminate\Database\Eloquent\Model) {
+				return $this->extractLabelFromModel($value);
 			}
 
-			if (filled($value->nom ?? null) && filled($value->prenom ?? null)) {
-				return trim($value->nom . ' ' . $value->prenom);
-			}
-
-			foreach (['nom', 'libelle', 'titre', 'label', 'nom_affichage', 'email'] as $field) {
-				if (filled($value->{$field} ?? null)) {
-					return (string) $value->{$field};
+			if (is_scalar($value) && filled($value)) {
+				$model = $this->findModelForRoute($route->getName(), (string) $key, $value);
+				if ($model) {
+					return $this->extractLabelFromModel($model);
 				}
 			}
+		}
 
-			return '#' . $value->getKey();
+		return null;
+	}
+
+	protected function extractLabelFromModel(\Illuminate\Database\Eloquent\Model $model): ?string
+	{
+		if (filled($model->nom ?? null) && filled($model->prenom ?? null)) {
+			return trim($model->nom . ' ' . $model->prenom);
+		}
+
+		foreach (['titre', 'title', 'nom', 'libelle', 'label', 'nom_affichage', 'sujet', 'name', 'code', 'email'] as $field) {
+			if (filled($model->{$field} ?? null)) {
+				return (string) $model->{$field};
+			}
+		}
+
+		return null;
+	}
+
+	protected function findModelForRoute(?string $routeName, string $paramKey, mixed $id): ?\Illuminate\Database\Eloquent\Model
+	{
+		if (!$routeName || !is_numeric($id)) {
+			return null;
+		}
+
+		$map = [
+			'blogs' => \App\Models\Blog::class,
+			'candidatures' => \App\Models\Candidature::class,
+			'users' => \App\Models\User::class,
+			'roles' => \Spatie\Permission\Models\Role::class,
+			'etudiants' => \App\Models\Etudiant::class,
+			'filieres' => \App\Models\Filiere::class,
+			'salles' => \App\Models\Salle::class,
+			'events' => \App\Models\Event::class,
+			'announcements' => \App\Models\Announcement::class,
+			'urgent_infos' => \App\Models\UrgentInfo::class,
+		];
+
+		$domain = explode('.', $routeName)[0] ?? '';
+		$modelClass = $map[$domain] ?? null;
+
+		if ($modelClass && class_exists($modelClass)) {
+			try {
+				return $modelClass::find($id);
+			} catch (\Throwable $e) {
+				return null;
+			}
 		}
 
 		return null;
