@@ -203,6 +203,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('bulk-delete', 'bulkDestroy')->name('bulk-destroy')->middleware('can:delete-log');
     });
 
+    // Sauvegardes de la base de données et du système
+    Route::controller(\App\Http\Controllers\Admin\BackupController::class)->prefix('backups')->name('backups.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('generate', 'generate')->name('generate');
+        Route::get('download/{filename}', 'download')->name('download');
+        Route::delete('{filename}', 'destroy')->name('destroy');
+    });
+
     // Historique personnel (self-service, sans permission dédiée : chacun voit son propre journal)
     Route::get('logs/mine', [ActivityLogController::class, 'mine'])->name('logs.mine');
 
