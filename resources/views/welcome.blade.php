@@ -406,50 +406,94 @@
     @php
         $urgentDocUrl = $urgentInfo->file_path ? asset('storage/'.$urgentInfo->file_path) : $urgentInfo->file_url;
     @endphp
-    <!-- Bannière Information urgente -->
-    <section class="py-6 md:py-8" style="background-color: #f4f5f7;">
-        <div class="container mx-auto px-4">
-            <div class="rounded-2xl px-6 py-8 md:px-12 md:py-10 text-center" style="background-color: rgba(13, 122, 55, 0.08);">
-                <h2 class="text-xl md:text-2xl font-bold mb-2" style="color: var(--dark-text);">{{ $urgentInfo->title }}</h2>
+    <!-- Bannière Information Urgente — charte graphique IAI-TOGO -->
+    <div class="w-full relative overflow-hidden" style="background: linear-gradient(105deg, #0a2e16 0%, #0D7A37 45%, #0f5c2a 100%);">
+        <!-- Texture diagonale subtile -->
+        <div class="absolute inset-0 pointer-events-none" style="background-image: repeating-linear-gradient(45deg, rgba(176,157,114,0.04) 0px, rgba(176,157,114,0.04) 1px, transparent 1px, transparent 12px); opacity:.6;"></div>
+        <!-- Halo doré à droite -->
+        <div class="absolute right-0 top-0 h-full w-1/3 pointer-events-none" style="background: radial-gradient(ellipse at 90% 50%, rgba(176,157,114,0.18) 0%, transparent 70%);"></div>
+        <!-- Ligne dorée en haut -->
+        <div class="absolute top-0 left-0 right-0 h-0.5" style="background: linear-gradient(90deg, transparent, #b09d72 40%, #b09d72 60%, transparent);"></div>
 
-                @if($urgentInfo->summary)
-                    <p class="text-sm md:text-base max-w-2xl mx-auto mb-6" style="color: #4a5568;">{{ $urgentInfo->summary }}</p>
-                @endif
+        <div class="relative z-10 w-full px-5 sm:px-8 md:px-12 lg:px-16 xl:px-20 py-5 md:py-6">
+            <div class="flex flex-col lg:flex-row items-start lg:items-center gap-5 lg:gap-8">
 
-                <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <!-- Icône / Badge latéral -->
+                <div class="shrink-0 hidden md:flex items-center justify-center w-12 h-12 rounded-2xl" style="background:rgba(176,157,114,0.18); border:1px solid rgba(176,157,114,0.35);">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="#b09d72" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                </div>
+
+                <!-- Texte -->
+                <div class="flex-1 min-w-0">
+                    <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                        <span class="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-widest uppercase px-2.5 py-0.5 rounded-full" style="background:rgba(176,157,114,0.2); color:#d4bc8a; border:1px solid rgba(176,157,114,0.3);">
+                            <span class="relative flex h-1.5 w-1.5">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style="background:#b09d72;"></span>
+                                <span class="relative inline-flex rounded-full h-1.5 w-1.5" style="background:#b09d72;"></span>
+                            </span>
+                            Communiqué officiel
+                        </span>
+                    </div>
+
+                    <h2 class="text-white font-extrabold leading-snug text-base sm:text-lg lg:text-xl xl:text-2xl truncate-multiline" style="font-family:'Montserrat',sans-serif; letter-spacing:-0.01em;">
+                        {{ $urgentInfo->clean_title ?: $urgentInfo->title }}
+                    </h2>
+
+                    @if($urgentInfo->clean_summary)
+                        <p class="mt-1 text-sm leading-relaxed" style="color:rgba(255,255,255,0.72); font-family:'Montserrat',sans-serif;">
+                            {{ Str::limit($urgentInfo->clean_summary, 160) }}
+                        </p>
+                    @endif
+                </div>
+
+                <!-- Séparateur vertical (desktop uniquement) -->
+                <div class="hidden lg:block shrink-0 w-px h-14 self-center" style="background:rgba(176,157,114,0.25);"></div>
+
+                <!-- Boutons — blancs pour contraste maximal sur fond vert -->
+                <div class="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-stretch sm:items-center gap-3 shrink-0 w-full sm:w-auto">
                     @if($urgentDocUrl)
                         <a href="{{ $urgentDocUrl }}" target="_blank" @if($urgentInfo->file_path) download @endif
-                           class="inline-flex items-center gap-2 font-semibold py-3 px-7 rounded-full transition-all duration-300 text-white"
-                           style="background-color: var(--primary-green);"
-                           onmouseover="this.style.backgroundColor='#0a5f2b'" onmouseout="this.style.backgroundColor='var(--primary-green)'">
-                            Consulter l'avis
-                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                           class="inline-flex items-center justify-center gap-2 text-sm font-bold py-2.5 px-6 rounded-xl shadow-lg transition-all duration-200"
+                           style="background:#ffffff; color:#0a5f2a; white-space:nowrap; border:2px solid #ffffff;"
+                           onmouseover="this.style.background='transparent';this.style.color='#ffffff';"
+                           onmouseout="this.style.background='#ffffff';this.style.color='#0a5f2a';">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
+                            Consulter l'avis
                         </a>
                     @else
                         <a href="{{ route('urgent.info') }}"
-                           class="inline-flex items-center gap-2 font-semibold py-3 px-7 rounded-full transition-all duration-300 text-white"
-                           style="background-color: var(--primary-green);"
-                           onmouseover="this.style.backgroundColor='#0a5f2b'" onmouseout="this.style.backgroundColor='var(--primary-green)'">
-                            Consulter l'avis
-                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                           class="inline-flex items-center justify-center gap-2 text-sm font-bold py-2.5 px-6 rounded-xl shadow-lg transition-all duration-200"
+                           style="background:#ffffff; color:#0a5f2a; white-space:nowrap; border:2px solid #ffffff;"
+                           onmouseover="this.style.background='transparent';this.style.color='#ffffff';"
+                           onmouseout="this.style.background='#ffffff';this.style.color='#0a5f2a';">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
+                            Voir l'annonce
                         </a>
                     @endif
 
-                    <a href="{{ route('formulaire') }}"
-                       class="inline-flex items-center gap-2 font-semibold py-3 px-7 rounded-full border-2 transition-all duration-300"
-                       style="border-color: var(--primary-green); color: var(--primary-green);"
-                       onmouseover="this.style.backgroundColor='var(--primary-green)'; this.style.color='white'"
-                       onmouseout="this.style.backgroundColor='transparent'; this.style.color='var(--primary-green)'">
+                    <a href="{{ route('candidatures.create') }}"
+                       class="inline-flex items-center justify-center gap-2 text-sm font-bold py-2.5 px-6 rounded-xl transition-all duration-200"
+                       style="background:transparent; color:#ffffff; white-space:nowrap; border:2px solid rgba(255,255,255,0.85);"
+                       onmouseover="this.style.background='#ffffff';this.style.color='#0a5f2a';this.style.borderColor='#ffffff';"
+                       onmouseout="this.style.background='transparent';this.style.color='#ffffff';this.style.borderColor='rgba(255,255,255,0.85)';">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
                         Candidater en ligne
                     </a>
                 </div>
+
             </div>
         </div>
-    </section>
+        <!-- Ligne dorée en bas -->
+        <div class="absolute bottom-0 left-0 right-0 h-0.5" style="background: linear-gradient(90deg, transparent, #b09d72 40%, #b09d72 60%, transparent);"></div>
+    </div>
 @endif
 
 <!-- About Section -->

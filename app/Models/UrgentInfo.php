@@ -61,4 +61,14 @@ class UrgentInfo extends Model
         'published_at' => 'datetime',
         'attachments' => 'array',
     ];
+
+    public function getCleanSummaryAttribute(): string
+    {
+        return html_entity_decode(strip_tags($this->summary ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    public function getCleanTitleAttribute(): string
+    {
+        return html_entity_decode(strip_tags($this->title ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
 }

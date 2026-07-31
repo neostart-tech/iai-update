@@ -219,6 +219,7 @@ class CandidatureController extends Controller
 			...($estObligatoire('comment_connu_ecole') ? ['required'] : ['nullable']),
 			'exists:moyens_connaissances,id',
 		];
+		$rules['moyen_connaissance_precision'] = ['nullable', 'string', 'max:255'];
 
 		$champsTuteur = [
 			'nom' => true,
@@ -383,6 +384,7 @@ class CandidatureController extends Controller
 					'adresse',
 					'numero_bordereau',
 					'moyen_connaissance_id',
+					'moyen_connaissance_precision',
 				]),
 				...injectAnneeScolaireId(),
 				'concours_session_id' => \App\Models\ConcoursSession::where('annee_scolaire_id', getAnneeScolaireId())->value('id'),
@@ -523,6 +525,7 @@ class CandidatureController extends Controller
 				'adresse',
 				'numero_bordereau',
 				'moyen_connaissance_id',
+				'moyen_connaissance_precision',
 			]),
 			...injectAnneeScolaireId(),
 			'concours_session_id' => \App\Models\ConcoursSession::where('annee_scolaire_id', getAnneeScolaireId())->value('id'),
@@ -646,6 +649,7 @@ class CandidatureController extends Controller
 			'fax' => ['nullable', 'string', 'max:255'],
 			'numero_bordereau' => ['nullable', 'string', 'max:50', 'unique:candidatures,numero_bordereau'],
 			'moyen_connaissance_id' => ['nullable', 'exists:moyens_connaissances,id'],
+			'moyen_connaissance_precision' => ['nullable', 'string', 'max:255'],
 		]);
 
 		if ($validator->fails()) {
@@ -656,7 +660,7 @@ class CandidatureController extends Controller
 			...$request->only([
 				'nom', 'prenom', 'nom_jeune_fille', 'genre', 'date_naissance', 'lieu_naissance',
 				'nationalite', 'tel', 'tel2', 'tel3', 'email', 'adresse', 'bp', 'fax',
-				'numero_bordereau', 'moyen_connaissance_id',
+				'numero_bordereau', 'moyen_connaissance_id', 'moyen_connaissance_precision',
 			]),
 			...injectAnneeScolaireId(),
 			'concours_session_id' => \App\Models\ConcoursSession::where('annee_scolaire_id', getAnneeScolaireId())->value('id'),
@@ -719,6 +723,7 @@ class CandidatureController extends Controller
 				\Illuminate\Validation\Rule::unique('candidatures', 'numero_bordereau')->ignore($candidat->id),
 			],
 			'moyen_connaissance_id' => ['nullable', 'exists:moyens_connaissances,id'],
+			'moyen_connaissance_precision' => ['nullable', 'string', 'max:255'],
 		]);
 
 		if ($validator->fails()) {
@@ -728,7 +733,7 @@ class CandidatureController extends Controller
 		$candidat->update($request->only([
 			'nom', 'prenom', 'nom_jeune_fille', 'genre', 'date_naissance', 'lieu_naissance',
 			'nationalite', 'tel', 'tel2', 'tel3', 'email', 'adresse', 'bp', 'fax',
-			'numero_bordereau', 'moyen_connaissance_id',
+			'numero_bordereau', 'moyen_connaissance_id', 'moyen_connaissance_precision',
 		]));
 
 		return response()->json(['success' => true]);
@@ -759,7 +764,7 @@ class CandidatureController extends Controller
 			'success' => true,
 			'candidat' => $candidat->only([
 				'nom', 'prenom', 'nom_jeune_fille', 'genre', 'date_naissance', 'lieu_naissance',
-				'nationalite', 'numero_bordereau', 'moyen_connaissance_id', 'tel', 'tel2', 'tel3', 'email',
+				'nationalite', 'numero_bordereau', 'moyen_connaissance_id', 'moyen_connaissance_precision', 'tel', 'tel2', 'tel3', 'email',
 				'type_diplome_id', 'numero_table', 'annee_bac', 'mention_bac', 'serie', 'etablissement_diplome',
 				'niveau_id', 'filiere_id',
 			]),
@@ -968,6 +973,7 @@ class CandidatureController extends Controller
 				'adresse',
 				'numero_bordereau',
 				'moyen_connaissance_id',
+				'moyen_connaissance_precision',
 			]),
 			'type_diplome_id' => $typeDiplome?->id,
 			'dernier_diplome' => $typeDiplome?->nom ?? $candidature->dernier_diplome,

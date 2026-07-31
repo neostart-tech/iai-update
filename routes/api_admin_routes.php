@@ -199,6 +199,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::controller(ActivityLogController::class)->prefix('logs')->name('logs.')->middleware('can:view-logs')->group(function () {
         Route::get('/', 'index')->name('index');
         Route::get('modules', 'modules')->name('modules');
+        Route::delete('{id}', 'destroy')->name('destroy')->middleware('can:delete-log');
+        Route::post('bulk-delete', 'bulkDestroy')->name('bulk-destroy')->middleware('can:delete-log');
     });
 
     // Historique personnel (self-service, sans permission dédiée : chacun voit son propre journal)
