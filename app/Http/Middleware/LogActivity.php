@@ -51,6 +51,11 @@ class LogActivity
 		// "Système / anonyme a consulté ... (configuration)", ce qui n'a aucun sens
 		// pour l'utilisateur du journal.
 		'api/parametre/configuration',
+		// Actions intermédiaires lors des examens (sauvegarde automatique, réponse question par question, progression) :
+		// Ne pas engorger le journal d'activité ; seule la soumission finale (submit-all) est journalisée.
+		'api/exam/*/save',
+		'api/exam/*/submit-question',
+		'api/exam/*/progress',
 	];
 
 	public function handle(Request $request, Closure $next): Response

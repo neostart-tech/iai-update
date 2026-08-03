@@ -52,7 +52,7 @@ Route::prefix('officiel')->group(function () {
 		Route::post('{blog}/comment', 'storeComment')->name('comment');
 	});
 
-	Route::get('evenements/{evenement}', [EvenementController::class, 'show'])->name('events.show');
+	Route::get('evenements/{evenement}', [EvenementController::class, 'show'])->name('officiel.events.show');
 
 	Route::get('opportunités', function () {
 		return view('pages.opportunities')->with([

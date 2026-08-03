@@ -489,7 +489,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{advertiser}/details', 'show')->name('show');
         Route::post('ajouter', 'store')->name('store')->middleware('can:create-partenaire');
         Route::get('{advertiser}/modifier', 'edit')->name('edit');
-        Route::get('{advertiser}/modifier', 'edit')->name('edit');
         Route::put('{advertiser}/update', 'update')->name('update')->middleware('can:update-partenaire');
         Route::delete('{advertiser}/delete', 'destroy')->name('delete')->middleware('can:delete-partenaire');
     });
@@ -501,7 +500,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{announcement}/details', 'show')->name('show');
         Route::delete('{announcement}/supprimer', 'destroy')->name('delete')->middleware('can:delete-opportunite');
         Route::post('ajouter', 'store')->name('store')->middleware('can:create-opportunite');
-        Route::get('{announcement}/modifier', 'edit')->name('edit');
         Route::get('{announcement}/modifier', 'edit')->name('edit');
         Route::get('{announcement}/publier', 'publish')->name('publish')->middleware('can:publish-opportunite');
         Route::post('{announcement}/mettre-a-jour', 'update')->name('update')->middleware('can:update-opportunite');

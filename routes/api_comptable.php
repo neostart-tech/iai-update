@@ -22,8 +22,8 @@ Route::middleware('auth:sanctum')->group(function(){
 Route::group([],function () {
 
 	Route::controller(ComptabiliteController::class)->group(function () {
-		Route::get('dashboard-old',  'dashboard')->name('dashboard');
-		Route::get('export/{year}/{format}',  'export')->whereIn('format', ['csv', 'xlsx'])->name('export');
+		Route::get('dashboard-old',  'dashboard')->name('api.comptable.dashboard-old');
+		Route::get('export/{year}/{format}',  'export')->whereIn('format', ['csv', 'xlsx'])->name('api.comptable.export');
 	});
 
 	// Nouvelles routes API pour la finance
@@ -58,7 +58,7 @@ Route::group([],function () {
 	Route::controller(FraisScolariteController::class)->prefix('frais')->name('frais.')->group(function () {
 		Route::get('historique', 'historique')->name('historique');
 		Route::get('payer', 'payer')->name('payer');
-		Route::post('payer', 'store')->name('store')->middleware('can:create-frais-scolarite');
+		Route::post('payer', 'store')->name('payer.store')->middleware('can:create-frais-scolarite');
 
 
 		Route::get('index', 'index')->name('index');

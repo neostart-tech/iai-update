@@ -12,15 +12,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('paiements', function (Blueprint $table) {
-            $table->unsignedBigInteger('annee_scolaire_id')->nullable()->after('etudiant_id');
-            
-            // On peut ajouter la contrainte de clé étrangère
-            $table->foreign('annee_scolaire_id')
-                  ->references('id')
-                  ->on('annee_scolaires')
-                  ->onDelete('cascade');
-        });
+        if (!Schema::hasColumn('paiements', 'annee_scolaire_id')) {
+            Schema::table('paiements', function (Blueprint $table) {
+                $table->unsignedBigInteger('annee_scolaire_id')->nullable()->after('etudiant_id');
+                
+                // On peut ajouter la contrainte de clé étrangère
+                $table->foreign('annee_scolaire_id')
+                      ->references('id')
+                      ->on('annee_scolaires')
+                      ->onDelete('cascade');
+            });
+        }
 
         // Script de rétrocompatibilité : Remplir l'année scolaire pour les paiements existants
         // On cherche à récupérer l'année scolaire depuis l'étudiant ou le payable
@@ -56,10 +58,16 @@ return new class extends Migration
             
             // 3. Fallback : Prendre l'année active par défaut ou la dernière année de l'étudiant
             if (!$anneeId && $paiement->etudiant_id) {
-                $group = DB::table('etudiant_group')
-                    ->where('etudiant_id', $paiement->etudiant_id)
-                    ->orderBy('created_at', 'desc')
-                    ->first();
+                $query = DB::table('etudiant_group')
+                    ->where('etudiant_id', $paiement->etudiant_id);
+
+                if (Schema::hasColumn('etudiant_group', 'created_at')) {
+                    $query->orderBy('created_at', 'desc');
+                } elseif (Schema::hasColumn('etudiant_group', 'id')) {
+                    $query->orderBy('id', 'desc');
+                }
+
+                $group = $query->first();
                 
                 if ($group) {
                     $anneeId = $group->annee_scolaire_id;
