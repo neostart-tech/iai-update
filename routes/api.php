@@ -109,11 +109,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/get-count-reclamations', 'getCountReclamations');
     });
 
-    Route::controller(NoteController::class)->prefix('mes-notes')->name('notes.')->group(function () {
+    Route::controller(NoteController::class)->prefix('mes-notes')->name('api.notes.')->group(function () {
         Route::get('/', 'index')->name('index');
     });
 
-    Route::controller(AnnouncementController::class)->prefix('etudiant/annonces')->name('announcements.')->group(function () {
+    Route::controller(AnnouncementController::class)->prefix('etudiant/annonces')->name('api.announcements.student.')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('{announcement}/details', 'show')->name('show');
         Route::post('{announcement}/postuler-a-une-offre', 'applyToAnnouncement')->name('apply-to-announcement');

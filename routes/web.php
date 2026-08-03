@@ -73,7 +73,7 @@ Route::middleware('auth')
 	->name('admin.')
 	->group(base_path('routes/admin_routes.php'));
 
-Route::controller(CandidatureController::class)->prefix('candidatures')->name('candidatures.')->group(function () {
+Route::controller(CandidatureController::class)->prefix('candidatures')->name('candidatures.web.')->group(function () {
 	Route::get('faire-mon-depot', 'create')->name('create');
 	Route::post('faire-mon-depot', 'store')->name('store');
 	Route::get('dossier-depose', 'merci')->name('merci');
@@ -105,15 +105,8 @@ Route::controller(DocumentationController::class)->prefix('documentation')->name
 	Route::put('{document}/edit', 'edit')->name('edit');
 	Route::delete('{document}/delete', 'delete')->name('delete');
 	Route::get('{document}/download', 'download')->name('download');
+	Route::get('mes-documents', 'userIndex')->name('mes-documents');
 });
-
-Route::controller(DocumentationController::class)
-	->prefix('documentation')
-	->name('documentation.')
-	->group(function () {
-		Route::get('mes-documents', 'userIndex')->name('mes-documents');
-		Route::get('{document}/download', 'download')->name('download');
-	});
 
 
 

@@ -8,7 +8,7 @@ use App\Http\Controllers\ComptabiliteController;
 use Illuminate\Support\Facades\Route;
 
 // Route::controller(AuthentificationSessionController::class)->prefix('comptables')->name('auth.')->middleware('guest:comptables')->group(function () {
-Route::controller(AuthentificationSessionController::class)->prefix('comptables')->name('auth.')->group(function () {
+Route::controller(AuthentificationSessionController::class)->prefix('comptables')->name('api.comptable.auth.')->group(function () {
 
 	Route::get('/login-comptable', "logincompta")->name('logincompta');
 	Route::post('/se-connecter', "storecompta")->name('storecompta');

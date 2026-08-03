@@ -179,6 +179,10 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			['slug' => 'delete-log'],
 			['nom' => "Supprimer un log d'activité", 'description' => "Supprimer des entrées du journal d'activité"]
 		);
+		Permission::firstOrCreate(
+			['slug' => 'clear-activity-log'],
+			['nom' => "Vider le journal d'activité", 'description' => "Vider l'intégralité du journal des activités système"]
+		);
 
 		// Pages de paramétrage (années scolaires, niveaux, champs obligatoires de candidature,
 		// types de diplôme, moyens de connaissance, catalogue de types de documents, support).
