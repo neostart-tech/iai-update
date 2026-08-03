@@ -199,6 +199,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::controller(ActivityLogController::class)->prefix('logs')->name('logs.')->middleware('can:view-logs')->group(function () {
         Route::get('/', 'index')->name('index');
         Route::get('modules', 'modules')->name('modules');
+        Route::delete('clear-all', 'clearAll')->name('clear-all')->middleware('can:clear-activity-log');
         Route::delete('{id}', 'destroy')->name('destroy')->middleware('can:delete-log');
         Route::post('bulk-delete', 'bulkDestroy')->name('bulk-destroy')->middleware('can:delete-log');
     });
@@ -508,7 +509,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Route pour les publications
-    Route::controller(BlogController::class)->prefix('publications')->name('blogs.')->group(function () {
+    Route::controller(BlogController::class)->prefix('publications')->name('api.blogs.')->group(function () {
         Route::get('', 'index')->name('index');
         Route::get('ajouter', 'create')->name('create');
         Route::post('nouveau', 'store')->name('store')->middleware('can:create-blog');
@@ -521,7 +522,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Route pour les publications
-    Route::controller(EventController::class)->prefix('evenements')->name('events.')->group(function () {
+    Route::controller(EventController::class)->prefix('evenements')->name('api.events.')->group(function () {
         Route::get('', 'index')->name('index');
         Route::get('ajouter', 'create')->name('create');
         Route::post('', 'store')->name('store')->middleware('can:create-evenement');
@@ -631,7 +632,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Routes pour les cartes étudiants
-    Route::controller(CarteEtudiantController::class)->prefix('carte')->name('carte.')->group(function () {
+    Route::controller(CarteEtudiantController::class)->prefix('carte')->name('api.carte.')->group(function () {
         Route::get('{etudiant}', 'genererCarteEtudiant')->name('index');
     });
 
@@ -639,7 +640,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('student-cards/selected-data', [CarteEtudiantController::class, 'selectedData'])
         ->name('student-cards.selected-data');
 
-    Route::controller(AdminEtudiantController::class)->prefix('etudiants')->name('etudiants.')->group(function () {
+    Route::controller(AdminEtudiantController::class)->prefix('etudiants')->name('api.admin.etudiants.')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('get-etudiant-non-boursier', "getNonBoursiers");
 

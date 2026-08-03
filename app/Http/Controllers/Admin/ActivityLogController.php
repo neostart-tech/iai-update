@@ -121,7 +121,7 @@ class ActivityLogController extends Controller
 	public function destroy($id)
 	{
 		$user = auth()->user();
-		if (!$user->can('delete-log') && !in_array($user->role?->slug ?? '', ['informaticien', 'directeur-general', 'directeur-general-adjoint', 'super-admin'])) {
+		if (!$user->can('delete-log')) {
 			abort(403, 'Action non autorisée');
 		}
 
@@ -134,7 +134,7 @@ class ActivityLogController extends Controller
 	public function bulkDestroy(Request $request)
 	{
 		$user = auth()->user();
-		if (!$user->can('delete-log') && !in_array($user->role?->slug ?? '', ['informaticien', 'directeur-general', 'directeur-general-adjoint', 'super-admin'])) {
+		if (!$user->can('delete-log')) {
 			abort(403, 'Action non autorisée');
 		}
 
@@ -146,5 +146,21 @@ class ActivityLogController extends Controller
 		Activity::whereIn('id', $request->input('ids'))->delete();
 
 		return response()->json(['message' => 'Les logs sélectionnés ont été supprimés avec succès']);
+	}
+
+	public function clearAll(Request $request)
+	{
+		$user = auth()->user();
+		if (!$user->can('clear-activity-log') && !$user->can('delete-log')) {
+			return response()->json(['message' => 'Action non autorisée. Permission de réinitialisation du journal requise.'], 403);
+		}
+
+		Activity::query()->delete();
+
+		activity()
+			->causedBy($user)
+			->log('Purge complète du journal des activités système');
+
+		return response()->json(['message' => 'Le journal d\'activité a été entièrement vidé avec succès']);
 	}
 }

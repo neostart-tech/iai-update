@@ -46,7 +46,7 @@ Route::controller(UnifiedLoginController::class)->prefix('connexion')->name('uni
 
 Route::get('dashboard', function () {
 	return view('dashboard');
-})->name('dashboard');
+})->name('api_web.dashboard');
 // })->middleware(['auth', 'verified'])->name('dashboard');
 
 // Route::middleware('auth')->group(function () {
@@ -154,13 +154,13 @@ Route::controller(AuthentificationSessionController::class)->prefix('comptables'
 
 // Actualités (Evenement)
 
-Route::get('/events/search', [EvenementController::class, 'search'])->name('events.search');
+Route::get('/events/search', [EvenementController::class, 'search'])->name('api_web.events.search');
 // Ensure direct /events/{evenement} resolves and takes precedence over the old '/officiel/evenements/{evenement}'
-Route::get('/events/{evenement}', [EvenementController::class, 'show'])->name('events.show');
+Route::get('/events/{evenement}', [EvenementController::class, 'show'])->name('api_web.events.show');
 // Anti-spam: throttle event comments
 Route::post('/events/{evenement}/comment', [EvenementController::class, 'comment'])
 	->middleware('throttle:5,1')
-	->name('events.comment');
+	->name('api_web.events.comment');
 
 // Cahier de texte workflow
 // Route::middleware(['web'])->group(function () {
