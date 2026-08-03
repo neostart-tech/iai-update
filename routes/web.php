@@ -159,6 +159,3 @@ require __DIR__ . '/auth.php';
 require __DIR__ . '/old_routes.php';
 
 require __DIR__ . '/etudiant.php';
-
-
-require __DIR__ . '/comptable.php';

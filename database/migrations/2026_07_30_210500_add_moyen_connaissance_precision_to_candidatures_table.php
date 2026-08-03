@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('candidatures', function (Blueprint $table) {
-            $table->string('moyen_connaissance_precision')->nullable()->after('moyen_connaissance_id');
-        });
+        if (!Schema::hasColumn('candidatures', 'moyen_connaissance_precision')) {
+            Schema::table('candidatures', function (Blueprint $table) {
+                $table->string('moyen_connaissance_precision')->nullable()->after('moyen_connaissance_id');
+            });
+        }
     }
 
     /**

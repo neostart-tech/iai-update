@@ -34,7 +34,7 @@ Route::middleware(['auth'])->group(function () {
 	Route::controller(FraisScolariteController::class)->prefix('frais')->name('frais.')->group(function () {
 		Route::get('historique', 'historique')->name('historique');
 		Route::get('payer', 'payer')->name('payer');
-		Route::post('payer', 'store')->name('store');
+		Route::post('payer', 'store')->name('payer.store');
 
 		
 		Route::get('index', 'index')->name('index');

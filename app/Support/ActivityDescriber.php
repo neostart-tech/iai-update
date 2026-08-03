@@ -47,6 +47,8 @@ class ActivityDescriber
 		'notifications' => 'Notifications',
 		'surveillants' => 'Surveillants',
 		'niveau' => 'Niveaux',
+		'exam' => 'Examen',
+		'exam-submissions' => 'Soumission d\'examen',
 		'document-types' => 'Types de document',
 		'candidature-field-configs' => 'Champs de formulaire de candidature',
 		'logs' => 'Journal d\'activité',
@@ -106,6 +108,7 @@ class ActivityDescriber
 		'changer-mode-formation' => 'Changement du mode de formation :',
 		'changer_mode_formation' => 'Changement du mode de formation :',
 		'mode-formation' => 'Changement du mode de formation :',
+		'submit-all' => 'Soumission finale :',
 	];
 
 	private const METHOD_FALLBACK = [
