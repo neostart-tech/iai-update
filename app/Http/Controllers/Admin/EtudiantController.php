@@ -43,6 +43,7 @@ class EtudiantController extends Controller
             'etudiantGroups.filiere',
             'etudiantGroups.niveau',
             'submittedDocuments',
+            'fraisEtudiant',
         ])->orderBy('nom')->orderBy('prenom')->get();
 
         return EtudiantRessource::collection($etudiants);
@@ -302,6 +303,8 @@ class EtudiantController extends Controller
             'date_naissance' => 'nullable|date',
             'lieu_naissance' => 'nullable|string|max:255',
             'group_id' => 'required|exists:groups,id',
+            'filiere_id' => 'nullable|exists:filieres,id',
+            'niveau_id' => 'nullable|exists:niveaux,id',
             'matricule' => 'required|string|unique:etudiants,matricule,' . $etudiant->id,
             'promotion' => 'nullable|string|max:100',
             'annee_admission' => 'required|string|max:4',
@@ -393,22 +396,38 @@ class EtudiantController extends Controller
         }
 
         if ($etudiantGroup) {
-            // Vérifier que le nouveau groupe appartient au même niveau
             $newGroup = Group::findOrFail($request->group_id);
-            if ($newGroup->niveau_id !== $etudiantGroup->niveau_id) {
-                return response()->json([
-                    'message' => 'Le nouveau groupe doit appartenir au même niveau.'
-                ], 422);
-            }
+            $newNiveauId = $request->niveau_id ?? $newGroup->niveau_id;
+            $newFiliereId = $request->filiere_id ?? $newGroup->filiere_id ?? $etudiantGroup->filiere_id;
 
-            if ($etudiantGroup->group_id != $request->group_id || $etudiantGroup->mode_formation != $request->mode_formation) {
+            if (
+                $etudiantGroup->group_id != $request->group_id ||
+                $etudiantGroup->niveau_id != $newNiveauId ||
+                $etudiantGroup->filiere_id != $newFiliereId ||
+                $etudiantGroup->mode_formation != $request->mode_formation
+            ) {
                 $financialImpact = true;
             }
 
             $etudiantGroup->update([
                 'group_id' => $request->group_id,
+                'niveau_id' => $newNiveauId,
+                'filiere_id' => $newFiliereId,
                 'mode_formation' => $request->mode_formation
             ]);
+        } else {
+            $newGroup = Group::findOrFail($request->group_id);
+            $newNiveauId = $request->niveau_id ?? $newGroup->niveau_id;
+            $newFiliereId = $request->filiere_id ?? $newGroup->filiere_id;
+
+            $etudiant->etudiantGroups()->create([
+                'annee_scolaire_id' => $anneeActiveId,
+                'group_id' => $request->group_id,
+                'niveau_id' => $newNiveauId,
+                'filiere_id' => $newFiliereId,
+                'mode_formation' => $request->mode_formation
+            ]);
+            $financialImpact = true;
         }
 
         // Synchroniser les frais si un changement financier est detecte

@@ -42,6 +42,12 @@ class UnifiedLoginController extends Controller
             ->first();
 
         if ($etudiant && Hash::check($password, $etudiant->password)) {
+            if ($etudiant->estEnAbandon()) {
+                throw ValidationException::withMessages([
+                    'identifier' => 'Accès refusé. Ce compte étudiant est suspendu suite à une déclaration d\'abandon.',
+                ]);
+            }
+
             Auth::guard('etudiants')->login($etudiant, $request->boolean('remember'));
             
             $request->session()->regenerate();

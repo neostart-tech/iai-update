@@ -340,6 +340,20 @@ class FraisEtudiant extends Model
         return $this;
     }
 
+    public function annulerAbandon()
+    {
+        $this->est_en_abandon = false;
+        $this->date_abandon = null;
+        $this->updateStatut();
+
+        DB::table('etudiant_group')
+            ->where('etudiant_id', $this->etudiant_id)
+            ->where('annee_scolaire_id', $this->annee_scolaire_id)
+            ->update(['statut_scolaire' => 'regulier']);
+
+        return $this;
+    }
+
     /**
      * Recalcul automatique des échéances restantes.
      * Si une échéance est supprimée ou modifiée, on répartit la différence sur les échéances non soldées.

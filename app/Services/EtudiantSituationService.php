@@ -146,7 +146,10 @@ class EtudiantSituationService
             // Infos de base
             'id' => $etudiant->id,
             'slug' => $fraisEtudiant ? $fraisEtudiant->slug : $etudiant->slug,
-            'statut_global' => $etudiant->statut ?? 'actif',
+            'statut_global' => ($etudiant->statut === 'bloque' || ($fraisEtudiant && $fraisEtudiant->est_en_abandon)) ? 'bloque' : ($etudiant->statut ?? 'actif'),
+            'est_bloque' => ($etudiant->statut === 'bloque') || ($fraisEtudiant && (bool)$fraisEtudiant->est_en_abandon),
+            'est_en_abandon' => (bool)($fraisEtudiant && $fraisEtudiant->est_en_abandon),
+            'peut_composer' => ($etudiant->statut !== 'bloque') && !($fraisEtudiant && $fraisEtudiant->est_en_abandon),
             'matricule' => $etudiant->matricule,
             'nom' => $etudiant->nom,
             'prenom' => $etudiant->prenom,
@@ -162,6 +165,7 @@ class EtudiantSituationService
             'filiere_id' => $groupe?->filiere_id,
             'niveau' => $groupe?->niveau?->libelle ?? 'Non assigné',
             'niveau_id' => $groupe?->niveau_id,
+            'mode_formation' => $groupe?->mode_formation?->value ?? $groupe?->mode_formation ?? 'Présentiel',
             
             // Infos financières
             'montant_total_a_payer' => $montantAPayer,
@@ -462,6 +466,7 @@ class EtudiantSituationService
                 'en_cours' => 0,
                 'en_retard' => 0,
                 'aucun_frais' => 0,
+                'bloques' => 0,
             ],
             'montants' => [
                 'total_a_payer' => 0,
@@ -502,6 +507,9 @@ class EtudiantSituationService
         $caActifsDetail['total'] = $caActifsDetail['inscription'] + $caActifsDetail['scolarite'];
 
         foreach ($tous as $etudiant) {
+            if (isset($etudiant['statut_global']) && $etudiant['statut_global'] === 'bloque') {
+                $stats['par_statut']['bloques']++;
+            }
             $stats['par_statut'][$etudiant['statut']]++;
             $stats['montants']['total_a_payer'] += $etudiant['montant_total_a_payer'];
             $stats['montants']['total_restant'] += $etudiant['montant_restant'];

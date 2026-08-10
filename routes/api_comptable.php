@@ -33,6 +33,7 @@ Route::group([],function () {
 		Route::get('/recouvrement/{slug}/detail', [\App\Http\Controllers\Api\FinanceController::class, 'detailRecouvrement']);
 		Route::post('/recouvrement/{slug}/rappel', [\App\Http\Controllers\Api\FinanceController::class, 'envoyerRappel'])->middleware('can:send-rappel-recouvrement');
 		Route::post('/recouvrement/{slug}/abandon-ui', [\App\Http\Controllers\Api\FinanceController::class, 'declarerAbandonUI'])->middleware('can:declare-abandon-etudiant');
+		Route::post('/recouvrement/{slug}/annuler-abandon', [\App\Http\Controllers\Api\FinanceController::class, 'annulerAbandon'])->middleware('can:declare-abandon-etudiant');
 		Route::get('/recouvrement-journalier', [\App\Http\Controllers\Api\FinanceController::class, 'recouvrementJournalier']);
 		Route::get('/suivi-mensuel', [\App\Http\Controllers\Api\FinanceController::class, 'suiviMensuel']);
 		Route::post('/{fraisEtudiantId}/abandon', [\App\Http\Controllers\Api\FinanceController::class, 'declarerAbandon'])->middleware('can:declare-abandon-etudiant');

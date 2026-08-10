@@ -319,6 +319,29 @@ class FinanceController extends Controller
         ]);
     }
 
+    public function annulerAbandon(Request $request, $slug)
+    {
+        $anneeId = $request->get('annee_id') ?? getAnneeScolaireId();
+        
+        $frais = \App\Models\FraisEtudiant::with('etudiant')
+            ->where(function($q) use ($slug) {
+                $q->where('slug', $slug)
+                  ->orWhereHas('etudiant', function($q2) use ($slug) {
+                      $q2->where('slug', $slug);
+                  });
+            })
+            ->where('annee_scolaire_id', $anneeId)
+            ->firstOrFail();
+
+        $frais->annulerAbandon();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'L\'abandon de l\'étudiant a été annulé avec succès.',
+            'data' => $frais
+        ]);
+    }
+
     /**
      * Gestion des Abandons API
      */

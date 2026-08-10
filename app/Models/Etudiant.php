@@ -346,21 +346,30 @@ public function echeances()
 	}
 
 	/**
+	 * Vérifie si l'étudiant est déclaré en abandon
+	 */
+	public function estEnAbandon(): bool
+	{
+		if ($this->fraisEtudiant()->where('est_en_abandon', true)->exists()) {
+			return true;
+		}
+
+		if (\Illuminate\Support\Facades\DB::table('etudiant_group')->where('etudiant_id', $this->id)->where('statut_scolaire', 'abandon')->exists()) {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
 	 * Vérifie si l'étudiant est autorisé à composer pour les examens en ligne
 	 */
 	public function peutComposer(): bool
 	{
-		// 1. Vérification du statut global (manuel)
-		if ($this->statut === 'bloque') {
+		// 1. Vérification du statut global (manuel) ou abandon
+		if ($this->statut === 'bloque' || $this->estEnAbandon()) {
 			return false;
 		}
-
-		// 2. Vérification financière (Désactivée pour le moment selon demande)
-		/*
-		if (!$this->estAjour()) {
-			return false;
-		}
-		*/
 
 		return true;
 	}

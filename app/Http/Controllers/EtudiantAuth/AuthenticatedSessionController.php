@@ -44,6 +44,12 @@ class AuthenticatedSessionController extends Controller
                     'message' => 'Les informations de connexion sont invalides.'
                 ], 422);
             }
+
+            if ($user->estEnAbandon()) {
+                return response()->json([
+                    'message' => 'Accès refusé. Votre compte est suspendu suite à une déclaration d\'abandon.'
+                ], 403);
+            }
        
                 Auth::guard('etudiants')->login($user);
 
