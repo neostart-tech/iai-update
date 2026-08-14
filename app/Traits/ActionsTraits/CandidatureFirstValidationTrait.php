@@ -31,15 +31,11 @@ trait CandidatureFirstValidationTrait
 	private function utilisateurPeutAgirCommeAcademie(): bool
 	{
 		$user = auth('sanctum')->user() ?? auth()->user();
+		if (!$user) return false;
 
-		return (bool) $user?->roles()->whereIn('slug', [
-			'directeur-academique',
-			'logiticien-academique',
-			'admin',
-			'directeur-general',
-			'directeur-general-adjoint',
-			'informaticien',
-		])->exists();
+		return $user->hasPermissionSlug('valider-candidature')
+			|| $user->hasPermissionSlug('rejeter-candidature')
+			|| $user->hasPermissionSlug('reorienter-candidature');
 	}
 
 	private function refuserSiPasAcademie()
@@ -48,7 +44,7 @@ trait CandidatureFirstValidationTrait
 			return null;
 		}
 
-		$message = "Cette action est réservée à l'académie une fois le dossier transmis.";
+		$message = "Cette action est réservée aux utilisateurs disposant des permissions d'étude et de décision d'académie.";
 
 		if (request()->wantsJson() || request()->ajax()) {
 			return response()->json(['success' => false, 'message' => $message], 403);
@@ -58,22 +54,16 @@ trait CandidatureFirstValidationTrait
 	}
 
 	/**
-	 * Symétrique du précédent : transmettre le dossier à l'académie et demander une
-	 * rectification sont l'apanage exclusif du chargé de la clientèle (ou d'un compte
-	 * à accès total). L'académie ne doit jamais pouvoir transmettre elle-même un
-	 * dossier, ni demander de rectification — chacun reste dans son rôle.
+	 * Transmettre le dossier à l'académie et demander une rectification sont autorisés
+	 * exclusivement sur la base des permissions 'transmettre-candidature' et 'rectifier-candidature'.
 	 */
 	private function utilisateurPeutAgirCommeChargeClientele(): bool
 	{
 		$user = auth('sanctum')->user() ?? auth()->user();
+		if (!$user) return false;
 
-		return (bool) $user?->roles()->whereIn('slug', [
-			'charge-de-la-clientele',
-			'admin',
-			'directeur-general',
-			'directeur-general-adjoint',
-			'informaticien',
-		])->exists();
+		return $user->hasPermissionSlug('transmettre-candidature')
+			|| $user->hasPermissionSlug('rectifier-candidature');
 	}
 
 	private function refuserSiPasChargeClientele()
@@ -82,7 +72,7 @@ trait CandidatureFirstValidationTrait
 			return null;
 		}
 
-		$message = "Cette action est réservée au chargé de la clientèle.";
+		$message = "Cette action nécessite la permission de traitement de la clientèle.";
 
 		if (request()->wantsJson() || request()->ajax()) {
 			return response()->json(['success' => false, 'message' => $message], 403);
@@ -92,9 +82,8 @@ trait CandidatureFirstValidationTrait
 	}
 
 	/**
-	 * Chargé de la clientèle : dossier vérifié et jugé complet, transmis à l'académie
-	 * pour la décision finale (Valider/Rejeter/Rectifier/Réorienter — les 4 actions déjà
-	 * existantes, qui deviennent l'apanage de l'académie une fois cette transmission faite).
+	 * Chargé de la clientèle / Gestionnaire : dossier vérifié et jugé complet, transmis à l'académie
+	 * pour la décision finale.
 	 */
 	public function transmettreAcademie(Candidature $candidature)
 	{
@@ -120,14 +109,15 @@ trait CandidatureFirstValidationTrait
 		$message = $candidature->greeting(true) . ". Votre dossier a été vérifié et transmis à l'académie pour étude.";
 		$candidature->notify(new \App\Notifications\Candidatures\CandidatTransmisAcademieNotification($message));
 
-		$academiciens = \App\Models\User::whereHas('roles', function ($q) {
-			$q->where('slug', 'directeur-academique');
+		// ciblage EXCLUSIVEMENT basé sur les permissions
+		$academiciens = \App\Models\User::whereHas('roles.permissions', function ($q) {
+			$q->whereIn('slug', ['valider-candidature', 'rejeter-candidature', 'reorienter-candidature']);
 		})->get();
 
 		if ($academiciens->count() > 0) {
 			\Illuminate\Support\Facades\Notification::send(
 				$academiciens,
-				new \App\Notifications\Candidatures\CandidatureTransmiseAcademieNotification($candidature)
+				new \App\Notifications\Candidatures\CandidatureTransmiseAcademieNotification($candidature, auth()->user())
 			);
 		}
 
@@ -198,6 +188,24 @@ trait CandidatureFirstValidationTrait
 
 		$candidature->notify(new CandidatValideNotification($message));
 
+		// Notifier le chargé de clientèle / administration de la validation par l'académie
+		$chargeClientele = \App\Models\User::whereHas('roles.permissions', function ($q) {
+			$q->whereIn('slug', ['transmettre-candidature', 'recevoir-notification-nouvelle-candidature']);
+		})->get();
+
+		if ($chargeClientele->count() > 0) {
+			$userActor = auth('sanctum')->user() ?? auth()->user();
+			\Illuminate\Support\Facades\Notification::send(
+				$chargeClientele,
+				new \App\Notifications\Candidatures\CandidatureStatusUpdatedNotification(
+					$candidature,
+					'Candidature Validée par l\'Académie',
+					'Le dossier de candidature a été validé par l\'académie.',
+					$userActor ? $userActor->nom . ' ' . $userActor->prenom : null
+				)
+			);
+		}
+
 		if (request()->wantsJson() || request()->ajax()) {
 			return response()->json([
 				'success' => true,
@@ -236,6 +244,24 @@ trait CandidatureFirstValidationTrait
 
 		$message = $candidature->greeting(true) . ". Votre dossier de candidature a été rejeté pour le motif suivant : " . $request->get('motif');
 		$candidature->notify(new \App\Notifications\Candidatures\CandidatRejeteNotification($message, $request->get('motif')));
+
+		// Notifier le chargé de clientèle / administration du rejet par l'académie
+		$chargeClientele = \App\Models\User::whereHas('roles.permissions', function ($q) {
+			$q->whereIn('slug', ['transmettre-candidature', 'recevoir-notification-nouvelle-candidature']);
+		})->get();
+
+		if ($chargeClientele->count() > 0) {
+			$userActor = auth('sanctum')->user() ?? auth()->user();
+			\Illuminate\Support\Facades\Notification::send(
+				$chargeClientele,
+				new \App\Notifications\Candidatures\CandidatureStatusUpdatedNotification(
+					$candidature,
+					'Candidature Rejetée par l\'Académie',
+					'Le dossier a été rejeté pour le motif suivant : ' . $request->get('motif'),
+					$userActor ? $userActor->nom . ' ' . $userActor->prenom : null
+				)
+			);
+		}
 
 		if (request()->wantsJson() || request()->ajax()) {
 			return response()->json([

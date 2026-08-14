@@ -220,14 +220,72 @@ class EvaluationController extends Controller
 
     public function destroy(Evaluation $evaluation)
     {
-        if ($evaluation->getAttribute('published') or $evaluation->getAttribute('debut')->isBefore(now())) {
-            return __404("Impossible de supprimer cette évaluation.Soit elle a déja été publiée soit la date de debut est supérieure a aujourd'hui");
+        $isPublishedOrPast = $evaluation->getAttribute('published') || ($evaluation->getAttribute('debut') && $evaluation->getAttribute('debut')->isBefore(now()));
+
+        if ($isPublishedOrPast && !auth()->user()?->can('delete-published-evaluation')) {
+            return __404("Impossible de supprimer cette évaluation. Soit elle a déjà été publiée soit la date de début est dépassée.");
         }
 
         $evaluation->delete();
 
         return new EvaluationResource($evaluation);
-        // return to_route('admin.evaluations.index')->with(successMsg('Évaluation supprimée avec succès.'));
+    }
+
+    public function trashed()
+    {
+        $evaluations = Evaluation::onlyTrashed()
+            ->with([
+                'salle:id,nom',
+                'group:id,nom',
+                'group.niveau',
+                'matiere:id,nom,code',
+                'fiche.surveillants',
+            ])
+            ->orderByDesc('deleted_at')
+            ->get()
+            ->map(function (Evaluation $evaluation) {
+                if ($evaluation->getAttribute('debut')) {
+                    $evaluation->setAttribute('dateFormatted', $evaluation->getAttribute('debut')->translatedFormat('d F Y'));
+                    $evaluation->setAttribute('debutFormatted', $evaluation->getAttribute('debut')->translatedFormat('H:i'));
+                    $evaluation->setAttribute('finFormatted', $evaluation->getAttribute('fin')?->translatedFormat('H:i'));
+                }
+
+                return $evaluation;
+            });
+
+        return EvaluationResource::collection($evaluations);
+    }
+
+    public function restore(string $slug)
+    {
+        $evaluation = Evaluation::onlyTrashed()->where('slug', $slug)->first();
+        if (!$evaluation) {
+            $evaluation = Evaluation::onlyTrashed()->find($slug);
+        }
+
+        if (!$evaluation) {
+            return __404("Évaluation introuvable dans la corbeille.");
+        }
+
+        $evaluation->restore();
+
+        return new EvaluationResource($evaluation);
+    }
+
+    public function forceDelete(string $slug)
+    {
+        $evaluation = Evaluation::onlyTrashed()->where('slug', $slug)->first();
+        if (!$evaluation) {
+            $evaluation = Evaluation::onlyTrashed()->find($slug);
+        }
+
+        if (!$evaluation) {
+            return __404("Évaluation introuvable dans la corbeille.");
+        }
+
+        $evaluation->forceDelete();
+
+        return response()->json(['message' => 'Évaluation supprimée définitivement avec succès.']);
     }
 
     public function publish(string $slug)

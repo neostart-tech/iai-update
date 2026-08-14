@@ -122,11 +122,17 @@ class FraisScolarite extends Model
             ->first();
         if ($res) return $res;
 
-        // 6. Fallback final sur niveau uniquement
+        // 6. Fallback final sur niveau + Mode compatible (strictement Présentiel/En ligne ou Tous)
         $res = self::withoutGlobalScopes()
             ->where('annee_scolaire_id', $anneeTargetId)
             ->where('niveau_id', $niveauId)
             ->whereNull('filiere_id')
+            ->where(function($q) {
+                $q->where('genre', 'Tous')->orWhereNull('genre');
+            })
+            ->where(function($q) use ($modeFormation) {
+                $q->where('mode_formation', $modeFormation)->orWhere('mode_formation', 'Tous');
+            })
             ->first();
 
         return $res;

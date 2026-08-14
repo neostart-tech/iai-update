@@ -25,6 +25,9 @@ class DiagnosticFinancierService
             $montant = $this->getMontantDash($etudiant, $anneeId);
             $totalDash += $montant;
             $groupe = $etudiant->etudiantGroups()->where('annee_scolaire_id', $anneeId)->first();
+            if (!$groupe) {
+                $groupe = $etudiant->etudiantGroups()->latest('id')->first();
+            }
             $modeFormation = ($groupe && $groupe->mode_formation instanceof \UnitEnum) 
                                 ? $groupe->mode_formation->value 
                                 : ($groupe->mode_formation ?? 'Présentiel');
@@ -40,11 +43,16 @@ class DiagnosticFinancierService
         $etudiantsSit = Etudiant::all();
         $totalSit = 0;
         foreach ($etudiantsSit as $etudiant) {
-            $montant = $this->getMontantSit($etudiant, $anneeId);
+            $sitInfo = $this->getMontantSitInfo($etudiant, $anneeId);
+            $montant = $sitInfo['montant'];
             $totalSit += $montant;
             $results[$etudiant->id]['sit'] = $montant;
+            $results[$etudiant->id]['tarif_existant'] = $sitInfo['tarif_existant'];
             if(!isset($results[$etudiant->id]['nom'])) {
                 $groupe = $etudiant->etudiantGroups()->where('annee_scolaire_id', $anneeId)->first();
+                if (!$groupe) {
+                    $groupe = $etudiant->etudiantGroups()->latest('id')->first();
+                }
                 $modeFormation = ($groupe && $groupe->mode_formation instanceof \UnitEnum) 
                                     ? $groupe->mode_formation->value 
                                     : ($groupe->mode_formation ?? 'Présentiel');
@@ -61,7 +69,10 @@ class DiagnosticFinancierService
         foreach ($results as $id => $data) {
             $dash = $data['dash'] ?? 0;
             $sit = $data['sit'] ?? 0;
-            if ($dash != $sit) {
+            $tarifExistant = $data['tarif_existant'] ?? true;
+
+            // Une anomalie est soit un écart de montant, soit une grille non paramétrée
+            if ($dash != $sit || !$tarifExistant) {
                 $differences[] = [
                     'id' => $id,
                     'slug' => $data['slug'],
@@ -70,7 +81,8 @@ class DiagnosticFinancierService
                     'niveau' => $data['niveau'] ?? 'Non assigné',
                     'dash' => $dash,
                     'sit' => $sit,
-                    'diff' => $sit - $dash
+                    'diff' => $sit - $dash,
+                    'tarif_existant' => $tarifExistant
                 ];
             }
         }
@@ -86,14 +98,28 @@ class DiagnosticFinancierService
 
     public function verifierAnomalieEtudiant($etudiant, $anneeId) {
         $dash = $this->getMontantDash($etudiant, $anneeId);
-        $sit = $this->getMontantSit($etudiant, $anneeId);
+        $sitInfo = $this->getMontantSitInfo($etudiant, $anneeId);
         
-        if ($dash != $sit) {
+        if (!$sitInfo['tarif_existant']) {
             return [
                 'has_anomalie' => true,
+                'type_anomalie' => 'tarif_manquant',
                 'dash' => $dash,
-                'sit' => $sit,
-                'diff' => $sit - $dash,
+                'sit' => 0,
+                'diff' => 0 - $dash,
+                'tarif_existant' => false,
+                'message' => 'Aucun tarif officiel paramétré dans la grille pour ce profil (' . ($etudiant->mode_formation ?? 'Mode non défini') . ').'
+            ];
+        }
+
+        if ($dash != $sitInfo['montant']) {
+            return [
+                'has_anomalie' => true,
+                'type_anomalie' => 'incoherence_tarif',
+                'dash' => $dash,
+                'sit' => $sitInfo['montant'],
+                'diff' => $sitInfo['montant'] - $dash,
+                'tarif_existant' => true,
             ];
         }
         
@@ -105,17 +131,21 @@ class DiagnosticFinancierService
         return $fraisEtudiant ? $fraisEtudiant->montant_apres_bourse : 0;
     }
 
-    private function getMontantSit($etudiant, $anneeId) {
+    public function getMontantSitInfo($etudiant, $anneeId) {
         $groupe = $etudiant->etudiantGroups()->where('annee_scolaire_id', $anneeId)->first();
-        if (!$groupe || !$groupe->niveau_id) return 0;
+        if (!$groupe) {
+            $groupe = $etudiant->etudiantGroups()->latest('id')->first();
+        }
+        if (!$groupe || !$groupe->niveau_id) {
+            return ['montant' => 0, 'tarif_existant' => false];
+        }
         
         $modeFormation = ($groupe->mode_formation instanceof \UnitEnum) 
                             ? $groupe->mode_formation->value 
-                            : ($groupe->mode_formation ?? 'Tous');
+                            : ($groupe->mode_formation ?? 'Présentiel');
                             
         $genreValue = ($etudiant->genre instanceof \UnitEnum) ? $etudiant->genre->value : ($etudiant->genre ?? 'Tous');
 
-        $fraisEtudiant = $etudiant->fraisEtudiant()->where('annee_scolaire_id', $anneeId)->first();
         $fraisScolarite = FraisScolarite::getFraisForEtudiant($groupe->niveau_id, $genreValue, $groupe->filiere_id, $anneeId, $modeFormation);
         
         if ($fraisScolarite) {
@@ -130,18 +160,23 @@ class DiagnosticFinancierService
             if ($bourseEtudiant && $bourseEtudiant->bourse) {
                 $bourse = $bourseEtudiant->bourse;
                 if ($bourse->type === 'pourcentage') {
-                    return max(0, round($baseMontant * (1 - $bourse->valeur / 100)));
+                    $montant = max(0, round($baseMontant * (1 - $bourse->valeur / 100)));
                 } else {
-                    return max(0, $baseMontant - $bourse->valeur);
+                    $montant = max(0, $baseMontant - $bourse->valeur);
                 }
+                return ['montant' => $montant, 'tarif_existant' => true];
             }
 
-            // Sans bourse officielle, le tarif académique attendu est le tarif officiel du profil
-            return $baseMontant;
+            return ['montant' => $baseMontant, 'tarif_existant' => true];
         }
 
-        if ($fraisEtudiant) return (float) $fraisEtudiant->montant_apres_bourse;
-        return 0;
+        // Aucun tarif trouvé dans la grille pour ce profil
+        return ['montant' => 0, 'tarif_existant' => false];
+    }
+
+    private function getMontantSit($etudiant, $anneeId) {
+        $info = $this->getMontantSitInfo($etudiant, $anneeId);
+        return $info['montant'];
     }
 
     /**

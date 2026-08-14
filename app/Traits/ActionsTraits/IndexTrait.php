@@ -32,7 +32,10 @@ trait IndexTrait
 	 */
 	public function countCandidaturesATraiter(Request $request)
 	{
-		$roleSlugs = $request->user()->roles->pluck('slug');
+		$user = $request->user();
+		if (!$user) {
+			return response()->json(['count' => 0]);
+		}
 
 		$query = Candidature::query()
 			->whereNotNull('soumis_le')
@@ -40,9 +43,9 @@ trait IndexTrait
 			->where('rectification_expected', false)
 			->where('dossier_valide', false);
 
-		if ($roleSlugs->contains('directeur-academique') || $roleSlugs->contains('logiticien-academique')) {
+		if ($user->hasPermissionSlug('valider-candidature') || $user->hasPermissionSlug('rejeter-candidature') || $user->hasPermissionSlug('reorienter-candidature')) {
 			$query->where('transmis_academie', true);
-		} elseif ($roleSlugs->contains('charge-de-la-clientele')) {
+		} elseif ($user->hasPermissionSlug('transmettre-candidature')) {
 			$query->where('transmis_academie', false);
 		} else {
 			return response()->json(['count' => 0]);

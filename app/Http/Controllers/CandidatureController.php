@@ -86,7 +86,7 @@ class CandidatureController extends Controller
                 $candidature->genre,
                 $candidature->filiere_id,
                 $activeAnnee->id,
-                'Tous'
+                $candidature->mode_formation ?: 'Tous'
             );
             $fraisScolariteAttendu = $fraisScolarite ? (float) $fraisScolarite->montant : 0;
         }
@@ -443,6 +443,8 @@ class CandidatureController extends Controller
 
 		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message, $plainPassword));
 
+		$this->notifierResponsablesNouvelleCandidature($candidat);
+
 		if ($request->wantsJson()) {
 			return response()->json([
 				'success' => true,
@@ -577,22 +579,8 @@ class CandidatureController extends Controller
 
 		$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message, $plainPassword));
 
-		// Notifier les administrateurs
-		$responsables = User::whereHas('roles', function ($q) {
-			$q->whereIn('slug', [
-				'responsable-marketing',
-				'responsable-du-site',
-				'collaborateur-commercial'
-			])->orWhereIn('nom', [
-						'Responsable Marketing',
-						'Responsable du site',
-						'Collaborateur Commercial'
-					]);
-		})->get();
-
-		if ($responsables->count() > 0) {
-			Notification::send($responsables, new NewCandidatureSubmittedNotification($candidat));
-		}
+		// Notifier les administrateurs et responsables
+		$this->notifierResponsablesNouvelleCandidature($candidat);
 
 		return response()->json([
 			'success' => true,
@@ -908,6 +896,7 @@ class CandidatureController extends Controller
 
 			$message = $candidat->greeting(true) . ", votre dossier de candidature a été déposé avec succès.";
 			$candidat->notify(new CandidatWelcomeNotification($candidat->greeting(true), $message, $plainPassword));
+			$this->notifierResponsablesNouvelleCandidature($candidat);
 		});
 
 		Auth::guard('web_candidatures')->login($candidat);
@@ -1323,11 +1312,13 @@ class CandidatureController extends Controller
 			}
 
 			// 3. Affectation Groupe
+			$modeFormation = $request->input('mode_formation', 'Présentiel');
 			$etudiant->groups()->syncWithoutDetaching([
 				$groupId => [
 					"annee_scolaire_id" => $activeAnnee->id,
 					"niveau_id" => $candidature->niveau_id,
-					"filiere_id" => $candidature->filiere_id
+					"filiere_id" => $candidature->filiere_id,
+					"mode_formation" => $modeFormation,
 				]
 			]);
 
@@ -1379,7 +1370,7 @@ class CandidatureController extends Controller
 				$candidature->genre,
 				$candidature->filiere_id,
 				$activeAnnee->id,
-				$request->input('mode_formation', 'Tous')
+				$modeFormation
 			);
 
 			if ($fraisScolarite) {
@@ -1503,8 +1494,45 @@ class CandidatureController extends Controller
 		$message = $candidature->greeting(true) . ". Nous vous informons que votre dossier de candidature a été réorienté vers la filière " . $candidature->filiere->nom . " (Niveau: " . $candidature->niveau->libelle . ") pour le motif suivant : " . $request->motif;
 		$candidature->notify(new \App\Notifications\Candidatures\CandidatReorientationNotification($message, $request->motif, $candidature->filiere->nom, $candidature->niveau->libelle));
 
+		// Notifier le chargé de clientèle / administration de la réorientation
+		$chargeClientele = User::whereHas('roles.permissions', function ($q) {
+			$q->whereIn('slug', ['transmettre-candidature', 'recevoir-notification-nouvelle-candidature']);
+		})->get();
+
+		if ($chargeClientele->count() > 0) {
+			$userActor = auth('sanctum')->user() ?? auth()->user();
+			Notification::send(
+				$chargeClientele,
+				new \App\Notifications\Candidatures\CandidatureStatusUpdatedNotification(
+					$candidature,
+					'Candidature Réorientée par l\'Académie',
+					'Le dossier a été réorienté vers : ' . $candidature->filiere->nom . ' (' . $candidature->niveau->libelle . '). Motif : ' . $request->motif,
+					$userActor ? $userActor->nom . ' ' . $userActor->prenom : null
+				)
+			);
+		}
+
 		return response()->json([
 			'message' => 'Réorientation effectuée avec succès.'
 		], 201);
+	}
+
+	/**
+	 * Notifie par e-mail et notification système les agents (par défaut Chargé de clientèle et Informaticien)
+	 * possédant la permission 'recevoir-notification-nouvelle-candidature' lors du dépôt d'une candidature.
+	 */
+	private function notifierResponsablesNouvelleCandidature(Candidature $candidat): void
+	{
+		try {
+			$responsables = User::whereHas('roles.permissions', function ($q) {
+				$q->where('slug', 'recevoir-notification-nouvelle-candidature');
+			})->get();
+
+			if ($responsables->count() > 0) {
+				Notification::send($responsables, new NewCandidatureSubmittedNotification($candidat));
+			}
+		} catch (\Throwable $e) {
+			\Illuminate\Support\Facades\Log::error("Erreur lors de l'envoi des notifications de candidature : " . $e->getMessage());
+		}
 	}
 }

@@ -171,7 +171,7 @@ class BackupController extends Controller
         $driver = config("database.connections.{$connection}.driver");
         $successWithMysqldump = false;
 
-        if ($driver === 'mysql') {
+        if ($driver === 'mysql' && function_exists('exec')) {
             $host = config("database.connections.{$connection}.host");
             $port = config("database.connections.{$connection}.port");
             $dbName = config("database.connections.{$connection}.database");
@@ -191,7 +191,11 @@ class BackupController extends Controller
 
             $returnVar = null;
             $output = [];
-            @exec($cmd, $output, $returnVar);
+            try {
+                @\exec($cmd, $output, $returnVar);
+            } catch (\Throwable $e) {
+                $returnVar = -1;
+            }
 
             if ($returnVar === 0 && File::exists($outputPath) && File::size($outputPath) > 500) {
                 $content = File::get($outputPath);

@@ -336,9 +336,16 @@ protected function determinerStatutEtudiant($etudiant)
         return 'aucun_frais';
     }
 
-    $fraisScolarite = FraisScolarite::where('niveau_id', $dernierGroupe->niveau_id)
-        ->where('annee_scolaire_id', $this->getAnneeScolaireId())
-        ->first();
+    $genreValue = ($etudiant->genre instanceof \UnitEnum) ? $etudiant->genre->value : ($etudiant->genre ?? 'Tous');
+    $modeFormation = ($dernierGroupe->mode_formation instanceof \UnitEnum) ? $dernierGroupe->mode_formation->value : ($dernierGroupe->mode_formation ?? 'Tous');
+
+    $fraisScolarite = FraisScolarite::getFraisForEtudiant(
+        $dernierGroupe->niveau_id,
+        $genreValue,
+        $dernierGroupe->filiere_id,
+        $this->getAnneeScolaireId(),
+        $modeFormation
+    );
 
     if (!$fraisScolarite) {
         return 'aucun_frais';
@@ -462,9 +469,16 @@ protected function determinerStatutEtudiant($etudiant)
             return 0;
         }
 
-        $fraisScolarite = FraisScolarite::where('niveau_id', $dernierGroupe->niveau_id)
-            ->where('annee_scolaire_id', $this->getAnneeScolaireId())
-            ->first();
+        $genreValue = ($etudiant->genre instanceof \UnitEnum) ? $etudiant->genre->value : ($etudiant->genre ?? 'Tous');
+        $modeFormation = ($dernierGroupe->mode_formation instanceof \UnitEnum) ? $dernierGroupe->mode_formation->value : ($dernierGroupe->mode_formation ?? 'Tous');
+
+        $fraisScolarite = FraisScolarite::getFraisForEtudiant(
+            $dernierGroupe->niveau_id,
+            $genreValue,
+            $dernierGroupe->filiere_id,
+            $this->getAnneeScolaireId(),
+            $modeFormation
+        );
 
         if (!$fraisScolarite) {
             return 0;
@@ -505,9 +519,16 @@ protected function getProchaineEcheance($etudiant)
         return null;
     }
 
-    $fraisScolarite = FraisScolarite::where('niveau_id', $dernierGroupe->niveau_id)
-        ->where('annee_scolaire_id', $this->getAnneeScolaireId())
-        ->first();
+    $genreValue = ($etudiant->genre instanceof \UnitEnum) ? $etudiant->genre->value : ($etudiant->genre ?? 'Tous');
+    $modeFormation = ($dernierGroupe->mode_formation instanceof \UnitEnum) ? $dernierGroupe->mode_formation->value : ($dernierGroupe->mode_formation ?? 'Tous');
+
+    $fraisScolarite = FraisScolarite::getFraisForEtudiant(
+        $dernierGroupe->niveau_id,
+        $genreValue,
+        $dernierGroupe->filiere_id,
+        $this->getAnneeScolaireId(),
+        $modeFormation
+    );
 
     if (!$fraisScolarite) {
         return null;

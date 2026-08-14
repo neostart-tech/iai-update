@@ -234,6 +234,13 @@ class FraisEtudiantService
                 ->first();
 
             if (!$groupInfo) {
+                $groupInfo = DB::table('etudiant_group')
+                    ->where('etudiant_id', $etudiant->id)
+                    ->orderByDesc('id')
+                    ->first();
+            }
+
+            if (!$groupInfo) {
                 \Log::info("Sync profil: Pas de groupe pour l'etudiant ID: {$etudiant->id}");
                 return null;
             }

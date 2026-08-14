@@ -242,12 +242,15 @@ Route::controller(ClassCommitteeController::class)->prefix('comite-de-classe')->
 Route::prefix('evaluations')->name('evaluations.')->group(function () {
 	Route::controller(EvaluationController::class)->group(function () {
 		Route::get('liste', 'index')->name('index');
+		Route::get('corbeille', 'trashed')->name('trashed');
 		Route::get('ajouter', 'create')->name('create');
 		Route::get('{evaluation}/detail', 'show')->name('show');
 		Route::post('ajouter', 'store')->name('store');
 		Route::get('{evaluation}/modifier', 'edit')->name('edit');
 		Route::put('{evaluation}/modifier', 'update')->name('update');
 		Route::delete('{evaluation}/supprimer', 'destroy')->name('delete');
+		Route::post('{slug}/restaurer', 'restore')->name('restore');
+		Route::delete('{slug}/force-delete', 'forceDelete')->name('force-delete');
 		Route::get('{slug}/publier', 'publish')->name('publish');
 		Route::get('{evaluation}/fiche-de-note', 'getNoteFiche')->name(name: 'fiche-de-note');
 	});

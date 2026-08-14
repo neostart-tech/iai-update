@@ -423,12 +423,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('evaluations')->name('evaluations.')->group(function () {
         Route::controller(EvaluationController::class)->group(function () {
             Route::get('liste', 'index')->name('index');
+            Route::get('corbeille', 'trashed')->name('trashed');
             Route::get('ajouter', 'create')->name('create');
             Route::get('{evaluation}/detail', 'show')->name('show');
             Route::post('ajouter', 'store')->name('store')->middleware('can:create-evaluation');
             Route::get('{evaluation}/modifier', 'edit')->name('edit');
             Route::put('{evaluation}/modifier', 'update')->name('update')->middleware('can:update-evaluation');
             Route::delete('{evaluation}/supprimer', 'destroy')->name('delete')->middleware('can:delete-evaluation');
+            Route::post('{slug}/restaurer', 'restore')->name('restore')->middleware('can:restore-evaluation');
+            Route::delete('{slug}/force-delete', 'forceDelete')->name('force-delete')->middleware('can:force-delete-evaluation');
             Route::get('{slug}/publier', 'publish')->name('publish')->middleware('can:publish-evaluation');
             Route::get('{evaluation}/fiche-de-note', 'getNoteFiche')->name(name: 'fiche-de-note');
             Route::get('/get-liste-enseignant-evaluations', 'getListEvaluationForTeacher');
@@ -713,4 +716,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/statistiques/periodes', [StatistiquesController::class, 'fetchPeriodes']);
     Route::get('/statistiques/candidatures/en-attente', [StatistiquesController::class, 'NbreCandidaturesEnAttente']);
     Route::get('/statistiques/communication', [StatistiquesController::class, 'fetchCommunicationStats']);
+
+    // Visioconférence LiveKit (Cours en ligne)
+    Route::post('/livekit/token', [\App\Http\Controllers\Api\LiveKitController::class, 'getToken']);
+    Route::get('/livekit/classes', [\App\Http\Controllers\Api\LiveKitController::class, 'getClasses']);
+    Route::get('/livekit/teacher-matieres', [\App\Http\Controllers\Api\LiveKitController::class, 'getTeacherMatieres']);
+    Route::get('/livekit/students-for-class', [\App\Http\Controllers\Api\LiveKitController::class, 'getStudentsForClass']);
+    Route::post('/livekit/send-invitations', [\App\Http\Controllers\Api\LiveKitController::class, 'sendInvitations']);
+    Route::post('/livekit/toggle-student-access', [\App\Http\Controllers\Api\LiveKitController::class, 'toggleStudentAccess']);
+    Route::get('/livekit/rooms', [\App\Http\Controllers\Api\LiveKitController::class, 'getActiveRooms']);
+    Route::post('/livekit/rooms', [\App\Http\Controllers\Api\LiveKitController::class, 'createRoom']);
 });

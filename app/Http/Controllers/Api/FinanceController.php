@@ -62,11 +62,87 @@ class FinanceController extends Controller
             ->where(function($q) use ($slug) {
                 $q->where('slug', $slug)
                   ->orWhereHas('etudiant', function($q2) use ($slug) {
-                      $q2->where('slug', $slug);
+                      $q2->where('slug', $slug)
+                        ->orWhere('id', $slug);
                   });
             })
             ->where('annee_scolaire_id', $anneeId)
-            ->firstOrFail();
+            ->first();
+
+        if (!$frais) {
+            // Tenter de trouver l'étudiant directement par slug ou ID
+            $etudiantObj = Etudiant::where('slug', $slug)->orWhere('id', $slug)->first();
+            
+            if ($etudiantObj) {
+                // Tenter une assignation par défaut s'il a un tarif
+                try {
+                    $fraisService = new \App\Services\FraisEtudiantService();
+                    $fraisService->assignDefaultFrais($etudiantObj, $anneeId);
+                } catch (\Exception $e) {
+                    \Log::warning("Assignation auto échouée dans detailRecouvrement: " . $e->getMessage());
+                }
+
+                // Ré-essayer de charger les frais pour cette année
+                $frais = FraisEtudiant::with(['etudiant.etudiantGroups.filiere', 'etudiant.etudiantGroups.niveau', 'echeances', 'fraisScolarite.filiere', 'fraisScolarite.niveau'])
+                    ->where('etudiant_id', $etudiantObj->id)
+                    ->where('annee_scolaire_id', $anneeId)
+                    ->first();
+
+                // Si pas de frais pour l'année active, prendre les plus récents
+                if (!$frais) {
+                    $frais = FraisEtudiant::with(['etudiant.etudiantGroups.filiere', 'etudiant.etudiantGroups.niveau', 'echeances', 'fraisScolarite.filiere', 'fraisScolarite.niveau'])
+                        ->where('etudiant_id', $etudiantObj->id)
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                }
+            }
+        }
+
+        // Si aucun FraisEtudiant n'existe du tout mais que l’étudiant existe
+        if (!$frais) {
+            $etudiantObj = $etudiantObj ?? Etudiant::where('slug', $slug)->orWhere('id', $slug)->firstOrFail();
+            $etudiantGroup = $etudiantObj->etudiantGroups->first();
+
+            $paiements = \App\Models\Paiement::where('etudiant_id', $etudiantObj->id)
+                ->where('status', 'valide')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            $fraisInscriptionActif = \App\Models\FraisInscription::where('active', true)
+                ->where('annee_scolaire_id', $anneeId)
+                ->first();
+            $montantInscr = $fraisInscriptionActif ? $fraisInscriptionActif->montant : 0;
+            $totalPayeInscription = $paiements->filter(fn($p) => $p->nature_paiement === 'inscription')->sum('montant');
+            $statutInscr = ($totalPayeInscription >= $montantInscr && $montantInscr > 0) ? 'solde' : 'non_paye';
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'etudiant' => [
+                        'id' => $etudiantObj->id,
+                        'slug' => $etudiantObj->slug,
+                        'frais_id' => null,
+                        'frais_slug' => null,
+                        'nom_complet' => $etudiantObj->nom_complet ?? ($etudiantObj->nom . ' ' . $etudiantObj->prenom),
+                        'matricule' => $etudiantObj->matricule,
+                        'statut' => 'en_cours',
+                        'filiere' => $etudiantGroup?->filiere?->nom ?? 'Non définie',
+                        'niveau' => $etudiantGroup?->niveau?->libelle ?? 'Non défini',
+                        'derniere_activite' => 'Aucun paiement',
+                        'montant_du' => 0,
+                        'montant_paye' => 0,
+                        'reste' => 0,
+                        'en_retard' => false,
+                        'inscription_statut' => $statutInscr,
+                        'montant_inscription_du' => $montantInscr,
+                        'montant_inscription_paye' => $totalPayeInscription,
+                        'anomalie' => (new \App\Services\DiagnosticFinancierService())->verifierAnomalieEtudiant($etudiantObj, $anneeId),
+                    ],
+                    'echeances' => [],
+                    'historique' => []
+                ]
+            ]);
+        }
         
         $paiements = \App\Models\Paiement::where('etudiant_id', $frais->etudiant_id)
             ->where('status', 'valide')

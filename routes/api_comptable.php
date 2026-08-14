@@ -50,6 +50,7 @@ Route::group([],function () {
         
         Route::get('/diagnostic/anomalies', [\App\Http\Controllers\DiagnosticFinancierController::class, 'index']);
         Route::post('/diagnostic/changer-mode-formation', [\App\Http\Controllers\DiagnosticFinancierController::class, 'changerModeFormation']);
+        Route::post('/diagnostic/changer-mode-formation-masse', [\App\Http\Controllers\DiagnosticFinancierController::class, 'changerModeFormationMasse']);
 	});
 
 

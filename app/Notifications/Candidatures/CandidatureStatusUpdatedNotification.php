@@ -8,18 +8,24 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class NewCandidatureSubmittedNotification extends Notification implements ShouldQueue
+class CandidatureStatusUpdatedNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
-    public $candidature;
+    public Candidature $candidature;
+    public string $statusTitle;
+    public string $statusDetails;
+    public ?string $actorName;
 
     /**
      * Create a new notification instance.
      */
-    public function __construct(Candidature $candidature)
+    public function __construct(Candidature $candidature, string $statusTitle, string $statusDetails, ?string $actorName = null)
     {
         $this->candidature = $candidature;
+        $this->statusTitle = $statusTitle;
+        $this->statusDetails = $statusDetails;
+        $this->actorName = $actorName;
     }
 
     /**
@@ -40,26 +46,30 @@ class NewCandidatureSubmittedNotification extends Notification implements Should
         $recipientName = method_exists($notifiable, 'civiliteName') ? $notifiable->civiliteName() : ($notifiable->nom ?? 'Cher utilisateur');
         $candidatName = method_exists($this->candidature, 'civiliteName') ? $this->candidature->civiliteName() : ($this->candidature->nom . ' ' . $this->candidature->prenom);
 
+        $actorInfo = $this->actorName ? "<p style='margin: 0 0 10px 0;'><strong>Action effectuée par :</strong> {$this->actorName}</p>" : "";
+
         $mailContent = "
             <p style='margin-bottom: 15px; font-size: 16px;'>Bonjour <strong>{$recipientName}</strong>,</p>
-            <p style='margin-bottom: 20px; font-size: 15px;'>Une nouvelle candidature a été soumise sur la plateforme.</p>
-            
+            <p style='margin-bottom: 20px; font-size: 15px;'>Le statut du dossier de candidature de <strong>{$candidatName}</strong> a été mis à jour.</p>
+
             <div style='background-color: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #eaeaea; margin-bottom: 25px;'>
+                <p style='margin: 0 0 10px 0;'><strong>Nouveau statut :</strong> {$this->statusTitle}</p>
+                <p style='margin: 0 0 10px 0;'><strong>Détails :</strong> {$this->statusDetails}</p>
+                {$actorInfo}
                 <p style='margin: 0 0 10px 0;'><strong>Candidat :</strong> {$candidatName}</p>
                 <p style='margin: 0 0 10px 0;'><strong>Email :</strong> <a href='mailto:{$this->candidature->email}' style='color: #80BF2E; text-decoration: none;'>{$this->candidature->email}</a></p>
                 <p style='margin: 0 0 10px 0;'><strong>Téléphone :</strong> <a href='tel:{$this->candidature->tel}' style='color: #80BF2E; text-decoration: none;'>{$this->candidature->tel}</a></p>
-                <p style='margin: 0 0 10px 0;'><strong>Nationalité :</strong> {$this->candidature->nationalite}</p>
             </div>
         ";
 
         return (new MailMessage)
-                    ->subject('Nouvelle candidature reçue - ' . $candidatName)
+                    ->subject("Mise à jour candidature - {$this->statusTitle} ({$candidatName})")
                     ->view('mails.base', [
-                        'mailTitle' => 'Nouvelle Candidature Reçue',
+                        'mailTitle' => $this->statusTitle,
                         'mailContent' => $mailContent,
-                        'buttonText' => 'Étudier le dossier',
+                        'buttonText' => 'Consulter le dossier',
                         'buttonHref' => rtrim(env('FRONTEND_URL', 'http://localhost:3001'), '/') . '/candidatures/etude-dossier',
-                        'moreInfo' => 'Veuillez examiner cette candidature dans le tableau de bord.'
+                        'moreInfo' => 'Consultez la fiche du candidat pour plus de détails.'
                     ]);
     }
 
@@ -75,8 +85,10 @@ class NewCandidatureSubmittedNotification extends Notification implements Should
             'nom' => $this->candidature->nom,
             'prenom' => $this->candidature->prenom,
             'email' => $this->candidature->email,
-            'message' => 'Nouvelle candidature de ' . $this->candidature->nom . ' ' . $this->candidature->prenom,
-            'type' => 'new_candidature'
+            'title' => $this->statusTitle,
+            'details' => $this->statusDetails,
+            'message' => "Mise à jour candidature ({$this->statusTitle}) : {$this->candidature->nom} {$this->candidature->prenom}",
+            'type' => 'candidature_status_updated'
         ];
     }
 }

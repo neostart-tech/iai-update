@@ -217,6 +217,18 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			['nom' => 'Publier une évaluation', 'description' => 'Publier une évaluation']
 		);
 		Permission::firstOrCreate(
+			['slug' => 'restore-evaluation'],
+			['nom' => 'Restaurer une évaluation', 'description' => 'Restaurer une évaluation depuis la corbeille']
+		);
+		Permission::firstOrCreate(
+			['slug' => 'force-delete-evaluation'],
+			['nom' => 'Supprimer définitivement une évaluation', 'description' => 'Supprimer définitivement une évaluation de la base de données']
+		);
+		Permission::firstOrCreate(
+			['slug' => 'delete-published-evaluation'],
+			['nom' => 'Supprimer une évaluation publiée ou passée', 'description' => 'Mettre en corbeille une évaluation déjà publiée ou dont la date de début est dépassée']
+		);
+		Permission::firstOrCreate(
 			['slug' => 'publish-note'],
 			['nom' => 'Publier les notes', 'description' => 'Publier les notes']
 		);
@@ -309,6 +321,7 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			'rejeter-candidature' => 'Rejeter un dossier de candidature',
 			'rectifier-candidature' => 'Demander une rectification de dossier',
 			'transmettre-candidature' => "Transmettre un dossier a l'academie",
+			'recevoir-notification-nouvelle-candidature' => "Recevoir une notification par e-mail lors d'une nouvelle candidature",
 			'reorienter-candidature' => 'Reorienter un candidat',
 			'controler-presence-candidature' => "Controler la presence d'un candidat au concours",
 			'controler-admission-candidature' => "Controler l'admission d'un candidat",
@@ -375,6 +388,10 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			'create-comite-classe' => 'Ajouter un comite de classe',
 			'delete-comite-classe' => 'Supprimer un comite de classe',
 			'update-syllabus' => "Modifier/deposer le syllabus d'une UV",
+
+			'view-cours-en-ligne' => 'Acceder aux cours en ligne et visioconferences',
+			'create-cours-en-ligne' => 'Lancer une classe virtuelle en ligne',
+			'manage-livekit-access' => 'Moderer la scolarite et acces aux cours en ligne',
 		];
 		foreach ($secondPass as $slug => $nom) {
 			Permission::firstOrCreate(['slug' => $slug], ['nom' => $nom, 'description' => $nom]);
@@ -406,7 +423,7 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			'create-filiere', 'update-filiere', 'delete-filiere', 'view-filiere',
 			'create-ue', 'update-ue', 'delete-ue', 'view-ue',
 			'create-uv', 'update-uv', 'delete-uv', 'view-uv',
-			'create-evaluation', 'update-evaluation', 'delete-evaluation', 'view-evaluation',
+			'create-evaluation', 'update-evaluation', 'delete-evaluation', 'restore-evaluation', 'force-delete-evaluation', 'delete-published-evaluation', 'view-evaluation',
 			'create-salle', 'update-salle', 'delete-salle', 'view-salle',
 			'create-etudiant', 'update-etudiant', 'delete-etudiant', 'view-etudiant',
 			'create-groupe', 'delete-groupe', 'view-groupe',
@@ -496,12 +513,22 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			->each(fn (Role $role) => $role->permissions()->syncWithoutDetaching($slugs(['update-prospect', 'delete-prospect'])));
 
 		// 2026-07-21 (suite) -- roles pour la deuxieme passe.
+		// Explicit detachment: s'assurer que 'recevoir-notification-nouvelle-candidature'
+		// est retiré de tous les rôles (ex: marketing, commercial) sauf le chargé de clientèle.
+		$permNotifCandidature = Permission::where('slug', 'recevoir-notification-nouvelle-candidature')->first();
+		if ($permNotifCandidature) {
+			Role::whereNotIn('slug', ['charge-de-la-clientele', 'informaticien', 'admin', 'directeur-general', 'directeur-general-adjoint'])
+				->get()
+				->each(fn (Role $role) => $role->permissions()->detach($permNotifCandidature->id));
+		}
+
 		// Chargé de la clientèle : responsable du traitement des dossiers de candidature
 		// (etude de dossier) avant transmission a l'academie.
 		Role::where('slug', 'charge-de-la-clientele')
 			->get()
 			->each(fn (Role $role) => $role->permissions()->syncWithoutDetaching($slugs([
 				'valider-candidature', 'rejeter-candidature', 'rectifier-candidature', 'transmettre-candidature',
+				'recevoir-notification-nouvelle-candidature',
 				'reorienter-candidature', 'controler-presence-candidature',
 				'controler-admission-candidature', 'payer-participation-candidature',
 				'reply-message-contact', 'delete-message-contact', 'delete-brouillon-candidature',
@@ -554,6 +581,19 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			->get()
 			->each(fn (Role $role) => $role->permissions()->syncWithoutDetaching($slugs([
 				'create-evaluation', 'update-evaluation', 'create-note', 'update-note',
+				'view-cours-en-ligne', 'create-cours-en-ligne',
+			])));
+
+		Role::whereIn('slug', ['etudiant', 'delegue'])
+			->get()
+			->each(fn (Role $role) => $role->permissions()->syncWithoutDetaching($slugs([
+				'view-cours-en-ligne',
+			])));
+
+		Role::whereIn('slug', ['charge-de-la-clientele', 'comptable', 'responsable-administratif-et-financier', 'directeur-des-affaires-financieres', 'directeur-academique', 'logiticien-academique'])
+			->get()
+			->each(fn (Role $role) => $role->permissions()->syncWithoutDetaching($slugs([
+				'view-cours-en-ligne', 'create-cours-en-ligne', 'manage-livekit-access',
 			])));
 	}
 }

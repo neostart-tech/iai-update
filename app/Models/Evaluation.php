@@ -9,6 +9,7 @@ use App\Traits\Routing\ModelsSlugKeyTrait;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
@@ -24,7 +25,7 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
 #[ScopedBy(CurrentAnneeScolaireScope::class)]
 class Evaluation extends Model
 {
-    use GenerateUniqueSlugTrait, ModelsSlugKeyTrait;
+    use GenerateUniqueSlugTrait, ModelsSlugKeyTrait, SoftDeletes;
 
     // Niveau relation added for filtering by level
     // public function niveau(): BelongsTo
