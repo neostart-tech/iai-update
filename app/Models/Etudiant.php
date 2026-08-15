@@ -545,4 +545,23 @@ public function getStatistiquesPresencesAttribute()
             $nextNumber++;
         }
     }
+
+	public function effectivePermissionSlugs(): array
+	{
+		return $this->roles()
+			->with('permissions')
+			->get()
+			->pluck('permissions')
+			->flatten()
+			->pluck('slug')
+			->filter()
+			->unique()
+			->values()
+			->all();
+	}
+
+	public function hasPermissionSlug(string $slug): bool
+	{
+		return in_array($slug, $this->effectivePermissionSlugs(), true);
+	}
 }

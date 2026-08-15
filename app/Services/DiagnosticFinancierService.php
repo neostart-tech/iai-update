@@ -97,10 +97,19 @@ class DiagnosticFinancierService
     }
 
     public function verifierAnomalieEtudiant($etudiant, $anneeId) {
-        $dash = $this->getMontantDash($etudiant, $anneeId);
+        // Un étudiant sans contrat spécifique (frais_etudiants) suit la scolarité académique standard par défaut.
+        $fraisEtudiant = $etudiant->fraisEtudiant()->where('annee_scolaire_id', $anneeId)->first();
+        if (!$fraisEtudiant) {
+            return ['has_anomalie' => false];
+        }
+
+        $dash = (float) $fraisEtudiant->montant_apres_bourse;
         $sitInfo = $this->getMontantSitInfo($etudiant, $anneeId);
         
         if (!$sitInfo['tarif_existant']) {
+            if ($dash == 0) {
+                return ['has_anomalie' => false];
+            }
             return [
                 'has_anomalie' => true,
                 'type_anomalie' => 'tarif_manquant',
@@ -112,13 +121,13 @@ class DiagnosticFinancierService
             ];
         }
 
-        if ($dash != $sitInfo['montant']) {
+        if (abs($dash - (float)$sitInfo['montant']) > 0.01) {
             return [
                 'has_anomalie' => true,
                 'type_anomalie' => 'incoherence_tarif',
                 'dash' => $dash,
-                'sit' => $sitInfo['montant'],
-                'diff' => $sitInfo['montant'] - $dash,
+                'sit' => (float) $sitInfo['montant'],
+                'diff' => (float) ($sitInfo['montant'] - $dash),
                 'tarif_existant' => true,
             ];
         }
@@ -128,7 +137,11 @@ class DiagnosticFinancierService
 
     private function getMontantDash($etudiant, $anneeId) {
         $fraisEtudiant = $etudiant->fraisEtudiant()->where('annee_scolaire_id', $anneeId)->first();
-        return $fraisEtudiant ? $fraisEtudiant->montant_apres_bourse : 0;
+        if ($fraisEtudiant) {
+            return (float) $fraisEtudiant->montant_apres_bourse;
+        }
+        $sitInfo = $this->getMontantSitInfo($etudiant, $anneeId);
+        return (float) $sitInfo['montant'];
     }
 
     public function getMontantSitInfo($etudiant, $anneeId) {
@@ -140,9 +153,20 @@ class DiagnosticFinancierService
             return ['montant' => 0, 'tarif_existant' => false];
         }
         
-        $modeFormation = ($groupe->mode_formation instanceof \UnitEnum) 
-                            ? $groupe->mode_formation->value 
-                            : ($groupe->mode_formation ?? 'Présentiel');
+        $modeFormation = null;
+        if ($groupe->mode_formation) {
+            $modeFormation = ($groupe->mode_formation instanceof \UnitEnum) 
+                                ? $groupe->mode_formation->value 
+                                : $groupe->mode_formation;
+        }
+        if (!$modeFormation || $modeFormation === 'Tous') {
+            if (isset($etudiant->mode_formation)) {
+                $modeFormation = ($etudiant->mode_formation instanceof \UnitEnum)
+                                    ? $etudiant->mode_formation->value
+                                    : $etudiant->mode_formation;
+            }
+        }
+        $modeFormation = $modeFormation ?: 'Présentiel';
                             
         $genreValue = ($etudiant->genre instanceof \UnitEnum) ? $etudiant->genre->value : ($etudiant->genre ?? 'Tous');
 

@@ -328,6 +328,8 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			'inscrire-etudiant-candidature' => "Inscrire un candidat en tant qu'etudiant",
 			'payer-participation-candidature' => 'Enregistrer le paiement des frais de participation',
 			'delete-brouillon-candidature' => "Supprimer un dossier de candidature incomplet (jamais soumis)",
+			'view-candidature-dashboard' => "Voir le tableau de bord et statistiques des candidatures",
+			'afficher-dashboard-candidatures' => "Afficher le tableau de bord des candidatures",
 
 			// Gestion des rôles : aucune permission n'existait pour ce module (jamais
 			// seedée par aucun seeder existant) -- can:create-role/update-role/delete-role/
@@ -532,6 +534,7 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 				'reorienter-candidature', 'controler-presence-candidature',
 				'controler-admission-candidature', 'payer-participation-candidature',
 				'reply-message-contact', 'delete-message-contact', 'delete-brouillon-candidature',
+				'view-candidature-dashboard', 'afficher-dashboard-candidatures',
 			])));
 
 		// Académique : suite du traitement du dossier après transmission, gestion des
@@ -542,6 +545,7 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			->each(fn (Role $role) => $role->permissions()->syncWithoutDetaching($slugs([
 				'valider-candidature', 'rejeter-candidature', 'rectifier-candidature',
 				'reorienter-candidature', 'inscrire-etudiant-candidature', 'delete-brouillon-candidature',
+				'view-candidature-dashboard', 'afficher-dashboard-candidatures',
 				'create-concours-session', 'update-concours-session', 'publish-concours-session',
 				'create-concours-matiere', 'update-concours-matiere', 'delete-concours-matiere',
 				'create-concours-session-matiere', 'update-concours-session-matiere', 'delete-concours-session-matiere',
@@ -551,6 +555,13 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 				'create-bourse', 'update-bourse', 'delete-bourse', 'affecter-bourse',
 				'update-situation-etudiant', 'reinscrire-etudiant', 'update-groupe',
 				'update-surveillant', 'valider-absence',
+			])));
+
+		// Roles administration / marketing / commercial / finance pour consultation du tableau de bord candidature
+		Role::whereIn('slug', ['responsable-marketing', 'collaborateur-commercial', 'directeur-des-affaires-financieres', 'responsable-administratif-et-financier'])
+			->get()
+			->each(fn (Role $role) => $role->permissions()->syncWithoutDetaching($slugs([
+				'view-candidature-dashboard', 'afficher-dashboard-candidatures',
 			])));
 
 		// Surveillants et enseignants : suivi des présences, comportement, justificatifs,

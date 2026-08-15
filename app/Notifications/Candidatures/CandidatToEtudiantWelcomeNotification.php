@@ -12,13 +12,23 @@ class CandidatToEtudiantWelcomeNotification extends NotificationBase
 
 	static string $icon = '<i class="ph-duotone ph-student"></i> ';
 
-	public function __construct(public string $content, public string $email, public string $password)
+	public function __construct(
+		public string $content, 
+		public string $email, 
+		public string $password,
+		public bool $fraisInscriptionPaye = true
+	)
 	{
 		parent::__construct('Création d\'espace étudiant', $this->content);
 	}
 
 	public function toMail(object $notifiable): GroupAttributionMail
 	{
-		return (new GroupAttributionMail($notifiable->greeting(), $this->email, $this->password))->to($notifiable->candidatures()->latest()->first()->email ?? $notifiable->email);
+		return (new GroupAttributionMail(
+			$notifiable->greeting(), 
+			$this->email, 
+			$this->password,
+			$this->fraisInscriptionPaye
+		))->to($notifiable->candidatures()->latest()->first()->email ?? $notifiable->email);
 	}
 }

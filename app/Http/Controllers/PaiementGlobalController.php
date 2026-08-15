@@ -297,10 +297,22 @@ class PaiementGlobalController extends Controller
         ->first();
 
     if (!$fraisEtudiant) {
+        $etudiant = Etudiant::find($etudiantId);
         return response()->json([
-            'success' => false,
-            'message' => 'Aucun frais trouvé pour cet étudiant'
-        ], 404);
+            'success' => true,
+            'data' => [
+                'montant_total' => 0,
+                'total_paye' => 0,
+                'reste_a_payer' => 0,
+                'pourcentage' => 0,
+                'nombre_echeances' => 0,
+                'echeances_payees' => 0,
+                'echeances_en_cours' => 0,
+                'echeances_en_attente' => 0,
+                'echeances_en_retard' => 0,
+                'frais_inscription_paye' => (bool) ($etudiant?->frais_inscription_paye ?? false),
+            ]
+        ]);
     }
 
     // Récupérer tous les paiements liés aux échéances de ce frais
@@ -326,6 +338,7 @@ class PaiementGlobalController extends Controller
         'echeances_en_cours' => $fraisEtudiant->echeances->where('statut', 'partiel')->count(),
         'echeances_en_attente' => $fraisEtudiant->echeances->where('statut', 'en_attente')->count(),
         'echeances_en_retard' => $fraisEtudiant->echeances->where('statut', 'en_retard')->count(),
+        'frais_inscription_paye' => (bool) ($fraisEtudiant->etudiant?->frais_inscription_paye ?? false),
     ];
 
     return response()->json([

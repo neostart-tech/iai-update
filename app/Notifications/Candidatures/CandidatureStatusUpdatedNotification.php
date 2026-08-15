@@ -46,26 +46,34 @@ class CandidatureStatusUpdatedNotification extends Notification implements Shoul
         $recipientName = method_exists($notifiable, 'civiliteName') ? $notifiable->civiliteName() : ($notifiable->nom ?? 'Cher utilisateur');
         $candidatName = method_exists($this->candidature, 'civiliteName') ? $this->candidature->civiliteName() : ($this->candidature->nom . ' ' . $this->candidature->prenom);
 
+        $byActor = $this->actorName ? " par <strong>{$this->actorName}</strong>" : "";
         $actorInfo = $this->actorName ? "<p style='margin: 0 0 10px 0;'><strong>Action effectuée par :</strong> {$this->actorName}</p>" : "";
+        $currentDate = now()->translatedFormat('d F Y');
 
         $mailContent = "
             <p style='margin-bottom: 15px; font-size: 16px;'>Bonjour <strong>{$recipientName}</strong>,</p>
-            <p style='margin-bottom: 20px; font-size: 15px;'>Le statut du dossier de candidature de <strong>{$candidatName}</strong> a été mis à jour.</p>
+            <p style='margin-bottom: 20px; font-size: 15px; line-height: 1.6;'>Nous vous informons que le dossier de candidature de <strong>{$candidatName}</strong> a été examiné et mis à jour{$byActor}.</p>
 
             <div style='background-color: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #eaeaea; margin-bottom: 25px;'>
+                <p style='margin: 0 0 12px 0; font-size: 14px; font-weight: bold; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;'>RÉSUMÉ DU DOSSIER</p>
                 <p style='margin: 0 0 10px 0;'><strong>Nouveau statut :</strong> {$this->statusTitle}</p>
-                <p style='margin: 0 0 10px 0;'><strong>Détails :</strong> {$this->statusDetails}</p>
+                <p style='margin: 0 0 10px 0;'><strong>Décision académique :</strong> {$this->statusDetails}</p>
                 {$actorInfo}
-                <p style='margin: 0 0 10px 0;'><strong>Candidat :</strong> {$candidatName}</p>
+                <p style='margin: 0 0 10px 0;'><strong>Date de mise à jour :</strong> {$currentDate}</p>
+
+                <p style='margin: 20px 0 12px 0; font-size: 14px; font-weight: bold; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;'>COORDONNÉES DU CANDIDAT</p>
+                <p style='margin: 0 0 10px 0;'><strong>Nom & Prénom :</strong> {$candidatName}</p>
                 <p style='margin: 0 0 10px 0;'><strong>Email :</strong> <a href='mailto:{$this->candidature->email}' style='color: #80BF2E; text-decoration: none;'>{$this->candidature->email}</a></p>
                 <p style='margin: 0 0 10px 0;'><strong>Téléphone :</strong> <a href='tel:{$this->candidature->tel}' style='color: #80BF2E; text-decoration: none;'>{$this->candidature->tel}</a></p>
             </div>
         ";
 
+        $displayStatusTitle = $this->actorName ? "{$this->statusTitle} par {$this->actorName}" : $this->statusTitle;
+
         return (new MailMessage)
-                    ->subject("Mise à jour candidature - {$this->statusTitle} ({$candidatName})")
+                    ->subject("Mise à jour candidature - {$displayStatusTitle} ({$candidatName})")
                     ->view('mails.base', [
-                        'mailTitle' => $this->statusTitle,
+                        'mailTitle' => $displayStatusTitle,
                         'mailContent' => $mailContent,
                         'buttonText' => 'Consulter le dossier',
                         'buttonHref' => rtrim(env('FRONTEND_URL', 'http://localhost:3001'), '/') . '/candidatures/etude-dossier',

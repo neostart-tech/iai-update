@@ -43,10 +43,14 @@ trait IndexTrait
 			->where('rectification_expected', false)
 			->where('dossier_valide', false);
 
-		if ($user->hasPermissionSlug('valider-candidature') || $user->hasPermissionSlug('rejeter-candidature') || $user->hasPermissionSlug('reorienter-candidature')) {
-			$query->where('transmis_academie', true);
-		} elseif ($user->hasPermissionSlug('transmettre-candidature')) {
-			$query->where('transmis_academie', false);
+		if ($user && method_exists($user, 'hasPermissionSlug')) {
+			if ($user->hasPermissionSlug('valider-candidature') || $user->hasPermissionSlug('rejeter-candidature') || $user->hasPermissionSlug('reorienter-candidature')) {
+				$query->where('transmis_academie', true);
+			} elseif ($user->hasPermissionSlug('transmettre-candidature')) {
+				$query->where('transmis_academie', false);
+			} else {
+				return response()->json(['count' => 0]);
+			}
 		} else {
 			return response()->json(['count' => 0]);
 		}
@@ -168,16 +172,11 @@ trait IndexTrait
 	public function InscriptionCandidaturesIndex()
 	{
 		$candidatures = Candidature::query()
+			->with(['niveau', 'filiere', 'album', 'etudiant'])
 			->whereNotNull('soumis_le')
 			->where('dossier_valide', true)
 			->where('admission', true)
 			->whereNull('motif')
-			->where(function ($query) {
-				$query->whereDoesntHave('etudiant')
-					->orWhereHas('etudiant', function ($q) {
-						$q->whereDoesntHave('groups');
-					});
-			})
 			->orderBy('nom')
 			->orderBy('prenom')
 			->get();

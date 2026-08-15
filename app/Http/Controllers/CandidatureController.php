@@ -1430,8 +1430,9 @@ class CandidatureController extends Controller
 
 			$emailProToSend = $request->input('email_pro', $etudiant->email);
 			$passwordToSend = $request->input('password', 'Votre ancien mot de passe de candidature');
+			$fraisInscriptionPaye = $request->boolean('frais_inscription_paye');
 
-			$etudiant->notify(new CandidatToEtudiantWelcomeNotification($etudiant->greeting(), $emailProToSend, $passwordToSend));
+			$etudiant->notify(new CandidatToEtudiantWelcomeNotification($etudiant->greeting(), $emailProToSend, $passwordToSend, $fraisInscriptionPaye));
 
 			return response()->json([
 				'success' => true,
@@ -1501,13 +1502,14 @@ class CandidatureController extends Controller
 
 		if ($chargeClientele->count() > 0) {
 			$userActor = auth('sanctum')->user() ?? auth()->user();
+			$actorFullName = $userActor ? $userActor->nom . ' ' . $userActor->prenom : null;
 			Notification::send(
 				$chargeClientele,
 				new \App\Notifications\Candidatures\CandidatureStatusUpdatedNotification(
 					$candidature,
-					'Candidature Réorientée par l\'Académie',
+					'Candidature Réorientée',
 					'Le dossier a été réorienté vers : ' . $candidature->filiere->nom . ' (' . $candidature->niveau->libelle . '). Motif : ' . $request->motif,
-					$userActor ? $userActor->nom . ' ' . $userActor->prenom : null
+					$actorFullName
 				)
 			);
 		}
@@ -1534,5 +1536,260 @@ class CandidatureController extends Controller
 		} catch (\Throwable $e) {
 			\Illuminate\Support\Facades\Log::error("Erreur lors de l'envoi des notifications de candidature : " . $e->getMessage());
 		}
+	}
+
+	/**
+	 * Statistiques exhaustives pour le tableau de bord des candidatures.
+	 */
+	public function dashboardStats(Request $request): JsonResponse
+	{
+		// 1. Années scolaires et sélection de l'année active
+		$anneesScolaires = AnneeScolaire::orderByDesc('date_debut')->get(['id', 'nom', 'active', 'date_debut', 'date_fin']);
+
+		$selectedAnneeId = null;
+		$rawAnnee = $request->input('annee_scolaire_id');
+		if (!empty($rawAnnee) && $rawAnnee !== 'all' && $rawAnnee !== 'toutes') {
+			$selectedAnneeId = $rawAnnee;
+		}
+
+		// 2. Base query filtrée
+		$query = Candidature::query();
+
+		if ($selectedAnneeId) {
+			$query->where('annee_scolaire_id', $selectedAnneeId);
+		}
+
+		if ($request->filled('filiere_id')) {
+			$query->where('filiere_id', $request->input('filiere_id'));
+		}
+
+		if ($request->filled('niveau_id')) {
+			$query->where('niveau_id', $request->input('niveau_id'));
+		}
+
+		if ($request->filled('mode_formation')) {
+			$query->where('mode_formation', $request->input('mode_formation'));
+		}
+
+		if ($request->filled('date_debut')) {
+			$query->whereDate('created_at', '>=', $request->input('date_debut'));
+		}
+
+		if ($request->filled('date_fin')) {
+			$query->whereDate('created_at', '<=', $request->input('date_fin'));
+		}
+
+		// 3. Extraction de l'ensemble des candidatures filtrées avec relations de base pour calculs
+		$allCandidatures = (clone $query)->with(['niveau:id,libelle,code', 'filiere:id,nom,code', 'moyenConnaissance:id,libelle', 'etudiant:id,matricule,slug'])->get();
+
+		// Total global
+		$total = $allCandidatures->count();
+		$soumises = $allCandidatures->filter(fn($c) => !is_null($c->soumis_le))->count();
+		if ($soumises === 0 && $total > 0) {
+			$soumises = $total;
+		}
+		$brouillons = $allCandidatures->filter(fn($c) => is_null($c->soumis_le))->count();
+
+		// Statuts de traitement
+		$enAttente = $allCandidatures->filter(fn($c) => !$c->dossier_valide && empty($c->motif) && !$c->rectification_expected)->count();
+		$transmisesAcademie = $allCandidatures->filter(fn($c) => (bool)$c->transmis_academie)->count();
+		$rectifications = $allCandidatures->filter(fn($c) => (bool)$c->rectification_expected)->count();
+		$rejetees = $allCandidatures->filter(fn($c) => !$c->dossier_valide && !empty($c->motif))->count();
+		$valides = $allCandidatures->filter(fn($c) => (bool)$c->dossier_valide && empty($c->motif))->count();
+
+		// Concours / Admission
+		$fraisPayes = $allCandidatures->filter(fn($c) => (bool)$c->frais_paye)->count();
+		$participantsConcours = $allCandidatures->filter(fn($c) => (bool)$c->participation)->count();
+		$admis = $allCandidatures->filter(fn($c) => (bool)$c->admission)->count();
+		$inscritsEtudiants = $allCandidatures->filter(fn($c) => !is_null($c->etudiant_id))->count();
+
+		// Taux de conversion
+		$tauxAdmission = $soumises > 0 ? round(($admis / $soumises) * 100, 1) : 0;
+		$tauxInscription = $admis > 0 ? round(($inscritsEtudiants / $admis) * 100, 1) : 0;
+		$tauxValidation = $soumises > 0 ? round(($valides / $soumises) * 100, 1) : 0;
+
+		// KPI Cards Summary
+		$kpis = [
+			'total' => $total,
+			'total_candidatures' => $total,
+			'soumises' => $soumises,
+			'brouillons' => $brouillons,
+			'en_attente' => $enAttente,
+			'en_etude' => $enAttente,
+			'transmises' => $transmisesAcademie,
+			'transmis_academie' => $transmisesAcademie,
+			'rectifications' => $rectifications,
+			'rectification' => $rectifications,
+			'rejetees' => $rejetees,
+			'rejetes' => $rejetees,
+			'valides' => $valides,
+			'frais_payes' => $fraisPayes,
+			'frais_non_payes' => max(0, $total - $fraisPayes),
+			'participants_concours' => $participantsConcours,
+			'admis' => $admis,
+			'inscrits' => $inscritsEtudiants,
+			'taux_admission' => $tauxAdmission,
+			'taux_conversion' => $tauxAdmission,
+			'taux_inscription' => $tauxInscription,
+			'taux_validation' => $tauxValidation,
+		];
+
+		// Ventilation par Genre (Gestion robuste Enum / String)
+		$hommes = $allCandidatures->filter(function($c) {
+			$g = $c->genre instanceof \App\Enums\GenreEnum ? $c->genre->value : (string)$c->genre;
+			return in_array(strtoupper(trim((string)$g)), ['M', 'MASCULIN', 'MR', 'MONSIEUR', '1']);
+		})->count();
+
+		$femmes = $allCandidatures->filter(function($c) {
+			$g = $c->genre instanceof \App\Enums\GenreEnum ? $c->genre->value : (string)$c->genre;
+			return in_array(strtoupper(trim((string)$g)), ['F', 'FEMININ', 'MME', 'MADAME', '2']);
+		})->count();
+
+		$genreDistribution = [
+			'hommes' => ['count' => $hommes, 'percentage' => $total > 0 ? round(($hommes / $total) * 100, 1) : 0],
+			'femmes' => ['count' => $femmes, 'percentage' => $total > 0 ? round(($femmes / $total) * 100, 1) : 0],
+		];
+
+		// Ventilation par Filière (Dynamique)
+		$allFilieres = Filiere::withoutGlobalScopes()->get(['id', 'nom', 'code']);
+		$filieresSummary = $allFilieres->map(function ($filiere) use ($allCandidatures) {
+			$items = $allCandidatures->where('filiere_id', $filiere->id);
+			$count = $items->count();
+			$admisCount = $items->filter(fn($c) => (bool)$c->admission)->count();
+			$inscritsCount = $items->filter(fn($c) => !is_null($c->etudiant_id))->count();
+
+			return [
+				'id' => $filiere->id,
+				'nom' => $filiere->nom,
+				'code' => $filiere->code,
+				'total' => $count,
+				'admis' => $admisCount,
+				'inscrits' => $inscritsCount,
+			];
+		})->concat(
+			$allCandidatures->whereNotIn('filiere_id', $allFilieres->pluck('id'))->groupBy('filiere_id')->map(function($group, $fId) {
+				$first = $group->first()->filiere;
+				return [
+					'id' => $fId,
+					'nom' => $first->nom ?? 'Autre Filière',
+					'code' => $first->code ?? '',
+					'total' => $group->count(),
+					'admis' => $group->filter(fn($c) => (bool)$c->admission)->count(),
+					'inscrits' => $group->filter(fn($c) => !is_null($c->etudiant_id))->count(),
+				];
+			})
+		)->filter(fn($f) => $f['total'] > 0)->sortByDesc('total')->values();
+
+		// Ventilation par Niveau DYNAMIQUE (Gère tous les niveaux y compris Master Pro, etc.)
+		$allNiveaux = Niveau::withoutGlobalScopes()->get(['id', 'libelle', 'code']);
+		$niveauxSummary = $allNiveaux->map(function ($niveau) use ($allCandidatures) {
+			$items = $allCandidatures->where('niveau_id', $niveau->id);
+			return [
+				'id' => $niveau->id,
+				'libelle' => $niveau->libelle ?? $niveau->code,
+				'nom' => $niveau->libelle ?? $niveau->code,
+				'code' => $niveau->code,
+				'total' => $items->count(),
+				'admis' => $items->filter(fn($c) => (bool)$c->admission)->count(),
+			];
+		})->concat(
+			$allCandidatures->whereNotIn('niveau_id', $allNiveaux->pluck('id'))->groupBy('niveau_id')->map(function($group, $nId) {
+				$first = $group->first()->niveau;
+				return [
+					'id' => $nId,
+					'libelle' => $first->libelle ?? $first->nom ?? 'Autre Niveau',
+					'nom' => $first->libelle ?? $first->nom ?? 'Autre Niveau',
+					'code' => $first->code ?? '',
+					'total' => $group->count(),
+					'admis' => $group->filter(fn($c) => (bool)$c->admission)->count(),
+				];
+			})
+		)->sortByDesc('total')->values();
+
+		// Ventilation par Mode de Formation
+		$modePresentiel = $allCandidatures->filter(fn($c) => in_array(strtolower($c->mode_formation ?? ''), ['présentiel', 'presentiel', 'tous', '']))->count();
+		$modeEnLigne = $allCandidatures->filter(fn($c) => in_array(strtolower($c->mode_formation ?? ''), ['en ligne', 'en_ligne', 'online', 'distanciel']))->count();
+		$modesDistribution = [
+			'presentiel' => $modePresentiel,
+			'en_ligne' => $modeEnLigne,
+		];
+
+		// Ventilation par Moyens de Connaissance
+		$sourcesSummary = $allCandidatures
+			->groupBy('moyen_connaissance_id')
+			->map(function ($group, $key) {
+				$firstName = $group->first()->moyenConnaissance->libelle ?? $group->first()->moyenConnaissance->nom ?? 'Non précisé';
+				return [
+					'id' => $key,
+					'nom' => $firstName,
+					'count' => $group->count(),
+				];
+			})->sortByDesc('count')->values();
+
+		// Évolution Mensuelle
+		$monthlyTrend = [];
+		$monthsMap = [
+			1 => 'Jan', 2 => 'Fév', 3 => 'Mar', 4 => 'Avr', 5 => 'Mai', 6 => 'Juin',
+			7 => 'Juil', 8 => 'Août', 9 => 'Sept', 10 => 'Oct', 11 => 'Nov', 12 => 'Déc'
+		];
+
+		for ($m = 1; $m <= 12; $m++) {
+			$countMonth = $allCandidatures->filter(function ($c) use ($m) {
+				$date = $c->soumis_le ?? $c->created_at;
+				return $date && \Carbon\Carbon::parse($date)->month === $m;
+			})->count();
+
+			$monthlyTrend[] = [
+				'month_number' => $m,
+				'month_name' => $monthsMap[$m],
+				'count' => $countMonth,
+			];
+		}
+
+		// Dernières candidatures (Top 10) avec statut complet d'admission & inscription
+		$recentes = $allCandidatures->sortByDesc('created_at')->take(10)->map(function ($c) {
+			return [
+				'id' => $c->id,
+				'slug' => $c->slug,
+				'nom' => $c->nom,
+				'prenom' => $c->prenom,
+				'email' => $c->email,
+				'tel' => $c->tel,
+				'genre' => $c->genre,
+				'filiere' => $c->filiere ? ['id' => $c->filiere->id, 'nom' => $c->filiere->nom, 'code' => $c->filiere->code] : null,
+				'niveau' => $c->niveau ? ['id' => $c->niveau->id, 'libelle' => $c->niveau->libelle] : null,
+				'dossier_valide' => (bool)$c->dossier_valide,
+				'transmis_academie' => (bool)$c->transmis_academie,
+				'rectification_expected' => (bool)$c->rectification_expected,
+				'admission' => (bool)$c->admission,
+				'frais_paye' => (bool)$c->frais_paye,
+				'etudiant_id' => $c->etudiant_id,
+				'est_inscrit' => !is_null($c->etudiant_id),
+				'etudiant' => $c->etudiant ? ['id' => $c->etudiant->id, 'matricule' => $c->etudiant->matricule, 'slug' => $c->etudiant->slug] : null,
+				'motif' => $c->motif,
+				'soumis_le' => $c->soumis_le ? \Carbon\Carbon::parse($c->soumis_le)->format('Y-m-d H:i') : null,
+				'created_at' => $c->created_at ? $c->created_at->format('Y-m-d H:i') : null,
+			];
+		})->values();
+
+		return response()->json([
+			'active_annee_id' => $selectedAnneeId,
+			'annees' => $anneesScolaires,
+			'filieres' => Filiere::withoutGlobalScopes()->get(['id', 'nom', 'code']),
+			'niveaux' => Niveau::withoutGlobalScopes()->get(['id', 'libelle', 'code']),
+			'kpis' => $kpis,
+			'genre_distribution' => $genreDistribution,
+			'filieres_summary' => $filieresSummary,
+			'niveaux_summary' => $niveauxSummary,
+			'modes_distribution' => $modesDistribution,
+			'sources_summary' => $sourcesSummary,
+			'monthly_trend' => $monthlyTrend,
+			'recentes' => $recentes,
+			'metaData' => [
+				'title' => 'Tableau de Bord des Candidatures',
+				'breadcrumbs' => ['Administration', 'Candidatures', 'Statistiques & Analytics'],
+				'page_name' => 'Tableau de Bord Candidatures'
+			]
+		]);
 	}
 }

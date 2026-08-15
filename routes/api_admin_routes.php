@@ -260,6 +260,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::controller(CandidatureController::class)->prefix('candidature')->name('candidatures.')->group(function () {
+        Route::get('dashboard-stats', 'dashboardStats')->name('dashboard-stats');
         Route::get('liste', 'index')->name('index');
         Route::get('count-a-traiter', 'countCandidaturesATraiter')->name('count-a-traiter');
         Route::get('creation-d-une-candidature', 'inscriptionIndexForm')->name('create');

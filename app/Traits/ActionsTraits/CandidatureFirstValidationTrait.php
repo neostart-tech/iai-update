@@ -4,10 +4,17 @@ namespace App\Traits\ActionsTraits;
 
 use App\Jobs\SmsSendingProcess;
 use App\Models\Candidature;
+use App\Models\User;
+use App\Notifications\Candidatures\CandidatRectificationNotification;
+use App\Notifications\Candidatures\CandidatRejeteNotification;
+use App\Notifications\Candidatures\CandidatTransmisAcademieNotification;
 use App\Notifications\Candidatures\CandidatValideNotification;
+use App\Notifications\Candidatures\CandidatureStatusUpdatedNotification;
+use App\Notifications\Candidatures\CandidatureTransmiseAcademieNotification;
 use App\Services\ConcoursMatriculeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 
 trait CandidatureFirstValidationTrait
 {
@@ -31,7 +38,7 @@ trait CandidatureFirstValidationTrait
 	private function utilisateurPeutAgirCommeAcademie(): bool
 	{
 		$user = auth('sanctum')->user() ?? auth()->user();
-		if (!$user) return false;
+		if (!$user || !method_exists($user, 'hasPermissionSlug')) return false;
 
 		return $user->hasPermissionSlug('valider-candidature')
 			|| $user->hasPermissionSlug('rejeter-candidature')
@@ -60,7 +67,7 @@ trait CandidatureFirstValidationTrait
 	private function utilisateurPeutAgirCommeChargeClientele(): bool
 	{
 		$user = auth('sanctum')->user() ?? auth()->user();
-		if (!$user) return false;
+		if (!$user || !method_exists($user, 'hasPermissionSlug')) return false;
 
 		return $user->hasPermissionSlug('transmettre-candidature')
 			|| $user->hasPermissionSlug('rectifier-candidature');
@@ -107,17 +114,17 @@ trait CandidatureFirstValidationTrait
 		]);
 
 		$message = $candidature->greeting(true) . ". Votre dossier a été vérifié et transmis à l'académie pour étude.";
-		$candidature->notify(new \App\Notifications\Candidatures\CandidatTransmisAcademieNotification($message));
+		$candidature->notify(new CandidatTransmisAcademieNotification($message));
 
 		// ciblage EXCLUSIVEMENT basé sur les permissions
-		$academiciens = \App\Models\User::whereHas('roles.permissions', function ($q) {
+		$academiciens = User::whereHas('roles.permissions', function ($q) {
 			$q->whereIn('slug', ['valider-candidature', 'rejeter-candidature', 'reorienter-candidature']);
 		})->get();
 
 		if ($academiciens->count() > 0) {
-			\Illuminate\Support\Facades\Notification::send(
+			Notification::send(
 				$academiciens,
-				new \App\Notifications\Candidatures\CandidatureTransmiseAcademieNotification($candidature, auth()->user())
+				new CandidatureTransmiseAcademieNotification($candidature, auth()->user())
 			);
 		}
 
@@ -188,20 +195,21 @@ trait CandidatureFirstValidationTrait
 
 		$candidature->notify(new CandidatValideNotification($message));
 
-		// Notifier le chargé de clientèle / administration de la validation par l'académie
-		$chargeClientele = \App\Models\User::whereHas('roles.permissions', function ($q) {
+		// Notifier le chargé de clientèle / administration de la validation
+		$chargeClientele = User::whereHas('roles.permissions', function ($q) {
 			$q->whereIn('slug', ['transmettre-candidature', 'recevoir-notification-nouvelle-candidature']);
 		})->get();
 
 		if ($chargeClientele->count() > 0) {
 			$userActor = auth('sanctum')->user() ?? auth()->user();
-			\Illuminate\Support\Facades\Notification::send(
+			$actorFullName = $userActor ? $userActor->nom . ' ' . $userActor->prenom : null;
+			Notification::send(
 				$chargeClientele,
-				new \App\Notifications\Candidatures\CandidatureStatusUpdatedNotification(
+				new CandidatureStatusUpdatedNotification(
 					$candidature,
-					'Candidature Validée par l\'Académie',
-					'Le dossier de candidature a été validé par l\'académie.',
-					$userActor ? $userActor->nom . ' ' . $userActor->prenom : null
+					'Candidature Validée',
+					$actorFullName ? 'Le dossier de candidature a été validé par ' . $actorFullName . '.' : 'Le dossier de candidature a été validé.',
+					$actorFullName
 				)
 			);
 		}
@@ -243,22 +251,23 @@ trait CandidatureFirstValidationTrait
 		]);
 
 		$message = $candidature->greeting(true) . ". Votre dossier de candidature a été rejeté pour le motif suivant : " . $request->get('motif');
-		$candidature->notify(new \App\Notifications\Candidatures\CandidatRejeteNotification($message, $request->get('motif')));
+		$candidature->notify(new CandidatRejeteNotification($message, $request->get('motif')));
 
-		// Notifier le chargé de clientèle / administration du rejet par l'académie
-		$chargeClientele = \App\Models\User::whereHas('roles.permissions', function ($q) {
+		// Notifier le chargé de clientèle / administration du rejet
+		$chargeClientele = User::whereHas('roles.permissions', function ($q) {
 			$q->whereIn('slug', ['transmettre-candidature', 'recevoir-notification-nouvelle-candidature']);
 		})->get();
 
 		if ($chargeClientele->count() > 0) {
 			$userActor = auth('sanctum')->user() ?? auth()->user();
-			\Illuminate\Support\Facades\Notification::send(
+			$actorFullName = $userActor ? $userActor->nom . ' ' . $userActor->prenom : null;
+			Notification::send(
 				$chargeClientele,
-				new \App\Notifications\Candidatures\CandidatureStatusUpdatedNotification(
+				new CandidatureStatusUpdatedNotification(
 					$candidature,
-					'Candidature Rejetée par l\'Académie',
+					'Candidature Rejetée',
 					'Le dossier a été rejeté pour le motif suivant : ' . $request->get('motif'),
-					$userActor ? $userActor->nom . ' ' . $userActor->prenom : null
+					$actorFullName
 				)
 			);
 		}
@@ -303,7 +312,7 @@ trait CandidatureFirstValidationTrait
 		]);
 
 		$message = $candidature->greeting(true) . ". L'administration a examiné votre dossier et a demandé une rectification pour le motif suivant : " . $request->get('motif');
-		$candidature->notify(new \App\Notifications\Candidatures\CandidatRectificationNotification($message, $request->get('motif')));
+		$candidature->notify(new CandidatRectificationNotification($message, $request->get('motif')));
 
 		if (request()->wantsJson() || request()->ajax()) {
 			return response()->json([
