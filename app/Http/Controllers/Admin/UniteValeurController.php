@@ -161,17 +161,40 @@ class UniteValeurController extends Controller
 
 	public function update(UnitValeurRequest $request, Uv $uv)
 	{
-		$uv->update($request->except([
+		$data = $request->except([
 			'_token',
 			'ue_id',
 			'search_terms',
 			'enseignant_id',
+			'filiere_ids',
+			'niveau_ids',
+			'periode_ids',
 			'poids_devoir',
 			'poids_interrogation',
 			'poids_examen',
 			'poids_tp',
 			'poids_expose'
-		]));
+		]);
+
+		if ($request->filled('filiere_id')) {
+			$data['filiere_id'] = $request->input('filiere_id');
+		} elseif ($request->filled('filiere_ids') && is_array($request->input('filiere_ids')) && count($request->input('filiere_ids')) > 0) {
+			$data['filiere_id'] = $request->input('filiere_ids')[0];
+		}
+
+		if ($request->filled('niveau_id')) {
+			$data['niveau_id'] = $request->input('niveau_id');
+		} elseif ($request->filled('niveau_ids') && is_array($request->input('niveau_ids')) && count($request->input('niveau_ids')) > 0) {
+			$data['niveau_id'] = $request->input('niveau_ids')[0];
+		}
+
+		if ($request->filled('periode_id')) {
+			$data['periode_id'] = $request->input('periode_id');
+		} elseif ($request->filled('periode_ids') && is_array($request->input('periode_ids')) && count($request->input('periode_ids')) > 0) {
+			$data['periode_id'] = $request->input('periode_ids')[0];
+		}
+
+		$uv->update($data);
 
 
 		$enseignantsSelectionnes = $request->input('enseignant_id', []);

@@ -303,15 +303,15 @@ class MySpaceController extends Controller
 			'motif' => null
 		]);
 
-		// Notifier le responsable actuel du dossier : le chargé de la clientèle tant
-		// que le dossier n'a pas été transmis à l'académie, sinon l'académie elle-même
-		// (même logique que le reste du circuit de validation).
-		$rolesANotifier = $candidature->transmis_academie
-			? ['directeur-academique', 'logiticien-academique']
-			: ['charge-de-la-clientele'];
+		// Ciblage EXCLUSIVEMENT basé sur les permissions dynamiques :
+		// - Si le dossier était déjà transmis à l'académie : utilisateurs avec permissions académiques (valider, rejeter, réorienter)
+		// - Sinon (dossier encore au 1er niveau) : utilisateurs avec permission de validation/transmission initiale
+		$permissionSlugs = $candidature->transmis_academie
+			? ['valider-candidature', 'rejeter-candidature', 'reorienter-candidature']
+			: ['transmettre-candidature-academie', 'valider-candidature'];
 
-		$responsables = User::whereHas('roles', function ($q) use ($rolesANotifier) {
-			$q->whereIn('slug', $rolesANotifier);
+		$responsables = User::whereHas('roles.permissions', function ($q) use ($permissionSlugs) {
+			$q->whereIn('slug', $permissionSlugs);
 		})->get();
 
 		if ($responsables->count() > 0) {

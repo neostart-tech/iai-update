@@ -59,7 +59,7 @@ class UniteValeur extends Model
 
 	public function enseignants(): BelongsToMany
 	{
-		return $this->belongsToMany(User::class, 'user_unite_valeur', 'unite_valeur_id', 'user_id', 'annee_scolaire_id')->using(UserUniteValeur::class);
+		return $this->belongsToMany(User::class, 'user_unite_valeur', 'unite_valeur_id', 'user_id')->using(UserUniteValeur::class);
 	}
 
 

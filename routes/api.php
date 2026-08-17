@@ -431,6 +431,7 @@ Route::middleware('auth:sanctum')->group(function () {
             return response()->json($service->comparerCalculs());
         });
         Route::post('/changer-mode-formation', [\App\Http\Controllers\DiagnosticFinancierController::class, 'changerModeFormation']);
+        Route::post('/changer-mode-formation-masse', [\App\Http\Controllers\DiagnosticFinancierController::class, 'changerModeFormationMasse']);
     });
 
 

@@ -326,7 +326,7 @@ public function isInformaticien(): bool
 
 	public function unitValeurs(): BelongsToMany
 	{
-		return $this->BelongsToMany(UniteValeur::class)->using(UserUniteValeur::class);
+		return $this->belongsToMany(UniteValeur::class, 'user_unite_valeur', 'user_id', 'unite_valeur_id')->using(UserUniteValeur::class);
 	}
 
 	public function matieres(): BelongsToMany

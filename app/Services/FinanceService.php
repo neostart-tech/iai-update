@@ -28,17 +28,23 @@ class FinanceService
     {
         $ca = $this->getAnalyseCA($periode, $dateDebut, $dateFin);
         $previsionsTotal = $this->getPrevisionsTotales();
+        $previsionsInscriptions = $this->getPrevisionsInscriptionsTotales();
 
-        $fraisInscriptionActif = \App\Models\FraisInscription::where('active', true)
+        $totalEtudiantsActifs = DB::table('etudiant_group')
             ->where('annee_scolaire_id', $this->anneeId)
-            ->first();
-        
-        // On ne compte que les étudiants ACTIFS pour les prévisions d'inscription du haut
-        $totalEtudiantsActifs = Etudiant::whereHas('etudiantGroups', function($q) {
-            $q->where('annee_scolaire_id', $this->anneeId)->where('statut_scolaire', '!=', 'abandon');
-        })->count();
+            ->where(function($sq) {
+                $sq->where('statut_scolaire', '!=', 'abandon')->orWhereNull('statut_scolaire');
+            })->count();
 
-        $previsionsInscriptions = $fraisInscriptionActif ? $totalEtudiantsActifs * $fraisInscriptionActif->montant : 0;
+        if ($totalEtudiantsActifs === 0) {
+            $totalEtudiantsActifs = FraisEtudiant::where('annee_scolaire_id', $this->anneeId)
+                ->where('est_en_abandon', false)
+                ->count();
+        }
+
+        if ($totalEtudiantsActifs === 0) {
+            $totalEtudiantsActifs = Etudiant::count();
+        }
 
         $fraisRetraitMM = Paiement::where('status', 'valide')
             ->where('annee_scolaire_id', $this->anneeId)
@@ -152,8 +158,10 @@ class FinanceService
             $resteAbandonsScolarite += max(0, $d->montant_apres_bourse - $payeScol);
         }
 
-        $fraisInscriptionActif = \App\Models\FraisInscription::where('active', true)->where('annee_scolaire_id', $this->anneeId)->first();
-        $montantInscrConfig = $fraisInscriptionActif ? $fraisInscriptionActif->montant : 50000;
+        $fraisInscriptionActif = \App\Models\FraisInscription::where('active', true)->where(function($q) {
+            $q->where('annee_scolaire_id', $this->anneeId)->orWhereNull('annee_scolaire_id');
+        })->first() ?? \App\Models\FraisInscription::where('active', true)->first() ?? \App\Models\FraisInscription::first();
+        $montantInscrConfig = $fraisInscriptionActif ? (float)$fraisInscriptionActif->montant : 50000;
         $resteAbandonsInscr = max(0, ($dossiersAbandons->count() * $montantInscrConfig) - $abandonInscr);
 
         return [
@@ -181,6 +189,76 @@ class FinanceService
         return FraisEtudiant::where('annee_scolaire_id', $this->anneeId)
             ->where('est_en_abandon', false)
             ->sum('montant_apres_bourse');
+    }
+
+    /**
+     * Calcul des prévisions totales d'inscription par sommation individuelle 
+     * des étudiants actifs de l'année sélectionnée selon leurs paramètres (Niveau, Filière, Année)
+     */
+    public function getPrevisionsInscriptionsTotales()
+    {
+        // 1. Récupérer tous les étudiants actifs (non-abandon) pour l'année scolaire sélectionnée
+        $etudiantsGroups = DB::table('etudiant_group')
+            ->where('annee_scolaire_id', $this->anneeId)
+            ->where(function($q) {
+                $q->where('statut_scolaire', '!=', 'abandon')
+                  ->orWhereNull('statut_scolaire');
+            })
+            ->get();
+
+        // Fallback si etudiant_group est vide pour cette année
+        if ($etudiantsGroups->isEmpty()) {
+            $fraisEtudiants = FraisEtudiant::with('etudiant.etudiantGroups')
+                ->where('annee_scolaire_id', $this->anneeId)
+                ->where('est_en_abandon', false)
+                ->get();
+
+            if ($fraisEtudiants->isEmpty()) {
+                return 0;
+            }
+
+            $etudiantsGroups = $fraisEtudiants->map(fn($fe) => (object)[
+                'etudiant_id' => $fe->etudiant_id,
+                'niveau_id' => $fe->etudiant?->etudiantGroups?->first()?->niveau_id,
+                'filiere_id' => $fe->etudiant?->etudiantGroups?->first()?->filiere_id,
+                'annee_scolaire_id' => $this->anneeId,
+            ]);
+        }
+
+        // 2. Charger les tarifs d'inscription actifs pour cette année (ou globaux)
+        $tarifs = \App\Models\FraisInscription::where('active', true)
+            ->where(function($q) {
+                $q->where('annee_scolaire_id', $this->anneeId)
+                  ->orWhereNull('annee_scolaire_id');
+            })
+            ->get();
+
+        $tarifDefautGeneral = $tarifs->whereNull('niveau_id')->whereNull('filiere_id')->first()?->montant 
+            ?? $tarifs->first()?->montant 
+            ?? 50000;
+
+        $totalPrevuInscriptions = 0;
+
+        foreach ($etudiantsGroups as $group) {
+            // Trouver la règle tarifaire la plus spécifique pour cet étudiant (Niveau, Filière, Année)
+            $matchedTarif = $tarifs->filter(function($t) use ($group) {
+                $matchAnnee = ($t->annee_scolaire_id === null || $t->annee_scolaire_id == $group->annee_scolaire_id);
+                $matchNiveau = ($t->niveau_id === null || $t->niveau_id == $group->niveau_id);
+                $matchFiliere = ($t->filiere_id === null || $t->filiere_id == $group->filiere_id);
+                return $matchAnnee && $matchNiveau && $matchFiliere;
+            })->sortByDesc(function($t) {
+                $score = 0;
+                if ($t->annee_scolaire_id !== null) $score += 4;
+                if ($t->niveau_id !== null) $score += 2;
+                if ($t->filiere_id !== null) $score += 1;
+                return $score;
+            })->first();
+
+            $montant = $matchedTarif ? (float)$matchedTarif->montant : (float)$tarifDefautGeneral;
+            $totalPrevuInscriptions += $montant;
+        }
+
+        return $totalPrevuInscriptions;
     }
 
     private function getEvolutionPaiements($periode, $dateDebut, $dateFin)

@@ -60,6 +60,13 @@ class CandidatureResource extends JsonResource
             'moyenne_concours' => $this->moyenneConcours(),
             'annee_scolaire_id' => $this->annee_scolaire_id,
             'etudiant_id' => $this->etudiant_id,
+            'etudiant' => $this->resource->etudiant ? [
+                'id' => $this->resource->etudiant->id,
+                'slug' => $this->resource->etudiant->slug,
+                'nom' => $this->resource->etudiant->nom,
+                'prenom' => $this->resource->etudiant->prenom,
+                'matricule' => $this->resource->etudiant->matricule,
+            ] : null,
             'niveau' => $this->resource->niveau ? new NiveauResource($this->resource->niveau) : null,
             'filiere' => $this->resource->filiere ? new FiliereResource($this->resource->filiere) : null,
             'created_at' => $this->created_at,

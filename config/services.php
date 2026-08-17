@@ -35,4 +35,10 @@ return [
         'key' => env('GEMINI_API_KEY'),
     ],
 
+    'livekit' => [
+        'url' => env('LIVEKIT_URL', 'wss://escen-t8b81gm4.livekit.cloud'),
+        'key' => env('LIVEKIT_API_KEY', 'APIUcSGqPHgvYsk'),
+        'secret' => env('LIVEKIT_API_SECRET', 'xMtyARLU6Rf1LlsyWddaS5EGXzBGKOw4XJgYDPClJhd'),
+    ],
+
 ];

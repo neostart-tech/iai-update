@@ -13,13 +13,15 @@ class CandidatureTransmiseAcademieNotification extends Notification implements S
     use Queueable;
 
     public $candidature;
+    public $agent;
 
     /**
      * Create a new notification instance.
      */
-    public function __construct(Candidature $candidature)
+    public function __construct(Candidature $candidature, $agent = null)
     {
         $this->candidature = $candidature;
+        $this->agent = $agent ?? auth()->user();
     }
 
     /**
@@ -37,19 +39,25 @@ class CandidatureTransmiseAcademieNotification extends Notification implements S
      */
     public function toMail(object $notifiable): MailMessage
     {
+        $agentName = $this->agent ? (method_exists($this->agent, 'civiliteName') ? $this->agent->civiliteName() : ($this->agent->name ?? 'un agent')) : null;
+        $agentText = $agentName ? "par <strong>{$agentName}</strong> " : "";
+
+        $recipientName = method_exists($notifiable, 'civiliteName') ? $notifiable->civiliteName() : ($notifiable->nom ?? 'Cher utilisateur');
+        $candidatName = method_exists($this->candidature, 'civiliteName') ? $this->candidature->civiliteName() : ($this->candidature->nom . ' ' . $this->candidature->prenom);
+
         $mailContent = "
-            <p style='margin-bottom: 15px; font-size: 16px;'>Bonjour <strong>{$notifiable->nom}</strong>,</p>
-            <p style='margin-bottom: 20px; font-size: 15px;'>Un dossier de candidature a été vérifié par le chargé de la clientèle et vous est transmis pour étude académique.</p>
+            <p style='margin-bottom: 15px; font-size: 16px;'>Bonjour <strong>{$recipientName}</strong>,</p>
+            <p style='margin-bottom: 20px; font-size: 15px;'>Un dossier de candidature a été vérifié {$agentText}et vous est transmis pour étude académique.</p>
 
             <div style='background-color: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #eaeaea; margin-bottom: 25px;'>
-                <p style='margin: 0 0 10px 0;'><strong>Candidat :</strong> {$this->candidature->nom} {$this->candidature->prenom}</p>
+                <p style='margin: 0 0 10px 0;'><strong>Candidat :</strong> {$candidatName}</p>
                 <p style='margin: 0 0 10px 0;'><strong>Email :</strong> <a href='mailto:{$this->candidature->email}' style='color: #80BF2E; text-decoration: none;'>{$this->candidature->email}</a></p>
                 <p style='margin: 0 0 10px 0;'><strong>Téléphone :</strong> <a href='tel:{$this->candidature->tel}' style='color: #80BF2E; text-decoration: none;'>{$this->candidature->tel}</a></p>
             </div>
         ";
 
         return (new MailMessage)
-                    ->subject('Dossier transmis pour étude académique - ' . $this->candidature->nom . ' ' . $this->candidature->prenom)
+                    ->subject('Dossier transmis pour étude académique - ' . $candidatName)
                     ->view('mails.base', [
                         'mailTitle' => 'Dossier transmis pour étude académique',
                         'mailContent' => $mailContent,

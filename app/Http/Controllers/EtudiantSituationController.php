@@ -114,8 +114,17 @@ class EtudiantSituationController extends Controller
     public function show($id)
     {
         try {
-            $etudiants = $this->situationService->getSituationEtudiants(['recherche' => $id]);
-            $etudiant = collect($etudiants)->firstWhere('id', $id);
+            $etudiantModel = \App\Models\Etudiant::where('id', $id)->orWhere('slug', $id)->first();
+
+            if (!$etudiantModel) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Étudiant non trouvé'
+                ], 404);
+            }
+
+            $etudiants = $this->situationService->getSituationEtudiants(['recherche' => $etudiantModel->id]);
+            $etudiant = collect($etudiants)->firstWhere('id', $etudiantModel->id);
 
             if (!$etudiant) {
                 return response()->json([
@@ -175,7 +184,14 @@ class EtudiantSituationController extends Controller
                 ], 422);
             }
 
-            $etudiant = \App\Models\Etudiant::findOrFail($id);
+            $etudiant = \App\Models\Etudiant::where('id', $id)->orWhere('slug', $id)->first();
+            if (!$etudiant) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Étudiant non trouvé'
+                ], 404);
+            }
+
             $etudiant->update(['statut' => $request->statut]);
 
             return response()->json([

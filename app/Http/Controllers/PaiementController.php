@@ -22,17 +22,48 @@ class PaiementController extends Controller
     
     /**
      * Récupérer les informations de paiement de l'étudiant
+    /**
+     * Résoudre l'ID étudiant à partir de l'identifiant fourni ou de l'utilisateur connecté.
+     * Si l'utilisateur connecté n'est pas un étudiant, retourne null.
+     */
+    protected function resolveEtudiantId($identifier = null)
+    {
+        if ($identifier) {
+            $etudiant = Etudiant::where('id', $identifier)->orWhere('slug', $identifier)->first();
+            if (!$etudiant) {
+                throw new Exception("Étudiant introuvable");
+            }
+            return $etudiant->id;
+        }
+
+        $user = request()->user();
+        if (!$user) {
+            return null;
+        }
+
+        if ($user instanceof Etudiant) {
+            return $user->id;
+        }
+
+        if (isset($user->etudiant_id) && $user->etudiant_id) {
+            return $user->etudiant_id;
+        }
+
+        return null;
+    }
+
+    /**
+     * Récupérer les informations de paiement de l'étudiant
      */
     public function getInfos($identifier = null)
     {
         try {
-            if ($identifier) {
-                $etudiant = Etudiant::where('id', $identifier)->orWhere('slug', $identifier)->first();
-                if (!$etudiant) throw new Exception("Étudiant introuvable");
-                $etudiantId = $etudiant->id;
-            } else {
-                $user = request()->user();
-                $etudiantId = $user->etudiant_id ?? $user->id;
+            $etudiantId = $this->resolveEtudiantId($identifier);
+            if (!$etudiantId) {
+                return response()->json([
+                    'success' => true,
+                    'data' => null
+                ]);
             }
             
             $anneeScolaireId = request()->input('annee_id') ?? request()->header('X-Annee-Scolaire-Id');
@@ -57,13 +88,12 @@ class PaiementController extends Controller
     public function getRecap($identifier = null)
     {
         try {
-            if ($identifier) {
-                $etudiant = Etudiant::where('id', $identifier)->orWhere('slug', $identifier)->first();
-                if (!$etudiant) throw new Exception("Étudiant introuvable");
-                $etudiantId = $etudiant->id;
-            } else {
-                $user = request()->user();
-                $etudiantId = $user->etudiant_id ?? $user->id;
+            $etudiantId = $this->resolveEtudiantId($identifier);
+            if (!$etudiantId) {
+                return response()->json([
+                    'success' => true,
+                    'data' => null
+                ]);
             }
 
             $anneeScolaireId = request()->input('annee_id') ?? request()->header('X-Annee-Scolaire-Id');
@@ -88,13 +118,12 @@ class PaiementController extends Controller
     public function getHistorique($identifier = null)
     {
         try {
-            if ($identifier) {
-                $etudiant = Etudiant::where('id', $identifier)->orWhere('slug', $identifier)->first();
-                if (!$etudiant) throw new Exception("Étudiant introuvable");
-                $etudiantId = $etudiant->id;
-            } else {
-                $user = request()->user();
-                $etudiantId = $user->etudiant_id ?? $user->id;
+            $etudiantId = $this->resolveEtudiantId($identifier);
+            if (!$etudiantId) {
+                return response()->json([
+                    'success' => true,
+                    'data' => null
+                ]);
             }
 
             $anneeScolaireId = request()->input('annee_id') ?? request()->header('X-Annee-Scolaire-Id');
@@ -187,6 +216,22 @@ class PaiementController extends Controller
                 ->limit(20)
                 ->get()
                 ->map(function($e) {
+                    $dernierGroupe = $e->dernierGroupe;
+                    $modeFormation = null;
+                    if ($dernierGroupe && $dernierGroupe->mode_formation) {
+                        $modeFormation = $dernierGroupe->mode_formation instanceof \UnitEnum 
+                            ? $dernierGroupe->mode_formation->value 
+                            : $dernierGroupe->mode_formation;
+                    }
+                    if (!$modeFormation || $modeFormation === 'Tous') {
+                        if (isset($e->mode_formation)) {
+                            $modeFormation = $e->mode_formation instanceof \UnitEnum 
+                                ? $e->mode_formation->value 
+                                : $e->mode_formation;
+                        }
+                    }
+                    $modeFormation = $modeFormation ?: 'Présentiel';
+
                     return [
                         'id' => $e->id,
                         'slug' => $e->slug,
@@ -196,6 +241,7 @@ class PaiementController extends Controller
                         'matricule' => $e->matricule,
                         'niveau' => $e->dernierGroupe->niveau->libelle ?? null,
                         'filiere' => $e->dernierGroupe->filiere->nom ?? null,
+                        'mode_formation' => $modeFormation,
                         'telephone' => $e->tel,
                     ];
                 });

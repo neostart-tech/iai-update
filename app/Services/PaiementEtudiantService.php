@@ -90,9 +90,20 @@ class PaiementEtudiantService
         $dernierGroupe = $etudiant->etudiantGroups->first();
         $niveau = $dernierGroupe && $dernierGroupe->niveau ? $dernierGroupe->niveau->libelle : null;
         $filiere = $dernierGroupe && $dernierGroupe->filiere ? $dernierGroupe->filiere->nom : null;
-        $modeFormation = $dernierGroupe && $dernierGroupe->mode_formation ? 
-            ($dernierGroupe->mode_formation instanceof \UnitEnum ? $dernierGroupe->mode_formation->value : $dernierGroupe->mode_formation) 
-            : 'Tous';
+        $modeFormation = null;
+        if ($dernierGroupe && $dernierGroupe->mode_formation) {
+            $modeFormation = $dernierGroupe->mode_formation instanceof \UnitEnum 
+                ? $dernierGroupe->mode_formation->value 
+                : $dernierGroupe->mode_formation;
+        }
+        if (!$modeFormation || $modeFormation === 'Tous') {
+            if (isset($etudiant->mode_formation)) {
+                $modeFormation = $etudiant->mode_formation instanceof \UnitEnum 
+                    ? $etudiant->mode_formation->value 
+                    : $etudiant->mode_formation;
+            }
+        }
+        $modeFormation = $modeFormation ?: 'Présentiel';
 
         // Anomaly Check
         $diagnosticService = new \App\Services\DiagnosticFinancierService();
@@ -102,6 +113,10 @@ class PaiementEtudiantService
         if ($fraisEtudiant->echeances->isNotEmpty()) {
             $this->recalculerEcheancesNegociees($fraisEtudiant, $etudiant->id);
             $fraisEtudiant->refresh();
+            $fraisEtudiant->unsetRelation('echeances');
+            $fraisEtudiant->load(['echeances' => function ($query) {
+                $query->orderBy('ordre');
+            }]);
         }
 
         $totalPaye = $fraisEtudiant->echeances->sum('montant_paye');
@@ -179,24 +194,63 @@ class PaiementEtudiantService
         $niveauId = $niveau->id ?? null;
         $filiereId = $filiere->id ?? null;
 
-        
-
         if (!$niveauId) {
             throw new Exception("L'étudiant n'a pas de niveau assigné dans son groupe actuel");
         }
 
-        $genre = $etudiant->genre;
+        $modeFormation = null;
+        if ($dernierGroupe && $dernierGroupe->mode_formation) {
+            $modeFormation = $dernierGroupe->mode_formation instanceof \UnitEnum 
+                ? $dernierGroupe->mode_formation->value 
+                : $dernierGroupe->mode_formation;
+        }
+        if (!$modeFormation || $modeFormation === 'Tous') {
+            if (isset($etudiant->mode_formation)) {
+                $modeFormation = $etudiant->mode_formation instanceof \UnitEnum 
+                    ? $etudiant->mode_formation->value 
+                    : $etudiant->mode_formation;
+            }
+        }
+        $modeFormation = $modeFormation ?: 'Présentiel';
 
-        // Récupérer le frais de scolarité correspondant
-        $fraisScolarite = $this->getFraisScolariteForEtudiant(
+        $genreValue = ($etudiant->genre instanceof \UnitEnum) ? $etudiant->genre->value : ($etudiant->genre ?? 'Tous');
+
+        // Récupérer le frais de scolarité correspondant au profil exact
+        $fraisScolarite = FraisScolarite::getFraisForEtudiant(
             $niveauId,
+            $genreValue,
             $filiereId,
-            $genre,
-            $anneeScolaireId
+            $anneeScolaireId,
+            $modeFormation
         );
 
         if (!$fraisScolarite) {
-            throw new Exception("Aucun frais de scolarité trouvé pour le niveau " . ($niveau->libelle ?? $niveauId));
+            return [
+                'type' => 'standard',
+                'source' => 'frais_scolarite',
+                'etudiant' => [
+                    'id' => $etudiant->id,
+                    'nom' => $etudiant->nom,
+                    'prenom' => $etudiant->prenom,
+                    'nom_complet' => $etudiant->nom . ' ' . $etudiant->prenom,
+                    'matricule' => $etudiant->matricule,
+                    'niveau' => $niveau->libelle ?? null,
+                    'filiere' => $filiere->nom ?? null,
+                    'mode_formation' => $modeFormation,
+                    'genre' => $etudiant->genre,
+                    'telephone' => $etudiant->tel,
+                    'slug' => $etudiant->slug ?? null,
+                ],
+                'frais_scolarite' => null,
+                'bourse' => null,
+                'tranches' => [],
+                'frais_inscription' => $this->getFraisInscriptionInfos($etudiant->id, $anneeScolaireId),
+                'total' => [
+                    'montant_total' => 0,
+                    'total_paye' => 0,
+                    'reste_a_payer' => 0,
+                ]
+            ];
         }
 
         // Récupérer les tranches de paiement
@@ -225,8 +279,10 @@ class PaiementEtudiantService
                 'matricule' => $etudiant->matricule,
                 'niveau' => $niveau->libelle ?? null,
                 'filiere' => $filiere->nom ?? null,
+                'mode_formation' => $modeFormation,
                 'genre' => $etudiant->genre,
                 'telephone' => $etudiant->tel,
+                'slug' => $etudiant->slug ?? null,
             ],
             'frais_scolarite' => [
                 'id' => $fraisScolarite->id,
@@ -250,62 +306,13 @@ class PaiementEtudiantService
     /**
      * Récupère le frais de scolarité approprié pour un étudiant
      */
-    private function getFraisScolariteForEtudiant($niveauId, $filiereId, $genre, $anneeScolaireId)
-{
-    
+    private function getFraisScolariteForEtudiant($niveauId, $filiereId, $genre, $anneeScolaireId, $modeFormation = 'Présentiel')
+    {
+        $genreValue = ($genre instanceof \UnitEnum) ? $genre->value : ($genre ?? 'Tous');
+        $modeValue = ($modeFormation instanceof \UnitEnum) ? $modeFormation->value : ($modeFormation ?? 'Présentiel');
 
-    // Récupérer TOUS les frais pour ce niveau d'abord
-    $tousFrais = FraisScolarite::where('niveau_id', $niveauId)
-        ->where('annee_scolaire_id', $anneeScolaireId)
-        ->get();
-    
-  
-
-    // STRATÉGIE 1: Chercher avec correspondance exacte (filière + genre)
-    if ($filiereId) {
-        $frais = FraisScolarite::where('niveau_id', $niveauId)
-            ->where('annee_scolaire_id', $anneeScolaireId)
-            ->where('filiere_id', $filiereId)
-            ->where(function($q) use ($genre) {
-                $q->where('genre', $genre->value ?? $genre)
-                  ->orWhereNull('genre')
-                  ->orWhere('genre', 'Tous');
-            })
-            ->first();
-        
-        if ($frais) {
-            return $frais;
-        }
+        return FraisScolarite::getFraisForEtudiant($niveauId, $genreValue, $filiereId, $anneeScolaireId, $modeValue);
     }
-
-    // STRATÉGIE 2: Chercher sans filière (filiere_id = null) mais avec genre correspondant
-    $frais = FraisScolarite::where('niveau_id', $niveauId)
-        ->where('annee_scolaire_id', $anneeScolaireId)
-        ->whereNull('filiere_id')
-        ->where(function($q) use ($genre) {
-            $q->where('genre', $genre->value ?? $genre)
-              ->orWhereNull('genre')
-              ->orWhere('genre', 'Tous');
-        })
-        ->first();
-    
-    if ($frais) {
-        return $frais;
-    }
-
-    // STRATÉGIE 3: N'importe quel frais pour ce niveau
-    $frais = FraisScolarite::where('niveau_id', $niveauId)
-        ->where('annee_scolaire_id', $anneeScolaireId)
-        ->first();
-    
-    if ($frais) {
-        return $frais;
-    }
-
-   
-
-    return null;
-}
     /**
      * Récupère les tranches avec les paiements déjà effectués
      */
@@ -474,29 +481,94 @@ class PaiementEtudiantService
                 
                 $montantInscription = $fraisInscTable ? (float)$fraisInscTable->montant : 0;
 
-                // 2. Vérifier si l'inscription est payée
+                // 2. Vérifier si l'inscription est payée via les échéances
                 $echeancesInsc = $echeances->filter(function($e) {
                     $lib = strtolower($e['libelle']);
                     $lib = str_replace(['é', 'è', 'ê', 'à'], ['e', 'e', 'e', 'a'], $lib);
                     return str_contains($lib, 'inscrip') || str_contains($lib, 'admis');
                 });
 
-                if ($echeancesInsc->isEmpty() && $echeances->isNotEmpty()) {
+                if ($echeancesInsc->isEmpty() && $echeances->isNotEmpty() && $montantInscription <= 0) {
                     $echeancesInsc = collect([$echeances->first()]);
                 }
 
-                $inscriptionPayeeParEcheance = $echeancesInsc->every(fn($e) => $e['statut'] === 'paye');
+                $inscriptionPayeeParEcheance = $echeancesInsc->isNotEmpty() && $echeancesInsc->every(fn($e) => $e['statut'] === 'paye');
 
-                // 2b. Vérifier s'il y a un paiement direct sur FraisInscription
-                $inscriptionPayeeDirect = false;
-                if ($fraisInscTable) {
-                    $inscriptionPayeeDirect = \App\Models\Paiement::where('etudiant_id', $etudiantId)
-                        ->where('payable_type', \App\Models\FraisInscription::class)
-                        ->where('payable_id', $fraisInscTable->id)
-                        ->where('status', 'valide')
-                        ->exists();
+                // 2b. Vérifier s'il y a un paiement direct sur FraisInscription ou nature 'inscription'
+                $paiementsInscQuery = \App\Models\Paiement::where('etudiant_id', $etudiantId)
+                    ->where(function($q) use ($fraisInscTable) {
+                        $q->where('nature_paiement', 'inscription')
+                          ->orWhere('reference', 'LIKE', 'REG-%');
+                        if ($fraisInscTable) {
+                            $q->orWhere(function($q2) use ($fraisInscTable) {
+                                $q2->where('payable_type', \App\Models\FraisInscription::class)
+                                   ->where('payable_id', $fraisInscTable->id);
+                            });
+                        } else {
+                            $q->orWhere('payable_type', \App\Models\FraisInscription::class);
+                        }
+                    });
+
+                $countPaiementsInsc = (clone $paiementsInscQuery)->count();
+                $sumPaiementsInsc = (clone $paiementsInscQuery)->sum('montant');
+
+                if ($montantInscription > 0) {
+                    $inscriptionPayeeDirect = $sumPaiementsInsc >= $montantInscription;
+                } else {
+                    $inscriptionPayeeDirect = $countPaiementsInsc > 0;
                 }
 
+                $etudiantObj = Etudiant::find($etudiantId);
+                $candidatureObj = null;
+                if ($etudiantObj) {
+                    $candidatureObj = \App\Models\Candidature::where('etudiant_id', $etudiantId)
+                        ->when($etudiantObj->email, fn($q) => $q->orWhere('email', $etudiantObj->email))
+                        ->when($etudiantObj->user_id, fn($q) => $q->orWhere('user_id', $etudiantObj->user_id))
+                        ->first();
+                } else {
+                    $candidatureObj = \App\Models\Candidature::where('id', $etudiantId)
+                        ->orWhere('etudiant_id', $etudiantId)
+                        ->first();
+                }
+
+                $paiementsInscQuery = \App\Models\Paiement::where(function($q) use ($etudiantId, $candidatureObj) {
+                    $q->where('etudiant_id', $etudiantId);
+                    if ($candidatureObj) {
+                        $q->orWhere(function($q2) use ($candidatureObj) {
+                            $q2->where('payable_type', \App\Models\Candidature::class)
+                               ->where('payable_id', $candidatureObj->id);
+                        });
+                    }
+                });
+
+                $countPaiementsTotal = (clone $paiementsInscQuery)->count();
+                $sumPaiementsTotal = (clone $paiementsInscQuery)->sum('montant');
+
+                $paiementsInscFiltre = (clone $paiementsInscQuery)->where(function($q) use ($fraisInscTable) {
+                    $q->where('nature_paiement', 'inscription')
+                      ->orWhere('reference', 'LIKE', 'REG-%')
+                      ->orWhere('reference', 'LIKE', 'INS-%')
+                      ->orWhere('reference', 'LIKE', 'CAN-%');
+                    if ($fraisInscTable) {
+                        $q->orWhere(function($q2) use ($fraisInscTable) {
+                            $q2->where('payable_type', \App\Models\FraisInscription::class)
+                               ->where('payable_id', $fraisInscTable->id);
+                        });
+                    } else {
+                        $q->orWhere('payable_type', \App\Models\FraisInscription::class);
+                    }
+                });
+
+                $countPaiementsInsc = (clone $paiementsInscFiltre)->count();
+                $sumPaiementsInsc = (clone $paiementsInscFiltre)->sum('montant');
+
+                if ($montantInscription > 0) {
+                    $inscriptionPayeeDirect = $sumPaiementsInsc >= $montantInscription || $sumPaiementsTotal >= $montantInscription;
+                } else {
+                    $inscriptionPayeeDirect = $countPaiementsInsc > 0 || $countPaiementsTotal > 0;
+                }
+
+                // La validation exige un paiement effectif dans la table `paiements` ou via les échéances
                 $inscriptionPayee = $inscriptionPayeeParEcheance || $inscriptionPayeeDirect;
 
                 if ($montantInscription <= 0 && !$inscriptionPayee) {
@@ -512,6 +584,7 @@ class PaiementEtudiantService
                     'reste_a_payer' => $montantTotal - $totalPaye,
                     'pourcentage' => $pourcentage,
                     'inscription_payee' => $inscriptionPayee,
+                    'frais_inscription_paye' => $inscriptionPayee,
                     'montant_inscription' => $montantInscription,
                     'nombre_echeances' => $echeances->count(),
                     'echeances_payees' => $echeances->where('statut', 'paye')->count(),
@@ -534,22 +607,63 @@ class PaiementEtudiantService
                     return str_contains($lib, 'inscrip') || str_contains($lib, 'admis');
                 });
 
-                if ($tranchesInsc->isEmpty() && $tranches->isNotEmpty()) {
+                if ($tranchesInsc->isEmpty() && $tranches->isNotEmpty() && $montantInscription <= 0) {
                     $tranchesInsc = collect([$tranches->first()]);
                 }
 
-                $inscriptionPayeeParTranche = $tranchesInsc->every(fn($t) => $t['statut'] === 'paye');
+                $inscriptionPayeeParTranche = $tranchesInsc->isNotEmpty() && $tranchesInsc->every(fn($t) => $t['statut'] === 'paye');
 
-                // 2b. Vérifier s'il y a un paiement direct sur FraisInscription
-                $inscriptionPayeeDirect = false;
-                if ($fraisInscTable) {
-                    $inscriptionPayeeDirect = \App\Models\Paiement::where('etudiant_id', $etudiantId)
-                        ->where('payable_type', \App\Models\FraisInscription::class)
-                        ->where('payable_id', $fraisInscTable->id)
-                        ->where('status', 'valide')
-                        ->exists();
+                $etudiantObj = Etudiant::find($etudiantId);
+                $candidatureObj = null;
+                if ($etudiantObj) {
+                    $candidatureObj = \App\Models\Candidature::where('etudiant_id', $etudiantId)
+                        ->when($etudiantObj->email, fn($q) => $q->orWhere('email', $etudiantObj->email))
+                        ->when($etudiantObj->user_id, fn($q) => $q->orWhere('user_id', $etudiantObj->user_id))
+                        ->first();
+                } else {
+                    $candidatureObj = \App\Models\Candidature::where('id', $etudiantId)
+                        ->orWhere('etudiant_id', $etudiantId)
+                        ->first();
                 }
 
+                $paiementsInscQuery = \App\Models\Paiement::where(function($q) use ($etudiantId, $candidatureObj) {
+                    $q->where('etudiant_id', $etudiantId);
+                    if ($candidatureObj) {
+                        $q->orWhere(function($q2) use ($candidatureObj) {
+                            $q2->where('payable_type', \App\Models\Candidature::class)
+                               ->where('payable_id', $candidatureObj->id);
+                        });
+                    }
+                });
+
+                $countPaiementsTotal = (clone $paiementsInscQuery)->count();
+                $sumPaiementsTotal = (clone $paiementsInscQuery)->sum('montant');
+
+                $paiementsInscFiltre = (clone $paiementsInscQuery)->where(function($q) use ($fraisInscTable) {
+                    $q->where('nature_paiement', 'inscription')
+                      ->orWhere('reference', 'LIKE', 'REG-%')
+                      ->orWhere('reference', 'LIKE', 'INS-%')
+                      ->orWhere('reference', 'LIKE', 'CAN-%');
+                    if ($fraisInscTable) {
+                        $q->orWhere(function($q2) use ($fraisInscTable) {
+                            $q2->where('payable_type', \App\Models\FraisInscription::class)
+                               ->where('payable_id', $fraisInscTable->id);
+                        });
+                    } else {
+                        $q->orWhere('payable_type', \App\Models\FraisInscription::class);
+                    }
+                });
+
+                $countPaiementsInsc = (clone $paiementsInscFiltre)->count();
+                $sumPaiementsInsc = (clone $paiementsInscFiltre)->sum('montant');
+
+                if ($montantInscription > 0) {
+                    $inscriptionPayeeDirect = $sumPaiementsInsc >= $montantInscription || $sumPaiementsTotal >= $montantInscription;
+                } else {
+                    $inscriptionPayeeDirect = $countPaiementsInsc > 0 || $countPaiementsTotal > 0;
+                }
+
+                // La validation exige un paiement effectif dans la table `paiements` ou via les tranches
                 $inscriptionPayee = $inscriptionPayeeParTranche || $inscriptionPayeeDirect;
 
                 if ($montantInscription <= 0 && !$inscriptionPayee) {
@@ -565,6 +679,7 @@ class PaiementEtudiantService
                     'reste_a_payer' => $montantTotal - $totalPaye,
                     'pourcentage' => $pourcentage,
                     'inscription_payee' => $inscriptionPayee,
+                    'frais_inscription_paye' => $inscriptionPayee,
                     'montant_inscription' => $montantInscription,
                     'nombre_tranches' => $tranches->count(),
                     'tranches_payees' => $tranches->where('statut', 'paye')->count(),
@@ -585,11 +700,20 @@ class PaiementEtudiantService
     public function getHistorique($etudiantId, $anneeScolaireId = null)
     {
         try {
-            $anneeScolaireId = $anneeScolaireId ?? AnneeScolaire::courante()->id;
-            $paiements = Paiement::where('etudiant_id', $etudiantId)
-                ->where('annee_scolaire_id', $anneeScolaireId)
-                ->with(['payable'])
-                ->where('status', 'valide')
+            $query = Paiement::where('etudiant_id', $etudiantId)
+                ->where(function($q) {
+                    $q->where('status', 'valide')
+                      ->orWhereNull('status');
+                });
+
+            if ($anneeScolaireId) {
+                $query->where(function($q) use ($anneeScolaireId) {
+                    $q->where('annee_scolaire_id', $anneeScolaireId)
+                      ->orWhereNull('annee_scolaire_id');
+                });
+            }
+
+            $paiements = $query->with(['payable'])
                 ->orderBy('created_at', 'desc')
                 ->get();
 
@@ -776,6 +900,10 @@ class PaiementEtudiantService
                 $finalAnneeId = $payable->annee_scolaire_id;
             } elseif ($payable instanceof \App\Models\TranchePaiement) {
                 $finalAnneeId = $payable->annee_scolaire_id ?? $finalAnneeId;
+            }
+
+            if (!$finalAnneeId) {
+                $finalAnneeId = getAnneeScolaireId();
             }
 
             // Créer le paiement
