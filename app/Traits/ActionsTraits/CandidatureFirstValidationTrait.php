@@ -18,23 +18,13 @@ use Illuminate\Support\Facades\Notification;
 
 trait CandidatureFirstValidationTrait
 {
-	/**
-	 * Une candidature suit le mode concours (épreuve écrite) uniquement si elle est
-	 * explicitement liée à une session qui le précise. Une candidature sans session
-	 * (concours_session_id null) est une candidature antérieure à l'existence du
-	 * système de concours : elle suit toujours le mode dossier uniquement, quel que
-	 * soit le paramètre global actuel.
-	 */
+	
 	private function candidatureSuitLeModeConcours(Candidature $candidature): bool
 	{
 		return (bool) $candidature->concoursSession?->avec_epreuve_ecrite;
 	}
 
-	/**
-	 * Une fois le dossier transmis à l'académie, les décisions finales (valider,
-	 * rejeter, réorienter, rectifier) ne sont plus de la responsabilité du chargé
-	 * de la clientèle : seule l'académie (ou un compte à accès total) peut agir.
-	 */
+
 	private function utilisateurPeutAgirCommeAcademie(): bool
 	{
 		$user = auth('sanctum')->user() ?? auth()->user();
