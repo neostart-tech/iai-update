@@ -105,12 +105,28 @@ class ExamQuestionController extends Controller
         try {
             DB::beginTransaction();
 
-            // Vérifier que les points ne dépassent pas 20
+            // Vérifier que les points ne dépassent pas 20 pour une question
             if (!$this->validatePoints($request->points)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Les points ne peuvent pas dépasser 20'
+                    'message' => 'Les points d\'une question ne peuvent pas dépasser 20'
                 ], 400);
+            }
+
+            // Vérifier que le total des points de l'examen ne dépasse pas la note maximale (20)
+            $part = ExamPart::with('evaluation')->find($request->part_id);
+            if ($part) {
+                $maxExamPoints = $part->evaluation->note_sur ?? 20;
+                $currentTotalPoints = ExamQuestion::whereHas('part', function($q) use ($part) {
+                    $q->where('evaluation_id', $part->evaluation_id);
+                })->sum('points');
+
+                if (($currentTotalPoints + ($request->points ?? 0)) > $maxExamPoints) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Impossible d'ajouter cette question. Le total des points de l'examen dépasserait la note maximale autorisée ({$maxExamPoints})."
+                    ], 400);
+                }
             }
 
             // Déterminer l'ordre si non fourni
@@ -308,8 +324,29 @@ class ExamQuestionController extends Controller
             if ($request->has('points') && !$this->validatePoints($request->points)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Les points ne peuvent pas dépasser 20'
+                    'message' => 'Les points d\'une question ne peuvent pas dépasser 20'
                 ], 400);
+            }
+
+            // Vérifier le total des points de l'examen
+            if ($request->has('points')) {
+                $part = ExamPart::with('evaluation')->find($examQuestion->part_id);
+                if ($part) {
+                    $maxExamPoints = $part->evaluation->note_sur ?? 20;
+                    $currentTotalPoints = ExamQuestion::whereHas('part', function($q) use ($part) {
+                        $q->where('evaluation_id', $part->evaluation_id);
+                    })->where('id', '!=', $examQuestion->id)->sum('points');
+
+                    $newTotal = $currentTotalPoints + $request->points;
+                    
+                    // On bloque SEULEMENT si le nouveau total dépasse le max ET qu'on essaie d'augmenter les points de la question
+                    if ($newTotal > $maxExamPoints && $request->points > $examQuestion->points) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Impossible d'augmenter les points. Le total de l'examen dépasserait la note maximale ({$maxExamPoints})."
+                        ], 400);
+                    }
+                }
             }
 
             // Mettre à jour la question
@@ -444,6 +481,15 @@ class ExamQuestionController extends Controller
     {
         try {
             DB::beginTransaction();
+
+            // Vérifier s'il y a déjà des soumissions pour cette question
+            if ($examQuestion->submissions()->exists()) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de supprimer cette question car elle contient déjà des soumissions d\'étudiants.'
+                ], 400);
+            }
 
             // Supprimer les relations
             $examQuestion->options()->delete();
@@ -629,6 +675,22 @@ class ExamQuestionController extends Controller
                 'multiParts', 
                 'guidedWriting'
             ])->findOrFail($id);
+
+            // Vérifier le total des points de l'examen avant duplication
+            $part = ExamPart::with('evaluation')->find($originalQuestion->part_id);
+            if ($part) {
+                $maxExamPoints = $part->evaluation->note_sur ?? 20;
+                $currentTotalPoints = ExamQuestion::whereHas('part', function($q) use ($part) {
+                    $q->where('evaluation_id', $part->evaluation_id);
+                })->sum('points');
+
+                if (($currentTotalPoints + $originalQuestion->points) > $maxExamPoints) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Impossible de dupliquer cette question. Le total de l'examen dépasserait la note maximale ({$maxExamPoints})."
+                    ], 400);
+                }
+            }
 
             // Créer la nouvelle question
             $newQuestion = $originalQuestion->replicate();

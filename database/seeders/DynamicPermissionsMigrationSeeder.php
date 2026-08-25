@@ -305,6 +305,7 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			'create-question-examen' => "Ajouter une partie/question/option d'un examen en ligne",
 			'update-question-examen' => "Modifier une partie/question/option d'un examen en ligne",
 			'delete-question-examen' => "Supprimer une partie/question/option d'un examen en ligne",
+			'force-edit-examen' => "Forcer la modification d'un examen verrouillé (terminé ou en cours)",
 			'grade-examen' => 'Corriger/valider les notes des soumissions a un examen en ligne',
 			'manage-exam-session' => "Gerer (modifier/supprimer/nettoyer) les sessions d'examen en ligne",
 		];

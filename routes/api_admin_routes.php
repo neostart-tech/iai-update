@@ -237,6 +237,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('{user}/update', 'update')->middleware('can:update-user');
         Route::put('{user}/update-enseignant', 'updateEnseignant')->middleware('can:update-enseignant');
         Route::put('{user}/update-fiscalite', 'updateFiscalite')->middleware('can:update-user');
+        Route::put('{user}/reset-password', 'resetPassword')->middleware('can:update-user');
         Route::delete('{user}/delete', 'destroy')->name('delete')->middleware('can:delete-user');
         
         Route::get('{user}/load-edt', 'loadEmploiDuTemps')->name('load-edt'); // charge les edt de l'utilisateur

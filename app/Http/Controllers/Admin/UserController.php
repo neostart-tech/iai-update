@@ -368,6 +368,31 @@ public function updateFiscalite(Request $request, User $user)
     
     return new UserResource($user->refresh()->load('roles'));
 }
+
+public function resetPassword(Request $request, User $user)
+{
+    // Générer un mot de passe aléatoire de 10 caractères
+    $clearPassword = \Illuminate\Support\Str::random(10);
+
+    $user->update([
+        'password' => Hash::make($clearPassword)
+    ]);
+
+    // Enregistrement dans les logs système
+    if (auth()->check()) {
+        \Illuminate\Support\Facades\Log::info("Le mot de passe de l'utilisateur {$user->email} (ID: {$user->id}) a été réinitialisé par l'administrateur " . auth()->user()->email);
+    } else {
+        \Illuminate\Support\Facades\Log::info("Le mot de passe de l'utilisateur {$user->email} (ID: {$user->id}) a été réinitialisé.");
+    }
+
+    // Envoi de mail de réinitialisation si nécessaire
+    Mail::to($user)->send(new \App\Mail\Admins\AdminResetPasswordMail($user, $clearPassword));
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Mot de passe réinitialisé avec succès et envoyé par email.'
+    ]);
+}
 	public function loadEmploiDuTemps(User $user)
 	{
 		return EmploiDuTempsResource::collection($user->emploiDuTemps);
