@@ -395,6 +395,7 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			'view-cours-en-ligne' => 'Acceder aux cours en ligne et visioconferences',
 			'create-cours-en-ligne' => 'Lancer une classe virtuelle en ligne',
 			'manage-livekit-access' => 'Moderer la scolarite et acces aux cours en ligne',
+			'reset-user-password' => 'Réinitialiser le mot de passe d\'un utilisateur',
 		];
 		foreach ($secondPass as $slug => $nom) {
 			Permission::firstOrCreate(['slug' => $slug], ['nom' => $nom, 'description' => $nom]);
