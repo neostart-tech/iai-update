@@ -353,6 +353,83 @@ class ExamSubmissionController extends Controller
     }
 
     /**
+     * POST /api/exam-submissions/grade-multiple
+     */
+    public function gradeMultiple(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'corrections' => 'required|array',
+            'corrections.*.id' => 'required|exists:exam_submissions,id',
+            'corrections.*.points_obtenus' => 'required|numeric|min:0',
+            'corrections.*.commentaire' => 'nullable|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $user = auth()->user();
+            $isTeacher = $user && $user->roles()->whereIn('nom', ['Enseignant', 'Professeur'])->exists() && !$user->roles()->whereIn('nom', ['Admin', 'Directeur Général', 'Directeur Académique', 'Informaticien', 'Super Admin'])->exists();
+            $authId = auth()->id() ?? 1;
+            $now = now()->toDateTimeString();
+
+            $submissionIds = collect($request->corrections)->pluck('id');
+            $submissions = ExamSubmission::with('evaluation')->whereIn('id', $submissionIds)->get()->keyBy('id');
+
+            $updatedSubmissions = [];
+
+            foreach ($request->corrections as $correction) {
+                $examSubmission = $submissions->get($correction['id']);
+                
+                if (!$examSubmission) continue;
+
+                $evaluation = $examSubmission->evaluation;
+                if ($evaluation && $evaluation->correction_submission_date !== null && $isTeacher) {
+                    throw new \Exception("Les notes ont déjà été validées pour l'une des soumissions.");
+                }
+
+                $reponse = $examSubmission->reponse;
+                if (!is_array($reponse)) {
+                    $reponse = ['text' => (string)$reponse];
+                }
+                
+                $reponse['commentaire_correction'] = $correction['commentaire'] ?? null;
+                $reponse['corrige_par'] = $authId;
+                $reponse['corrige_le'] = $now;
+
+                $examSubmission->points_obtenus = $correction['points_obtenus'];
+                $examSubmission->reponse = $reponse;
+                $examSubmission->save();
+
+                $updatedSubmissions[] = $examSubmission;
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Notes attribuées avec succès',
+                'data' => $updatedSubmissions
+            ], 200);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la notation multiple',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * POST /api/exam-submissions/{id}/grade
      */
     public function grade(Request $request, $id): JsonResponse
@@ -701,6 +778,7 @@ class ExamSubmissionController extends Controller
                 'noteMax' => $questions->sum('points'),
                 'statutCorrection' => $statut,
                 'derniereActivite' => $etudiantSubmissions->max('submitted_at') ?? $etudiantSubmissions->max('auto_saved_at'),
+                'submissions' => $etudiantSubmissions->values()
             ];
         }
         return $resultats;
