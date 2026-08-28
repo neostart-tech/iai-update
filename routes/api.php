@@ -584,12 +584,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/exam-sessions/{id}/ping', [ExamSessionController::class, 'ping']);
 
     // ==================== SOUMISSIONS (GESTION) ====================
-    Route::get('/exam-submissions/{id}', [ExamSubmissionController::class, 'show']);
-    Route::post('/exam-sessions/clean-duplicates', [ExamSessionController::class, 'cleanDuplicates'])->middleware('can:manage-exam-session');
-
     Route::post('/exam-submissions/grade-multiple', [ExamSubmissionController::class, 'gradeMultiple'])->middleware('can:grade-examen');
     Route::post('/exam-submissions/{id}/grade', [ExamSubmissionController::class, 'grade'])->middleware('can:grade-examen');
     Route::post('/exam-submissions/{id}/suggest-grade', [ExamSubmissionController::class, 'suggestGrade'])->middleware('can:grade-examen');
+    Route::get('/exam-submissions/{id}/details', [ExamSubmissionController::class, 'details']);
+    Route::get('/exam-submissions/{id}', [ExamSubmissionController::class, 'show']);
+    
+    Route::post('/exam-sessions/clean-duplicates', [ExamSessionController::class, 'cleanDuplicates'])->middleware('can:manage-exam-session');
 
 Route::post('/exam/{evaluationId}/submit-complex', [ExamSubmissionController::class, 'submitComplex']);
 Route::get('/exam-submissions/{id}/details', [ExamSubmissionController::class, 'details']);
