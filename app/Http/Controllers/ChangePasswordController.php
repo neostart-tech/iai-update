@@ -62,6 +62,7 @@ class ChangePasswordController extends Controller
 
         // 7. Mettre à jour le mot de passe
         $user->password = Hash::make($request->new_password);
+        $user->must_change_password = false;
         $user->save();
 
         return response()->json([

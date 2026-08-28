@@ -375,7 +375,8 @@ public function resetPassword(Request $request, User $user)
     $clearPassword = \Illuminate\Support\Str::random(10);
 
     $user->update([
-        'password' => Hash::make($clearPassword)
+        'password' => Hash::make($clearPassword),
+        'must_change_password' => true
     ]);
 
     // Enregistrement dans les logs système
@@ -390,7 +391,8 @@ public function resetPassword(Request $request, User $user)
 
     return response()->json([
         'success' => true,
-        'message' => 'Mot de passe réinitialisé avec succès et envoyé par email.'
+        'message' => 'Mot de passe réinitialisé avec succès et envoyé par email.',
+        'new_password' => $clearPassword
     ]);
 }
 	public function loadEmploiDuTemps(User $user)

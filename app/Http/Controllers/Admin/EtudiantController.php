@@ -560,6 +560,7 @@ class EtudiantController extends Controller
 
         $etudiant->update([
             'password' => \Illuminate\Support\Facades\Hash::make($clearPassword),
+            'must_change_password' => true,
         ]);
 
         try {
@@ -569,7 +570,8 @@ class EtudiantController extends Controller
         }
 
         return response()->json([
-            'message' => 'Mot de passe réinitialisé avec succès'
+            'message' => 'Mot de passe réinitialisé avec succès',
+            'new_password' => $clearPassword
         ]);
     }
 
