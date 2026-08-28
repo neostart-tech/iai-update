@@ -558,10 +558,9 @@ class EtudiantController extends Controller
     {
         $clearPassword = \Illuminate\Support\Str::random(10);
 
-        $etudiant->update([
-            'password' => \Illuminate\Support\Facades\Hash::make($clearPassword),
-            'must_change_password' => true,
-        ]);
+        $etudiant->password = \Illuminate\Support\Facades\Hash::make($clearPassword);
+        $etudiant->must_change_password = true;
+        $etudiant->save();
 
         try {
             \Illuminate\Support\Facades\Mail::to($etudiant->email)->send(new \App\Mail\Etudiants\StudentResetPasswordMail($etudiant, $clearPassword));

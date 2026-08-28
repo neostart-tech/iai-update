@@ -374,10 +374,9 @@ public function resetPassword(Request $request, User $user)
     // Générer un mot de passe aléatoire de 10 caractères
     $clearPassword = \Illuminate\Support\Str::random(10);
 
-    $user->update([
-        'password' => Hash::make($clearPassword),
-        'must_change_password' => true
-    ]);
+    $user->password = Hash::make($clearPassword);
+    $user->must_change_password = true;
+    $user->save();
 
     // Enregistrement dans les logs système
     if (auth()->check()) {
