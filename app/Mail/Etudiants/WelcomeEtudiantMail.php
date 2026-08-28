@@ -31,7 +31,7 @@ class WelcomeEtudiantMail extends Mailable
 				'mailTitle' => 'Création de votre compte Étudiant',
 				'mailContent' => $this->getMainContent(),
 				'buttonText' => 'Accéder à mon espace',
-				'buttonHref' => env('FRONTEND_URL', 'http://localhost:3000') . '/etudiant/login',
+				'buttonHref' => env('FRONTEND_URL', 'http://localhost:3000') . '/login',
 			]
 		);
 	}

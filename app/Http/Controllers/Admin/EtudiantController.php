@@ -554,6 +554,26 @@ class EtudiantController extends Controller
 		}
     }
 
+    public function resetPassword(Request $request, Etudiant $etudiant)
+    {
+        $clearPassword = \Illuminate\Support\Str::random(10);
+
+        $etudiant->password = \Illuminate\Support\Facades\Hash::make($clearPassword);
+        $etudiant->must_change_password = true;
+        $etudiant->save();
+
+        try {
+            \Illuminate\Support\Facades\Mail::to($etudiant->email)->send(new \App\Mail\Etudiants\StudentResetPasswordMail($etudiant, $clearPassword));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Erreur d'envoi du mail de réinitialisation de mot de passe (Étudiant) : " . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => 'Mot de passe réinitialisé avec succès',
+            'new_password' => $clearPassword
+        ]);
+    }
+
     public function destroy(Etudiant $etudiant)
     {
         // Au lieu de supprimer, on bascule le statut

@@ -587,6 +587,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/exam-submissions/{id}', [ExamSubmissionController::class, 'show']);
     Route::post('/exam-sessions/clean-duplicates', [ExamSessionController::class, 'cleanDuplicates'])->middleware('can:manage-exam-session');
 
+    Route::post('/exam-submissions/grade-multiple', [ExamSubmissionController::class, 'gradeMultiple'])->middleware('can:grade-examen');
     Route::post('/exam-submissions/{id}/grade', [ExamSubmissionController::class, 'grade'])->middleware('can:grade-examen');
     Route::post('/exam-submissions/{id}/suggest-grade', [ExamSubmissionController::class, 'suggestGrade'])->middleware('can:grade-examen');
 
