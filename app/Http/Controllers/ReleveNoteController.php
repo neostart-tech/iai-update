@@ -22,10 +22,20 @@ class ReleveNoteController extends Controller
      */
     public function index(Request $request)
     {
-        $query = \App\Models\ReleveNote::with(['etudiant', 'anneeScolaire', 'periode']);
+        $query = \App\Models\ReleveNote::with([
+            'etudiant', 
+            'anneeScolaire', 
+            'periode',
+            'ueValidations.uniteEnseignement',
+            'uvValidations.uniteValeur'
+        ]);
 
         if ($request->periode_id) {
             $query->where('periode_id', $request->periode_id);
+        }
+
+        if ($request->annee_scolaire_id) {
+            $query->where('annee_scolaire_id', $request->annee_scolaire_id);
         }
 
         if ($request->group_id) {
@@ -36,6 +46,10 @@ class ReleveNoteController extends Controller
         }
 
         $releves = $query->latest()->paginate(20);
+
+        $releves->getCollection()->transform(function ($releve) {
+            return $this->noteService->formatReleveModel($releve);
+        });
 
         return response()->json($releves);
     }

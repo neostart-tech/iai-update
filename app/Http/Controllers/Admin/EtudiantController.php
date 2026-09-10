@@ -29,19 +29,19 @@ class EtudiantController extends Controller
     private const COUPON = 'coupons';
     public function index(Request $request)
     {
-        $anneeActiveId = injectAnneeScolaireId();
+        $anneeActiveId = $request->get('annee_scolaire_id') ?: injectAnneeScolaireId()['annee_scolaire_id'] ?? getAnneeScolaireId();
 
-        $etudiants = Etudiant::whereHas('etudiantGroups', function ($q) use ($anneeActiveId, $request) {
+        $etudiants = Etudiant::whereHas('allEtudiantGroups', function ($q) use ($anneeActiveId, $request) {
 
             $q->where('annee_scolaire_id', $anneeActiveId);
         })->with([
-            'etudiantGroups' => function ($q) use ($anneeActiveId) {
+            'allEtudiantGroups' => function ($q) use ($anneeActiveId) {
                 $q->where('annee_scolaire_id', $anneeActiveId)
                     ->latest('id');
             },
-            'etudiantGroups.group',
-            'etudiantGroups.filiere',
-            'etudiantGroups.niveau',
+            'allEtudiantGroups.group',
+            'allEtudiantGroups.filiere',
+            'allEtudiantGroups.niveau',
             'submittedDocuments',
             'fraisEtudiant',
         ])->orderBy('nom')->orderBy('prenom')->get();

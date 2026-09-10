@@ -350,8 +350,9 @@
                         <thead>
                             <tr>
                                 <th>Matière</th>
+                                @if(!($uvs[0]['examens_uniquement'] ?? false))
                                 <th>Devoir</th>
-                              
+                                @endif
                                 <th>Examen</th>
                                 <th>Moy. UV</th>
                                 <th>Coef.</th>
@@ -362,7 +363,9 @@
                             @foreach ($uvs as $uv)
                                 <tr>
                                     <td>{{ $uv['uv'] }}</td>
+                                    @if(!($uv['examens_uniquement'] ?? false))
                                     <td>{{ $uv['devoir'] }}</td>
+                                    @endif
                                     <td>{{ $uv['examen'] }}</td>
                                     <td>{{ $uv['moyenne_uv'] }}</td>
                                     <td>{{ $uv['coefficient'] }}</td>

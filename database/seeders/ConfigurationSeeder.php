@@ -28,6 +28,13 @@ class ConfigurationSeeder extends Seeder
             [
                 'key' => 'Nom complet du Chargé des études et de la scolarité',
                 'value' => 'M. DUPONT Jean-Pierre'
+            ],
+            [
+                'key' => 'examens_uniquement',
+                'value' => '0',
+                'type' => 'boolean',
+                'name' => 'Ne prendre en compte que les examens pour le calcul des moyennes',
+                'group' => 'Pédagogie'
             ]
         ];
 

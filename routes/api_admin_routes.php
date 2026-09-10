@@ -116,6 +116,7 @@ Route::get('student-cards/verify/{matricule}', [CarteEtudiantController::class, 
 Route::middleware('auth:sanctum')->group(function () {
 
 
+
     Route::controller(FiliereController::class)->prefix('filieres')->name('filieres.')->group(function () {
         Route::get('liste', 'index')->name('index');
         Route::get('ajouter-une-filiere', 'create')->name('create');
@@ -140,9 +141,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('{ue}/supprimer', 'destroy')->name('delete')->middleware('can:delete-ue');
     });
 
-    // Gestion des unités de valeur par l'administration
-    Route::controller(UniteValeurController::class)->prefix('unites-de-valeur')->name('uvs.')->group(function () {
+    // Gestion du catalogue des Matières (Nouveau modèle unique)
+    Route::controller(\App\Http\Controllers\Admin\MatiereController::class)->prefix('matieres')->name('matieres.')->group(function () {
         Route::get('liste', 'index')->name('index');
+        Route::post('ajouter', 'store')->name('store')->middleware('can:create-uv');
+        Route::put('{matiere}/modifier', 'update')->name('update')->middleware('can:update-uv');
+        Route::delete('{matiere}/supprimer', 'destroy')->name('delete')->middleware('can:delete-uv');
+    });
+
+    // Gestion des affectations / programmations des unités de valeur (UV)
+    Route::controller(UniteValeurController::class)->prefix('unites-de-valeur')->name('uvs.')->group(function () {
+        Route::get('liste', 'index')->name('index'); // A garder si certaines choses en ont besoin, ou on l'enlève
         Route::get('ajouter-une-matiere', 'create')->name('create');
         Route::get('{uv}/a-propos', 'show')->name('show');
         Route::get('{uv}/modifier', 'edit')->name('edit');
@@ -627,13 +636,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('groupe/{group}', 'generateGroupReleves')->name('groupe')->middleware('can:create-releve');
     });
 
+    // Routes pour les bulletins dynamiques (PDF)
+    Route::controller(\App\Http\Controllers\BulletinGeneratorController::class)->prefix('bulletins')->name('bulletins.')->group(function () {
+        Route::get('generer/{etudiant}', 'generatePdf')->name('generate');
+    });
+
     Route::controller(ReleveNoteController::class)->prefix('releves-de-note')->group(function () {
         Route::get('liste', 'index');
         Route::post('{etudiant}/generer-releve-de-note', 'recalculate')->middleware('can:create-releve');
         Route::get('{etudiant}/get-releve-de-note', 'showReleve');
-        Route::delete('{releve:id}/supprimer', 'destroy')->middleware('can:delete-releve');
         Route::post('bulk-generate', 'bulkGenerate')->middleware('can:create-releve');
         Route::post('check-statuses', 'checkStatuses')->middleware('can:create-releve');
+        Route::delete('{releve:id}/supprimer', 'destroy')->middleware('can:delete-releve');
     });
 
     // Routes pour les cartes étudiants

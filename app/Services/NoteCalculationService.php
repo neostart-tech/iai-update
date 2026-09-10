@@ -95,8 +95,8 @@ class NoteCalculationService
                     [
                         'releve_note_id' => $releve->id,
                         'moyenne' => $moyenneUV,
-                        'note_devoir' => $notesCalculated['devoir'] ?? 0,
-                        'note_examen' => $notesCalculated['examen'] ?? 0,
+                        'note_devoir' => $notesCalculated['devoir'] ?? null,
+                        'note_examen' => $notesCalculated['examen'] ?? null,
                         'coefficient' => $coefUV,
                         'credit_obtenu' => $creditUV,
                         'validee' => $validee
@@ -202,7 +202,15 @@ class NoteCalculationService
         $moyenne = 0;
         $totalPoids = 0;
 
-        if ($moyenneDevoir !== null) {
+        // Récupérer la configuration globale pour les examens uniquement
+        $examensUniquement = \App\Models\Configuration::where('key', 'examens_uniquement')->value('value') == 1;
+
+        if ($examensUniquement) {
+            $poidsDevoir = 0;
+            $poidsExamen = 100;
+        }
+
+        if ($moyenneDevoir !== null && !$examensUniquement) {
             $moyenne += $moyenneDevoir * ($poidsDevoir / 100);
             $totalPoids += $poidsDevoir;
         }
@@ -220,6 +228,142 @@ class NoteCalculationService
             'moyenne' => $moyenne,
             'devoir' => $moyenneDevoir,
             'examen' => $moyenneExamen
+        ];
+    }
+
+    public function formatReleveModel(ReleveNote $releve): array
+    {
+        $releveGrouped = [];
+        $assignedUvIds = [];
+
+        // Option B: VÃ©rifier s'il y a des devoirs dans ce relevÃ©
+        $globalExamensUniquement = \App\Models\Configuration::where('key', 'examens_uniquement')->value('value') == 1;
+        $hasDevoirs = $releve->uvValidations->contains(function($uvv) {
+            return !is_null($uvv->note_devoir);
+        });
+        $examensUniquement = $globalExamensUniquement && !$hasDevoirs;
+
+        foreach ($releve->ueValidations as $ueValidation) {
+            $ue = $ueValidation->uniteEnseignement;
+            if (!$ue) continue;
+
+            // récupérer les UV de cette UE à partir du même relevé
+            $uvValidations = $releve->uvValidations->filter(function($uvv) use ($ue) {
+                return $uvv->uniteValeur && $uvv->uniteValeur->unite_enseignement_id == $ue->id;
+            });
+
+            $uvs = [];
+
+            foreach ($uvValidations as $uvValidation) {
+                $uv = $uvValidation->uniteValeur;
+                if (!$uv) continue;
+                
+                $assignedUvIds[] = $uvValidation->id;
+
+                $weighting = \App\Models\UVWeighting::where('unite_valeur_id', $uv->id)->first();
+
+                $uvs[] = [
+                    'nom' => $uv->nom,
+                    'code' => $uv->code,
+                    'devoir' => ($examensUniquement || is_null($uvValidation->note_devoir)) ? null : number_format($uvValidation->note_devoir, 2),
+                    'examen' => is_null($uvValidation->note_examen) ? null : number_format($uvValidation->note_examen, 2),
+                    'moyenne_uv' => number_format($uvValidation->moyenne, 2),
+                    'note_ponderee' => number_format($uvValidation->moyenne * $uvValidation->coefficient, 2),
+                    'validation' => $uvValidation->validee ? 'Validé' : 'Non validé',
+                    'coefficient' => $uvValidation->coefficient,
+                    'poids_devoir' => $examensUniquement ? 0 : ($weighting->poids_devoir ?? 40),
+                    'poids_examen' => $examensUniquement ? 100 : ($weighting->poids_examen ?? 60),
+                    'examens_uniquement' => $examensUniquement
+                ];
+            }
+
+            $releveGrouped[] = [
+                'ue' => $ue->nom,
+                'moyenne_ue' => number_format($ueValidation->moyenne, 2),
+                'credit' => $ue->credit ?? 0,
+                'ue_validee' => $ueValidation->validee,
+                'type_validation' => $ueValidation->type_validation,
+                'uvs' => $uvs
+            ];
+        }
+
+        // Handle UVs without UE
+        $unassignedUvs = $releve->uvValidations->filter(function($uvv) use ($assignedUvIds) {
+            return !in_array($uvv->id, $assignedUvIds);
+        });
+
+        if ($unassignedUvs->isNotEmpty()) {
+            $uvs = [];
+            $totalMoyenne = 0;
+            $totalCoef = 0;
+            $totalCredits = 0;
+            
+            foreach ($unassignedUvs as $uvValidation) {
+                $uv = $uvValidation->uniteValeur;
+                if (!$uv) continue;
+                
+                $totalMoyenne += $uvValidation->moyenne * $uvValidation->coefficient;
+                $totalCoef += $uvValidation->coefficient;
+                $totalCredits += $uvValidation->credit_obtenu;
+                
+                $weighting = \App\Models\UVWeighting::where('unite_valeur_id', $uv->id)->first();
+
+                $uvs[] = [
+                    'nom' => $uv->nom,
+                    'code' => $uv->code,
+                    'devoir' => ($examensUniquement || is_null($uvValidation->note_devoir)) ? null : number_format($uvValidation->note_devoir, 2),
+                    'examen' => is_null($uvValidation->note_examen) ? null : number_format($uvValidation->note_examen, 2),
+                    'moyenne_uv' => number_format($uvValidation->moyenne, 2),
+                    'note_ponderee' => number_format($uvValidation->moyenne * $uvValidation->coefficient, 2),
+                    'validation' => $uvValidation->validee ? 'Validé' : 'Non validé',
+                    'coefficient' => $uvValidation->coefficient,
+                    'poids_devoir' => $examensUniquement ? 0 : ($weighting->poids_devoir ?? 40),
+                    'poids_examen' => $examensUniquement ? 100 : ($weighting->poids_examen ?? 60),
+                    'examens_uniquement' => $examensUniquement
+                ];
+            }
+            
+            if (count($uvs) > 0) {
+                $moyenne_ue = $totalCoef > 0 ? $totalMoyenne / $totalCoef : 0;
+                $releveGrouped[] = [
+                    'ue' => 'MATIÈRES GÉNÉRALES',
+                    'moyenne_ue' => number_format($moyenne_ue, 2),
+                    'credit' => $totalCredits,
+                    'ue_validee' => $moyenne_ue >= 10,
+                    'type_validation' => null,
+                    'uvs' => $uvs
+                ];
+            }
+        }
+
+        return [
+            'id' => $releve->id,
+            'etudiant' => [
+                'nom' => $releve->etudiant->nom,
+                'prenom' => $releve->etudiant->prenom,
+                'slug' => $releve->etudiant->slug,
+                'matricule' => $releve->etudiant->matricule,
+                'genre' => $releve->etudiant->genre->value ?? 'M',
+                'dernier_groupe' => ($dg = $releve->etudiant->etudiantGroups()->latest('id')->first()) ? [
+                    'group' => $dg->group ? ['nom' => $dg->group->nom] : null,
+                    'filiere' => $dg->filiere ? ['nom' => $dg->filiere->nom] : null,
+                    'niveau' => $dg->niveau ? ['nom' => $dg->niveau->libelle] : null,
+                ] : null
+            ],
+            'annee_scolaire' => $releve->anneeScolaire->nom,
+            'periode' => $releve->periode->nom,
+            'date_generation' => $releve->created_at->format('Y-m-d'),
+            'moyenne_generale' => number_format((float)($releve->moyenne_generale ?? 0), 2),
+            'total_credits_valides' => $releve->total_credits_valides,
+            'total_credits_non_valides' => $releve->total_credits_non_valides,
+            'total_coefficients' => $releve->uvValidations->sum('coefficient'),
+            'total_notes_ponderees' => number_format((float)($releve->uvValidations->sum(fn($uvv) => $uvv->moyenne * $uvv->coefficient)), 2),
+            'created_at' => $releve->created_at,
+            'logo_url' => \App\Models\Configuration::where('key', 'logo_etablissement')->first()?->value 
+                ? asset('storage/' . \App\Models\Configuration::where('key', 'logo_etablissement')->first()->value)
+                : null,
+            'configurations' => \App\Models\Configuration::pluck('value', 'key')->toArray(),
+            'ues' => $releveGrouped
         ];
     }
 
@@ -246,74 +390,12 @@ class NoteCalculationService
             ]);
         }
 
-        $releveGrouped = [];
-
         if ($releve->ueValidations->isEmpty()) {
-            abort(500, "DIAGNOSTIC : Le relevé ID {$releve->id} n'a aucune UE validée (ue_validations vide).");
+            // On peut logger l'info si besoin, mais on ne bloque plus le processus.
+            \Illuminate\Support\Facades\Log::info("Le relevé ID {$releve->id} n'a aucune UE validée (ue_validations vide).");
         }
 
-        foreach ($releve->ueValidations as $ueValidation) {
-
-            $ue = $ueValidation->uniteEnseignement;
-
-            // récupérer les UV de cette UE à partir du même relevé
-            $uvValidations = $releve->uvValidations->filter(function($uvv) use ($ue) {
-                return $uvv->uniteValeur && $uvv->uniteValeur->unite_enseignement_id == $ue->id;
-            });
-
-            $uvs = [];
-
-            foreach ($uvValidations as $uvValidation) {
-
-                $uv = $uvValidation->uniteValeur;
-                if (!$uv) continue;
-
-                $uvs[] = [
-                    'nom' => $uv->nom,
-                    'devoir' => number_format($uvValidation->note_devoir ?? 0, 2),
-                    'examen' => number_format($uvValidation->note_examen ?? 0, 2),
-                    'moyenne_uv' => number_format($uvValidation->moyenne, 2),
-                    'note_ponderee' => number_format($uvValidation->moyenne * $uvValidation->coefficient, 2),
-                    'validation' => $uvValidation->validee ? 'Validé' : 'Non validé',
-                    'coefficient' => $uvValidation->coefficient
-                ];
-            }
-
-            $releveGrouped[] = [
-                'ue' => $ue->nom,
-                'moyenne_ue' => number_format($ueValidation->moyenne, 2),
-                'credit' => $ue->credit ?? 0,
-                'ue_validee' => $ueValidation->validee,
-                'type_validation' => $ueValidation->type_validation,
-                'uvs' => $uvs
-            ];
-        }
-
-        return [
-            'etudiant' => [
-                'nom' => $etudiant->nom,
-                'prenom' => $etudiant->prenom,
-                'matricule' => $etudiant->matricule,
-                'genre' => $etudiant->genre->value ?? 'M',
-                'dernier_groupe' => ($dg = $etudiant->etudiantGroups()->latest('id')->first()) ? [
-                    'group' => $dg->group ? ['nom' => $dg->group->nom] : null,
-                    'filiere' => $dg->filiere ? ['nom' => $dg->filiere->nom] : null,
-                    'niveau' => $dg->niveau ? ['nom' => $dg->niveau->libelle] : null,
-                ] : null
-            ],
-            'annee_scolaire' => $anneeScolaire->nom,
-            'periode' => $periode->nom,
-            'date_generation' => $releve->created_at->format('Y-m-d'),
-            'moyenne_generale' => number_format($releve->moyenne_generale, 2),
-            'total_credits_valides' => $releve->total_credits_valides,
-            'total_credits_non_valides' => $releve->total_credits_non_valides,
-            'total_coefficients' => $releve->uvValidations->sum('coefficient'),
-            'total_notes_ponderees' => number_format($releve->uvValidations->sum(fn($uvv) => $uvv->moyenne * $uvv->coefficient), 2),
-            'logo_url' => \App\Models\Configuration::where('key', 'logo_etablissement')->first()?->value 
-                ? asset('storage/' . \App\Models\Configuration::where('key', 'logo_etablissement')->first()->value)
-                : null,
-            'ues' => $releveGrouped
-        ];
+        return $this->formatReleveModel($releve);
     }
 
 
@@ -340,62 +422,7 @@ class NoteCalculationService
         $relevesFormatted = [];
 
         foreach ($releves as $releve) {
-            $releveGrouped = [];
-
-            foreach ($releve->ueValidations as $ueValidation) {
-                $ue = $ueValidation->uniteEnseignement;
-
-                // Récupérer les UV de cette UE
-                $uvValidations = $releve->uvValidations
-                    ->where('uniteValeur.unite_enseignement_id', $ue->id);
-
-                $uvs = [];
-
-                foreach ($uvValidations as $uvValidation) {
-                    $uv = $uvValidation->uniteValeur;
-
-                    $uvs[] = [
-                        'nom' => $uv->nom,
-                        'devoir' => number_format($uvValidation->note_devoir ?? 0, 2),
-                        'examen' => number_format($uvValidation->note_examen ?? 0, 2),
-                        'moyenne_uv' => number_format($uvValidation->moyenne, 2),
-                        'note_ponderee' => number_format($uvValidation->moyenne * $uvValidation->coefficient, 2),
-                        'validation' => $uvValidation->validee ? 'Validé' : 'Non validé',
-                        'coefficient' => $uvValidation->coefficient
-                    ];
-                }
-
-                $releveGrouped[] = [
-                    'ue' => $ue->nom,
-                    'moyenne_ue' => number_format($ueValidation->moyenne, 2),
-                    'credit' => $ue->credit ?? 0,
-                    'ue_validee' => $ueValidation->validee,
-                    'type_validation' => $ueValidation->type_validation,
-                    'uvs' => $uvs
-                ];
-            }
-
-            $relevesFormatted[] = [
-                'id' => $releve->id,
-                'etudiant' => [
-                    'nom' => $etudiant->nom,
-                    'prenom' => $etudiant->prenom,
-                    'genre' => $etudiant->genre->value ?? 'M'
-                ],
-                'annee_scolaire' => $releve->anneeScolaire->nom,
-                'periode' => $releve->periode->nom,
-                'periode_id' => $releve->periode_id,
-                'date_generation' => $releve->created_at->format('Y-m-d'),
-                'moyenne_generale' => number_format($releve->moyenne_generale, 2),
-                'total_credits_valides' => $releve->total_credits_valides,
-                'total_credits_non_valides' => $releve->total_credits_non_valides,
-                'total_coefficients' => $releve->uvValidations->sum('coefficient'),
-                'total_notes_ponderees' => number_format($releve->uvValidations->sum(fn($uvv) => $uvv->moyenne * $uvv->coefficient), 2),
-                'logo_url' => \App\Models\Configuration::where('key', 'logo_etablissement')->first()?->value 
-                    ? asset('storage/' . \App\Models\Configuration::where('key', 'logo_etablissement')->first()->value)
-                    : null,
-                'ues' => $releveGrouped
-            ];
+            $relevesFormatted[] = $this->formatReleveModel($releve);
         }
 
         return $relevesFormatted;
@@ -427,6 +454,13 @@ class NoteCalculationService
         foreach ($releves as $releve) {
             $releveGrouped = [];
 
+            // Option B: VÃ©rifier s'il y a des devoirs dans ce relevÃ©
+            $globalExamensUniquement = \App\Models\Configuration::where('key', 'examens_uniquement')->value('value') == 1;
+            $hasDevoirs = $releve->uvValidations->contains(function($uvv) {
+                return !is_null($uvv->note_devoir);
+            });
+            $examensUniquement = $globalExamensUniquement && !$hasDevoirs;
+
             foreach ($releve->ueValidations as $ueValidation) {
                 $ue = $ueValidation->uniteEnseignement;
 
@@ -439,14 +473,17 @@ class NoteCalculationService
                 foreach ($uvValidations as $uvValidation) {
                     $uv = $uvValidation->uniteValeur;
 
+                    $weighting = \App\Models\UVWeighting::where('unite_valeur_id', $uv->id)->first();
+
                     $uvs[] = [
                         'nom' => $uv->nom,
-                        'devoir' => number_format($uvValidation->note_devoir ?? 0, 2),
+                        'devoir' => ($examensUniquement || is_null($uvValidation->note_devoir)) ? null : number_format($uvValidation->note_devoir, 2),
                         'examen' => number_format($uvValidation->note_examen ?? 0, 2),
                         'moyenne_uv' => number_format($uvValidation->moyenne, 2),
                         'note_ponderee' => number_format($uvValidation->moyenne * $uvValidation->coefficient, 2),
                         'validation' => $uvValidation->validee ? 'Validé' : 'Non validé',
-                        'coefficient' => $uvValidation->coefficient
+                        'coefficient' => $uvValidation->coefficient,
+                        'examens_uniquement' => $examensUniquement
                     ];
                 }
 
@@ -486,6 +523,7 @@ class NoteCalculationService
                 'total_credits_non_valides' => $releve->total_credits_non_valides,
                 'total_coefficients' => $releve->uvValidations->sum('coefficient'),
                 'total_notes_ponderees' => number_format($releve->uvValidations->sum(fn($uvv) => $uvv->moyenne * $uvv->coefficient), 2),
+                'configurations' => \App\Models\Configuration::pluck('value', 'key')->toArray(),
                 'ues_count' => count($releveGrouped),
                 'ues' => $releveGrouped
             ];

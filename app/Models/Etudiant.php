@@ -133,6 +133,12 @@ class Etudiant extends Authenticatable
 			->orderByDesc('id');
 	}
 
+	public function allEtudiantGroups()
+	{
+		return $this->hasMany(EtudiantGroup::class, 'etudiant_id')
+			->orderByDesc('id');
+	}
+
 	public function tickets()
 {
     return $this->morphMany(Ticket::class, 'ticketable');

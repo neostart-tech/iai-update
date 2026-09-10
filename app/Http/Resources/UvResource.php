@@ -22,6 +22,7 @@ class UvResource extends JsonResource
             "td" => $this->resource->td,
             "tp" => $this->resource->tp,
             "ec" => $this->resource->ec,
+            "matiere_id" => $this->resource->matiere_id,
             'volume_horaire'=> $this->resource->volume_horaire,
             "slug" => $this->resource->slug,
             "coefficient" => $this->resource->coefficient,
