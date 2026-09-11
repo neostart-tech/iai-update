@@ -22,7 +22,7 @@ class ReleveNoteController extends Controller
      */
     public function index(Request $request)
     {
-        $query = \App\Models\ReleveNote::with([
+        $query = \App\Models\ReleveNote::has('etudiant')->with([
             'etudiant', 
             'anneeScolaire', 
             'periode',
