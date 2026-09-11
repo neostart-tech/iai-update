@@ -14,6 +14,7 @@ use App\Models\UserUniteValeur;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Illuminate\Http\JsonResponse;
 
 
 class UniteValeurController extends Controller
@@ -37,15 +38,20 @@ class UniteValeurController extends Controller
 		// ]);
 	}
 
-	public function create(): View
+	public function create(Request $request)
 	{
 		$anneeScolaireId = AnneeScolaire::where('active', true)->value('id');
-		return view('admin.uvs.create')->with([
-			'uv' => new Uv(),
+		$data = [
 			'ues' => Ue::all(),
-			"periodes" => Periode::where("annee_scolaire_id", $anneeScolaireId)->get(),
+			'periodes' => Periode::where("annee_scolaire_id", $anneeScolaireId)->get(),
 			'enseignants' => User::enseignants()->get(),
-		]);
+		];
+		
+		if ($request->wantsJson() || $request->is('api/*')) {
+			return response()->json($data);
+		}
+
+		return view('admin.uvs.create')->with(array_merge(['uv' => new Uv()], $data));
 	}
 
 	public function store(UnitValeurRequest $request)
@@ -68,6 +74,27 @@ class UniteValeurController extends Controller
 			$periodeIds = [$request->input('periode_id')];
 		}
 		
+		// Fallback to UE relations if not provided
+		$ue = Ue::with('filiere')->find($request->integer('ue_id'));
+		if ($ue) {
+			if (empty($filiereIds) && $ue->filiere_id) {
+				$filiereIds = [$ue->filiere_id];
+			}
+			if (empty($periodeIds) && $ue->periode_id) {
+				$periodeIds = [$ue->periode_id];
+			}
+			if (empty($niveauIds) && $ue->filiere && $ue->filiere->niveau_id) {
+				$niveauIds = [$ue->filiere->niveau_id];
+			} elseif(empty($niveauIds)) {
+				// Default to 1 to prevent empty loop if no niveau is found
+				$niveauIds = [1];
+			}
+		}
+
+		if (empty($filiereIds)) $filiereIds = [null];
+		if (empty($niveauIds)) $niveauIds = [null];
+		if (empty($periodeIds)) $periodeIds = [null];
+
 		$createdUvs = [];
 
 		foreach ($filiereIds as $filiereId) {
@@ -90,18 +117,35 @@ class UniteValeurController extends Controller
 						'poids_tp',
 						'poids_expose'
 					]);
-					
+					// $data no longer has 'nom' and 'code' from request since it's now in matieres
+					// But we must make sure 'matiere_id' is passed.
+					if ($request->has('matiere_id')) {
+						$data['matiere_id'] = $request->input('matiere_id');
+					}
 					$data['filiere_id'] = $filiereId;
 					$data['niveau_id'] = $niveauId;
 					$data['periode_id'] = $periodeId;
 					
-					// Force the trait to generate a new slug for each instance
-					$data['slug'] = null; 
+					// Force the trait to generate a new slug for each instance (though removed from table, let's keep it if trait tries to use it or just let trait fail, wait trait requires a field? We removed slug from unite_valeurs)
+					// $data['slug'] = null; // Removed from DB
 
-					$uv = Uv::query()->create($data);
+					// Prevent duplicates
+					$existingUv = Uv::query()->where([
+						'matiere_id' => $data['matiere_id'] ?? null,
+						'filiere_id' => $filiereId,
+						'niveau_id' => $niveauId,
+						'periode_id' => $periodeId,
+					])->first();
+
+					if ($existingUv) {
+						$existingUv->update($data);
+						$uv = $existingUv;
+					} else {
+						$uv = Uv::query()->create($data);
+					}
 
 					foreach ($enseignantIds as $enseignantId) {
-						UserUniteValeur::query()->create([
+						UserUniteValeur::query()->firstOrCreate([
 							'user_id' => $enseignantId,
 							'unite_valeur_id' => $uv->id,
 							'annee_scolaire_id' => $uv->annee_scolaire_id,
@@ -109,7 +153,6 @@ class UniteValeurController extends Controller
 					}
 
 					// Save optional weightings per filiere
-					$ue = Ue::find($request->integer('ue_id'));
 					if ($ue) {
 						$weights = [
 							'devoir' => (int) $request->input('poids_devoir', 0),
@@ -141,7 +184,7 @@ class UniteValeurController extends Controller
 		return view('admin.uvs._show-modal', compact('uniteValeur'));
 	}
 
-	public function edit(Uv $uv): View
+	public function edit(Request $request, Uv $uv)
 	{
 		$enseignants = UserUniteValeur::query()
 			->with(['user'])
@@ -150,12 +193,18 @@ class UniteValeurController extends Controller
 
 		$enseignantsSelected = $enseignants->pluck('user_id')->toArray();
 
-		return view('admin.uvs.edit', [
+		$data = [
 			'uv' => $uv,
 			'ues' => Ue::all(),
 			'enseignants' => User::enseignants()->get(),
 			'enseignantsSelected' => $enseignantsSelected,
-		]);
+		];
+
+		if ($request->wantsJson() || $request->is('api/*')) {
+			return response()->json($data);
+		}
+
+		return view('admin.uvs.edit', $data);
 	}
 
 
@@ -210,27 +259,28 @@ class UniteValeurController extends Controller
 			);
 		}
 
-		// Update weighting for this UV/filiere
-		$ue = Ue::find($request->integer('ue_id')) ?? $uv->ue;
-		if ($ue) {
-			$weights = [
-				'devoir' => (int) $request->input('poids_devoir', 0),
-				'interrogation' => (int) $request->input('poids_interrogation', 0),
-				'examen' => (int) $request->input('poids_examen', 0),
-				'tp' => (int) $request->input('poids_tp', 0),
-				'expose' => (int) $request->input('poids_expose', 0),
-			];
-			$sum = array_sum($weights);
-			if ($sum === 0 || $sum === 100) {
-				UVWeighting::updateOrCreate([
-					'unite_valeur_id' => $uv->id,
-					'filiere_id' => $ue->filiere_id,
-				], $weights);
-			}
+		// Save optional weightings per filiere
+		$weights = [
+			'devoir' => (int) $request->input('poids_devoir', 0),
+			'interrogation' => (int) $request->input('poids_interrogation', 0),
+			'examen' => (int) $request->input('poids_examen', 0),
+			'tp' => (int) $request->input('poids_tp', 0),
+			'expose' => (int) $request->input('poids_expose', 0),
+		];
+		$sum = array_sum($weights);
+		if ($sum === 0 || $sum === 100) {
+			UVWeighting::updateOrCreate([
+				'unite_valeur_id' => $uv->id,
+				'filiere_id' => $uv->filiere_id,
+			], $weights);
 		}
-		return new UvResource($uv);
 
-		// return to_route('admin.uvs.index')->with(successMsg('Unité de valeur mise à jour avec succès.'));
+		if ($request->wantsJson() || $request->is('api/*')) {
+			return response()->json(['success' => true, 'uv' => $uv]);
+		}
+
+		return redirect()->route('admin.uvs.index')
+			->with('success', 'Unité de valeur mise à jour avec succès.');
 	}
 
 

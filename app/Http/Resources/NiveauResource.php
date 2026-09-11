@@ -18,8 +18,9 @@ class NiveauResource extends JsonResource
             "id" => $this->id,
             "libelle" => $this->libelle,
             "ordre" => $this->ordre,
-            "code"=>$this->code,
+            "code" => $this->code,
             "active" => (bool) $this->active,
+            "periodes" => $this->whenLoaded('periodes'),
         ];
     }
 }

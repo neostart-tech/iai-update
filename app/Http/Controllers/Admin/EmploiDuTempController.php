@@ -200,23 +200,18 @@ class EmploiDuTempController extends Controller
 				->value('id');
 			if (!$salleId) return __422('Salle invalide.');
 
-			// $groupId = Group::where('slug', $request->grade)
-			// 	->orWhere('id', intval($request->grade))
-			// 	->value('id');
 			$groupId = Group::where('slug', $request->grade)
 				->orWhere('id', intval($request->grade))
 				->orWhere('nom', 'LIKE', '%' . $request->grade . '%')
 				->value('id');
 			if (!$groupId) return __422('Groupe invalide.');
 
-			// $uvId = UniteValeur::where('slug', $request->uv_id)
-			// 	->orWhere('id', intval($request->uv_id))
-			// 	->value('id');
-			$uvId = UniteValeur::where('slug', $request->uv_id)
-				->orWhere('id', intval($request->uv_id))
-				->orWhere('code', 'LIKE', '%' . $request->uv_id . '%')
-				->orWhere('nom', 'LIKE', '%' . $request->uv_id . '%')
-				->value('id');
+			$uvId = UniteValeur::where('id', intval($request->uv_id))
+				->orWhereHas('matiere', function($q) use ($request) {
+					$q->where('slug', $request->uv_id)
+					  ->orWhere('code', 'LIKE', '%' . $request->uv_id . '%')
+					  ->orWhere('nom', 'LIKE', '%' . $request->uv_id . '%');
+				})->value('id');
 			if (!$uvId) return __422('Unité de valeur invalide.');
 
 			$ownerId = User::where('slug', $request->teacher)
@@ -386,8 +381,8 @@ class EmploiDuTempController extends Controller
 		}
 
 		try {
-			$debut = Carbon::createFromFormat('Y-m-d\TH:i:s', $request->debut);
-			$fin = Carbon::createFromFormat('Y-m-d\TH:i:s', $request->fin);
+			$debut = Carbon::parse($request->debut);
+			$fin = Carbon::parse($request->fin);
 		} catch (Throwable) {
 			return __500('Format de date invalide');
 		}
@@ -536,6 +531,7 @@ class EmploiDuTempController extends Controller
 		if ($request->filled('salle')) {
 			$salleId = Salle::where('slug', $request->salle)
 				->orWhere('id', intval($request->salle))
+				->orWhere('nom', 'LIKE', '%' . $request->salle . '%')
 				->value('id');
 
 			if (!$salleId) return __422('Salle invalide.');
@@ -544,9 +540,12 @@ class EmploiDuTempController extends Controller
 		}
 
 		if ($request->filled('uv_id')) {
-			$uvId = UniteValeur::where('slug', $request->uv_id)
-				->orWhere('id', intval($request->uv_id))
-				->value('id');
+			$uvId = UniteValeur::where('id', intval($request->uv_id))
+				->orWhereHas('matiere', function($q) use ($request) {
+					$q->where('slug', $request->uv_id)
+					  ->orWhere('code', 'LIKE', '%' . $request->uv_id . '%')
+					  ->orWhere('nom', 'LIKE', '%' . $request->uv_id . '%');
+				})->value('id');
 
 			if (!$uvId) return __422('Unité de valeur invalide.');
 
@@ -556,6 +555,7 @@ class EmploiDuTempController extends Controller
 		if ($request->filled('grade')) {
 			$groupId = Group::where('slug', $request->grade)
 				->orWhere('id', intval($request->grade))
+				->orWhere('nom', 'LIKE', '%' . $request->grade . '%')
 				->value('id');
 
 			if (!$groupId) return __422('Groupe invalide.');
@@ -566,6 +566,7 @@ class EmploiDuTempController extends Controller
 		if ($request->filled('teacher')) {
 			$ownerId = User::where('slug', $request->teacher)
 				->orWhere('id', intval($request->teacher))
+				->orWhereRaw("CONCAT(nom,' ',prenom) LIKE ?", ["%{$request->teacher}%"])
 				->value('id');
 
 			if (!$ownerId) return __422('Enseignant invalide.');
@@ -677,24 +678,29 @@ class EmploiDuTempController extends Controller
 	public function checkAvailability(Request $request): Response|ResponseFactory
 	{
 		$rules = [
-			'salle' => ['required'],
+			'salle' => ['required_without:salle_id'],
+			'salle_id' => ['required_without:salle'],
 			'date' => ['required', 'date'],
 			'debut' => ['required'],
 			'fin' => ['required'],
 		];
 
-		$validator = validator($request->all(), $rules);
+		$messages = [
+			'salle_id.required_without' => 'La salle est obligatoire.',
+			'salle.required_without' => 'La salle est obligatoire.',
+		];
+
+		$validator = validator($request->all(), $rules, $messages);
 		if ($validator->fails()) return __422($validator->errors()->first());
 
 		try {
-			$debut = Carbon::createFromFormat(
-				'Y-m-d H:i',
-				$request->date . ' ' . $request->debut
-			);
-			$fin = Carbon::createFromFormat(
-				'Y-m-d H:i',
-				$request->date . ' ' . $request->fin
-			);
+			// If debut/fin are already full date-times (e.g. from Vue payload 'YYYY-MM-DD HH:mm:ss')
+			// or just times (e.g. 'HH:mm').
+			$debutStr = str_contains($request->debut, '-') ? $request->debut : $request->date . ' ' . $request->debut;
+			$finStr = str_contains($request->fin, '-') ? $request->fin : $request->date . ' ' . $request->fin;
+			
+			$debut = Carbon::parse($debutStr);
+			$fin = Carbon::parse($finStr);
 		} catch (Throwable) {
 			return __500('Format de date invalide');
 		}
@@ -707,7 +713,10 @@ class EmploiDuTempController extends Controller
 		$salleId = Salle::where('slug', $salleKey)->orWhere('id', $salleKey)->first()?->getAttribute('id');
 		$teacherId = $request->enseignant_id ? (User::where('slug', $request->enseignant_id)->orWhere('id', $request->enseignant_id)->first()?->getAttribute('id')) : null;
 		$groupId = $request->groupe_id ? (Group::where('slug', $request->groupe_id)->orWhere('id', $request->groupe_id)->first()?->getAttribute('id')) : null;
-		$excludeId = $request->id;
+		$excludeId = null;
+		if ($request->id) {
+			$excludeId = EmploiDuTemp::where('slug', $request->id)->orWhere('id', $request->id)->value('id');
+		}
 
 		if ($salleId && $this->hasSalleOverlap($salleId, $debut, $fin, $excludeId)) {
 			return response(['available' => false, 'message' => 'La salle est déjà occupée sur cette plage horaire.']);

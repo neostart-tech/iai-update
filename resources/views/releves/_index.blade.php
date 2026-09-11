@@ -351,7 +351,9 @@
                         <thead>
                             <tr>
                                 <th>Matière</th>
-                                <th>Devoir</th>
+                                @if(!($uvs[0]['examens_uniquement'] ?? false))
+                                    <th>Devoir</th>
+                                @endif
                                 <th>Examen</th>
                                 <th>Pondérations</th>
                                 <th>Moy. UV</th>
@@ -362,8 +364,10 @@
                         <tbody>
                             @foreach ($uvs as $uv)
                                 <tr>
-                                   <td>{{ $uv['uv'] }}</td>
-                                     <td>{{ $uv['devoir'] }}</td>
+                                   <td>{{ $uv['uv'] ?? $uv['nom'] ?? '' }}</td>
+                                     @if(!($uv['examens_uniquement'] ?? false))
+                                         <td>{{ $uv['devoir'] }}</td>
+                                     @endif
                                  
                                     <td>{{ $uv['examen'] }}</td>
                                  

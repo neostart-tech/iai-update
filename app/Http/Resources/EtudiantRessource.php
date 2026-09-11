@@ -14,8 +14,10 @@ class EtudiantRessource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        // Récupérer le dernier groupe actif s'il existe
-        $dernierGroup = $this->etudiantGroups->first();
+        // Récupérer le dernier groupe (de l'année sélectionnée ou active) s'il existe
+        $dernierGroup = $this->relationLoaded('allEtudiantGroups') 
+            ? $this->allEtudiantGroups->first() 
+            : $this->etudiantGroups->first();
 
         return [
             'id' => $this->id,

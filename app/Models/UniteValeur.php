@@ -11,9 +11,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @method static self create(array $attributes)
- * @property User enseignant
- * @property Collection<array-key, Note> notes
- * @property Collection<array-key, EmploiDuTemp> emploiDuTemps
+ * @property User $enseignant
+ * @property Collection<array-key, Note> $notes
+ * @property Collection<array-key, EmploiDuTemp> $emploiDuTemps
  * @property UniteEnseignement $uniteEnseignement
  * @property UniteEnseignement $ue
  * @property Filiere $filiere
@@ -21,7 +21,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 // #[ScopedBy([CurrentAnneeScolaireScope::class])]
 class UniteValeur extends Model
 {
-	use GenerateUniqueSlugTrait, ModelsSlugKeyTrait, GetAnneeScolaireModelTrait;
+	use GetAnneeScolaireModelTrait;
 
 	public $timestamps = false;
 
@@ -100,5 +100,24 @@ class UniteValeur extends Model
     public function syllabus(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(Syllabus::class, 'unite_valeur_id');
+    }
+
+    /**
+     * La matière globale à laquelle cette UV (programmation) appartient.
+     */
+    public function matiere(): BelongsTo
+    {
+        return $this->belongsTo(Matiere::class, 'matiere_id');
+    }
+
+    // Accessors to ensure legacy code still working when doing $uv->nom
+    public function getNomAttribute()
+    {
+        return $this->matiere ? $this->matiere->nom : null;
+    }
+
+    public function getCodeAttribute()
+    {
+        return $this->matiere ? $this->matiere->code : null;
     }
 }

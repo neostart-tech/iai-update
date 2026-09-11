@@ -34,7 +34,7 @@ class GroupController extends Controller
 	{
 		$anneeActiveId = getAnneeScolaireId();
 
-		$groups = Group::with(['filieres', 'niveau'])
+		$groups = Group::with(['filieres', 'niveau.periodes'])
 			->when($request->niveau_id, function ($query, $niveauId) {
 				$query->where('niveau_id', $niveauId);
 			})
@@ -181,13 +181,15 @@ class GroupController extends Controller
 			throw new \RuntimeException('Impossible de charger le calendrier');
 		}
 	}
-	public function getEtudiants(Group $group)
+	public function getEtudiants(\Illuminate\Http\Request $request, Group $group)
 	{
-		$anneeActive = AnneeScolaire::where('active', true)->first()->getAttribute('id');
+		$anneeActive = $request->get('annee_scolaire_id') ?: AnneeScolaire::where('active', true)->first()->getAttribute('id');
 
 		// dd(count(EtudiantGroup::where('annee_scolaire_id',$anneeActive->id)->where('group_id',$group->id)->get()));
 
-		$etudiants = Etudiant::with('roles')->whereHas('groups', function ($query) use ($group, $anneeActive) {
+		$etudiants = Etudiant::with(['roles', 'allEtudiantGroups' => function ($query) use ($anneeActive) {
+            $query->where('annee_scolaire_id', $anneeActive)->latest('id');
+        }, 'allEtudiantGroups.group', 'allEtudiantGroups.filiere', 'allEtudiantGroups.niveau'])->whereHas('groups', function ($query) use ($group, $anneeActive) {
 			$query->where('etudiant_group.group_id', $group->id)->where('etudiant_group.annee_scolaire_id', $anneeActive);
 		})->get();
 
