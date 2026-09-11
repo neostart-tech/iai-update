@@ -29,12 +29,30 @@ class NoteCalculationService
                 ->where('annee_scolaire_id', $anneeScolaire->id)
                 ->first();
 
-            if (!$etudiantGroup) {
-                throw new \Exception("L'étudiant n'est inscrit dans aucun groupe pour l'année {$anneeScolaire->nom}");
-            }
+            if ($etudiantGroup) {
+                $filiereId = $etudiantGroup->filiere_id;
+                $niveauId = $etudiantGroup->niveau_id;
+            } else {
+                // Option 1: Tolérance pour les étudiants transférés ou en rattrapage
+                // Vérifier si l'étudiant a des notes pour cette période
+                $hasNotes = Note::withoutGlobalScopes()->where('notes.etudiant_id', $etudiant->id)
+                    ->join('unite_valeurs', 'notes.unite_valeur_id', '=', 'unite_valeurs.id')
+                    ->where('unite_valeurs.periode_id', $periode->id)
+                    ->exists();
 
-            $filiereId = $etudiantGroup->filiere_id;
-            $niveauId = $etudiantGroup->niveau_id;
+                if (!$hasNotes) {
+                    throw new \Exception("L'étudiant n'est inscrit dans aucun groupe pour l'année {$anneeScolaire->nom} et n'a aucune note pour cette période.");
+                }
+
+                // Déduire la filière depuis le dernier groupe de l'étudiant
+                $latestGroup = $etudiant->etudiantGroups()->withoutGlobalScopes()->latest('id')->first();
+                if (!$latestGroup) {
+                    throw new \Exception("Impossible de déterminer la filière de l'étudiant (aucun historique de groupe).");
+                }
+
+                $filiereId = $latestGroup->filiere_id;
+                $niveauId = $latestGroup->niveau_id;
+            }
 
             // 2. Créer ou réinitialiser le relevé
             $releve = ReleveNote::updateOrCreate(
@@ -55,19 +73,24 @@ class NoteCalculationService
                 ]
             );
 
-            // 3. Récupérer les matières (UV) directement
-            $uvs = UniteValeur::withoutGlobalScopes()
+            // 3. Récupérer les matières (UV) directement, uniquement celles évaluées
+            $uvQuery = UniteValeur::withoutGlobalScopes()
                 ->where('filiere_id', $filiereId)
-                ->where(function($q) use ($periode) {
-                    $q->where('periode_id', $periode->id)->orWhereNull('periode_id');
-                })
+                ->whereHas('evaluations', function ($q) use ($anneeScolaire, $periode) {
+                    $q->where('annee_scolaire_id', $anneeScolaire->id)
+                      ->where(function ($q2) use ($periode) {
+                          $q2->where('semestre', $periode->id)->orWhereNull('semestre');
+                      });
+                });
+
+            // Exclusion des matières qui n'ont aucune période assignée
+            $uvs = (clone $uvQuery)
+                ->where('periode_id', $periode->id)
                 ->get();
 
-            // Fallback si vide
+            // Fallback si vide, mais on garde la restriction sur les évaluations et la période
             if ($uvs->isEmpty()) {
-                $uvs = UniteValeur::withoutGlobalScopes()
-                    ->where('filiere_id', $filiereId)
-                    ->get();
+                $uvs = $uvQuery->where('periode_id', $periode->id)->get();
             }
 
             $totalCreditsValides = 0;
@@ -452,81 +475,7 @@ class NoteCalculationService
         $relevesFormatted = [];
 
         foreach ($releves as $releve) {
-            $releveGrouped = [];
-
-            // Option B: VÃ©rifier s'il y a des devoirs dans ce relevÃ©
-            $globalExamensUniquement = \App\Models\Configuration::where('key', 'examens_uniquement')->value('value') == 1;
-            $hasDevoirs = $releve->uvValidations->contains(function($uvv) {
-                return !is_null($uvv->note_devoir);
-            });
-            $examensUniquement = $globalExamensUniquement && !$hasDevoirs;
-
-            foreach ($releve->ueValidations as $ueValidation) {
-                $ue = $ueValidation->uniteEnseignement;
-
-                $uvValidations = $releve->uvValidations->filter(function($uvv) use ($ue) {
-                    return $uvv->uniteValeur && $uvv->uniteValeur->unite_enseignement_id == $ue->id;
-                });
-
-                $uvs = [];
-
-                foreach ($uvValidations as $uvValidation) {
-                    $uv = $uvValidation->uniteValeur;
-
-                    $weighting = \App\Models\UVWeighting::where('unite_valeur_id', $uv->id)->first();
-
-                    $uvs[] = [
-                        'nom' => $uv->nom,
-                        'devoir' => ($examensUniquement || is_null($uvValidation->note_devoir)) ? null : number_format($uvValidation->note_devoir, 2),
-                        'examen' => number_format($uvValidation->note_examen ?? 0, 2),
-                        'moyenne_uv' => number_format($uvValidation->moyenne, 2),
-                        'note_ponderee' => number_format($uvValidation->moyenne * $uvValidation->coefficient, 2),
-                        'validation' => $uvValidation->validee ? 'Validé' : 'Non validé',
-                        'coefficient' => $uvValidation->coefficient,
-                        'examens_uniquement' => $examensUniquement
-                    ];
-                }
-
-                $releveGrouped[] = [
-                    'ue' => $ue->nom,
-                    'moyenne_ue' => number_format($ueValidation->moyenne, 2),
-                    'credit' => $ue->credit ?? 0,
-                    'ue_validee' => $ueValidation->validee,
-                    'type_validation' => $ueValidation->type_validation,
-                    'uvs' => $uvs
-                ];
-            }
-
-            // Charger les infos du groupe si non présentes
-            $dernierGroup = $etudiant->etudiantGroups()->latest('id')->first();
-            
-            $relevesFormatted[] = [
-                'id' => $releve->id,
-                'etudiant' => [
-                    'nom' => $etudiant->nom,
-                    'prenom' => $etudiant->prenom,
-                    'matricule' => $etudiant->matricule,
-                    'genre' => $etudiant->genre->value ?? 'M',
-                    'dernier_groupe' => $dernierGroup ? [
-                        'group' => $dernierGroup->group ? ['nom' => $dernierGroup->group->nom] : null,
-                        'filiere' => $dernierGroup->filiere ? ['nom' => $dernierGroup->filiere->nom] : null,
-                        'niveau' => $dernierGroup->niveau ? ['nom' => $dernierGroup->niveau->libelle] : null,
-                    ] : null
-                ],
-                'annee_scolaire' => $releve->anneeScolaire->nom,
-                'annee_scolaire_id' => $releve->annee_scolaire_id,
-                'periode' => $releve->periode->nom,
-                'periode_id' => $releve->periode_id,
-                'date_generation' => $releve->created_at->format('Y-m-d H:i:s'),
-                'moyenne_generale' => number_format($releve->moyenne_generale, 2),
-                'total_credits_valides' => $releve->total_credits_valides,
-                'total_credits_non_valides' => $releve->total_credits_non_valides,
-                'total_coefficients' => $releve->uvValidations->sum('coefficient'),
-                'total_notes_ponderees' => number_format($releve->uvValidations->sum(fn($uvv) => $uvv->moyenne * $uvv->coefficient), 2),
-                'configurations' => \App\Models\Configuration::pluck('value', 'key')->toArray(),
-                'ues_count' => count($releveGrouped),
-                'ues' => $releveGrouped
-            ];
+            $relevesFormatted[] = $this->formatReleveModel($releve);
         }
 
         return $relevesFormatted;

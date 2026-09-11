@@ -645,6 +645,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('liste', 'index');
         Route::post('{etudiant}/generer-releve-de-note', 'recalculate')->middleware('can:create-releve');
         Route::get('{etudiant}/get-releve-de-note', 'showReleve');
+        Route::get('{etudiant}/periodes-evaluees', 'getPeriodesEvaluees');
         Route::post('bulk-generate', 'bulkGenerate')->middleware('can:create-releve');
         Route::post('check-statuses', 'checkStatuses')->middleware('can:create-releve');
         Route::delete('{releve:id}/supprimer', 'destroy')->middleware('can:delete-releve');

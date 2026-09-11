@@ -83,7 +83,7 @@ class EvaluationController extends Controller
                 'salle:id,nom',
                 'group:id,nom',
                 'group.niveau',
-                'matiere:id,nom,code',
+                'matiere.matiere',
                 'fiche.surveillants',
             ])
             ->orderByDesc('debut')
@@ -161,7 +161,7 @@ class EvaluationController extends Controller
             'salle:id,nom',
             'group:id,nom',
             'group.niveau',
-            'matiere:id,nom,code',
+            'matiere.matiere',
             'fiche.surveillants',
         ]));
     }
@@ -238,7 +238,7 @@ class EvaluationController extends Controller
                 'salle:id,nom',
                 'group:id,nom',
                 'group.niveau',
-                'matiere:id,nom,code',
+                'matiere.matiere',
                 'fiche.surveillants',
             ])
             ->orderByDesc('deleted_at')
