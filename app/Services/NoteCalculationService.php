@@ -361,7 +361,7 @@ class NoteCalculationService
 
         return [
             'id' => $releve->id,
-            'etudiant' => [
+            'etudiant' => $releve->etudiant ? [
                 'nom' => $releve->etudiant->nom,
                 'prenom' => $releve->etudiant->prenom,
                 'slug' => $releve->etudiant->slug,
@@ -372,9 +372,9 @@ class NoteCalculationService
                     'filiere' => $dg->filiere ? ['nom' => $dg->filiere->nom] : null,
                     'niveau' => $dg->niveau ? ['nom' => $dg->niveau->libelle] : null,
                 ] : null
-            ],
-            'annee_scolaire' => $releve->anneeScolaire->nom,
-            'periode' => $releve->periode->nom,
+            ] : null,
+            'annee_scolaire' => $releve->anneeScolaire?->nom,
+            'periode' => $releve->periode?->nom,
             'date_generation' => $releve->created_at->format('Y-m-d'),
             'moyenne_generale' => number_format((float)($releve->moyenne_generale ?? 0), 2),
             'total_credits_valides' => $releve->total_credits_valides,
