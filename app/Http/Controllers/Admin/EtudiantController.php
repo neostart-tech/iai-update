@@ -400,11 +400,15 @@ class EtudiantController extends Controller
             $newNiveauId = $request->niveau_id ?? $newGroup->niveau_id;
             $newFiliereId = $request->filiere_id ?? $newGroup->filiere_id ?? $etudiantGroup->filiere_id;
 
+            $currentModeFormation = $etudiantGroup->mode_formation instanceof \BackedEnum
+                ? $etudiantGroup->mode_formation->value
+                : (string)$etudiantGroup->mode_formation;
+
             if (
-                $etudiantGroup->group_id != $request->group_id ||
-                $etudiantGroup->niveau_id != $newNiveauId ||
-                $etudiantGroup->filiere_id != $newFiliereId ||
-                $etudiantGroup->mode_formation != $request->mode_formation
+                (string)$etudiantGroup->group_id !== (string)$request->group_id ||
+                (string)$etudiantGroup->niveau_id !== (string)$newNiveauId ||
+                (string)$etudiantGroup->filiere_id !== (string)$newFiliereId ||
+                $currentModeFormation !== (string)$request->mode_formation
             ) {
                 $financialImpact = true;
             }

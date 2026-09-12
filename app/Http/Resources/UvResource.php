@@ -26,11 +26,11 @@ class UvResource extends JsonResource
             'volume_horaire'=> $this->resource->volume_horaire,
             "slug" => $this->resource->slug,
             "coefficient" => $this->resource->coefficient,
-            "ue" => new UeResource($this->resource->ue),
-            "user"=> UserResource::collection($this->resource->user) ?? null,
-            'filiere'=>new FiliereResource($this->resource->filiere) ?? null,
-            'periode'=>new PeriodeResource($this->resource->periode) ?? null,
-            'niveau' => new NiveauResource($this->resource->niveau) ?? null,
+            "ue" => $this->resource->ue ? new UeResource($this->resource->ue) : null,
+            "user"=> $this->resource->user ? UserResource::collection($this->resource->user) : null,
+            'filiere'=> $this->resource->filiere ? new FiliereResource($this->resource->filiere) : null,
+            'periode'=> $this->resource->periode ? new PeriodeResource($this->resource->periode) : null,
+            'niveau' => $this->resource->niveau ? new NiveauResource($this->resource->niveau) : null,
         ];
     }
 }

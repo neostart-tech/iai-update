@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\SemoaGateway;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -65,6 +66,119 @@ class SemoaService
 
             return $data['access_token'];
         });
+    }
+
+    /**
+     * Récupère la liste des passerelles (moyens de paiement) depuis l'API Semoa
+     */
+    public function fetchGatewaysFromApi(bool $isRetry = false): array
+    {
+        $token = $this->getToken();
+
+        $response = Http::withHeaders([
+            "Authorization" => "Bearer $token",
+            "Accept" => "application/json"
+        ])->get(self::$url . 'gateways');
+
+        if ($response->failed()) {
+            if ($response->status() === 401 && !$isRetry) {
+                Cache::forget('semoa_access_token');
+                return $this->fetchGatewaysFromApi(true);
+            }
+            throw new \Exception("Erreur SEMOA (Gateways) : " . $response->body());
+        }
+
+        return $response->json() ?? [];
+    }
+
+    /**
+     * Synchronise les passerelles de l'API Semoa dans la table local semoa_gateways
+     */
+    public function syncGateways(): int
+    {
+        $defaultGateways = [
+            [
+                "reference" => "14f4597d-ef96-4263-8107-1e1970959133",
+                "libelle" => "SandboxSemoa",
+                "psp" => ["libelle" => "SANDBOX"],
+                "methode" => "DIRECT_URL",
+                "currency" => "XOF",
+                "logo_url" => null
+            ],
+            [
+                "reference" => "016eb63c-f29d-4384-92e4-b1bd37ef69f8",
+                "libelle" => "Flooz (Moov Africa)",
+                "psp" => ["libelle" => "FLOOZ"],
+                "methode" => "PUSH_USSD",
+                "currency" => "XOF",
+                "logo_url" => "/logo/moovmonye.jpg"
+            ],
+            [
+                "reference" => "e2daf18d-b8d8-42b7-ac42-e3ab8bdb95c1",
+                "libelle" => "Mixx By Yas (T-Money)",
+                "psp" => ["libelle" => "MIXX_PUSH"],
+                "methode" => "PUSH_USSD",
+                "currency" => "XOF",
+                "logo_url" => "https://cashpay.s3.eu-west-1.amazonaws.com/psp/Mixx-by-Yas---CashPay-155x156.png"
+            ],
+            [
+                "reference" => "b0a44c5e-06ae-4039-b84c-2f568eafe232",
+                "libelle" => "VOUCHER",
+                "psp" => ["libelle" => "VOUCHER"],
+                "methode" => "USSD",
+                "currency" => "XOF",
+                "logo_url" => null
+            ],
+            [
+                "reference" => "f7bbfaef-eba3-4b82-ac31-61eb2b772289",
+                "libelle" => "Orabank Ngenius",
+                "psp" => ["libelle" => "ORABANK-NGO"],
+                "methode" => "DIRECT_URL",
+                "currency" => "XOF",
+                "logo_url" => "/logo/orabank.jpg"
+            ],
+            [
+                "reference" => "41282187-9290-441b-a841-254a6b038cc9",
+                "libelle" => "WhatsApp Banking Orabank",
+                "psp" => ["libelle" => "WB"],
+                "methode" => "MOBILE_APP",
+                "currency" => "XOF",
+                "logo_url" => "https://cashpay.s3.eu-west-1.amazonaws.com/psp/orabank.png"
+            ]
+        ];
+
+        try {
+            $gateways = $this->fetchGatewaysFromApi();
+            if (empty($gateways)) {
+                $gateways = $defaultGateways;
+            }
+        } catch (\Exception $e) {
+            Log::warning("SEMOA Gateways Fetch Warning: " . $e->getMessage() . " -> Utilisation de la liste par défaut.");
+            $gateways = $defaultGateways;
+        }
+
+        $count = 0;
+
+        foreach ($gateways as $gw) {
+            if (empty($gw['reference'])) {
+                continue;
+            }
+
+            SemoaGateway::updateOrCreate(
+                ['reference' => $gw['reference']],
+                [
+                    'libelle' => $gw['libelle'] ?? 'Moyen de paiement',
+                    'psp_libelle' => $gw['psp']['libelle'] ?? null,
+                    'methode' => $gw['methode'] ?? null,
+                    'currency' => $gw['currency'] ?? 'XOF',
+                    'logo_url' => $gw['logo_url'] ?? null,
+                    'is_active' => true,
+                ]
+            );
+            $count++;
+        }
+
+        return $count;
     }
 
     /**

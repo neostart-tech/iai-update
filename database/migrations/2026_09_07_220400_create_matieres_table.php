@@ -37,11 +37,17 @@ return new class extends Migration
             $key = strtolower(trim($uv->nom));
             
             if (!isset($matieresCache[$key])) {
-                // On crée la nouvelle matière
+                $baseSlug = Str::slug($uv->nom);
+                $slug = $baseSlug;
+                $i = 1;
+                while (DB::table('matieres')->where('slug', $slug)->exists()) {
+                    $slug = $baseSlug . '-' . $i;
+                    $i++;
+                }
                 $matiereId = DB::table('matieres')->insertGetId([
                     'nom' => $uv->nom,
                     'code' => $uv->code,
-                    'slug' => Str::slug($uv->nom) . '-' . uniqid(), // Pour garantir l'unicité du slug
+                    'slug' => $slug,
                 ]);
                 $matieresCache[$key] = $matiereId;
             }

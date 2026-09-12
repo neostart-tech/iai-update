@@ -11,6 +11,15 @@ trait ModelsSlugKeyTrait
 		return 'slug';
 	}
 
+	public function resolveRouteBinding($value, $field = null)
+	{
+		$field = $field ?? $this->getRouteKeyName();
+		return $this->where($field, $value)
+			->orWhere('id', $value)
+			->firstOrFail();
+	}
+
+
 	public function getSlugBaseKeyName(): string
 	{
 		return "nom";

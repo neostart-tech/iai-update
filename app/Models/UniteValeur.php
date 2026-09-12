@@ -21,11 +21,38 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 // #[ScopedBy([CurrentAnneeScolaireScope::class])]
 class UniteValeur extends Model
 {
-	use GetAnneeScolaireModelTrait;
+	use GetAnneeScolaireModelTrait, ModelsSlugKeyTrait, GenerateUniqueSlugTrait;
 
 	public $timestamps = false;
 
+    protected static function booted()
+    {
+        static::creating(function ($uv) {
+            if (empty($uv->slug)) {
+                // Ensure matiere is loaded to get its nom
+                if (!$uv->relationLoaded('matiere') && $uv->matiere_id) {
+                    $uv->load('matiere');
+                }
+                
+                $nom = $uv->nom ?? 'matiere';
+                $slug = \Illuminate\Support\Str::slug($nom);
+                
+                // Check uniqueness
+                $originalSlug = $slug;
+                $i = 1;
+                while (\App\Models\UniteValeur::where('slug', $slug)->exists()) {
+                    $slug = $originalSlug . '-' . $i;
+                    $i++;
+                }
+                
+                $uv->slug = $slug;
+            }
+        });
+    }
+
 	protected $guarded = false;
+
+    protected $appends = ['nom', 'code'];
 
 	public function notes(): HasMany
 	{

@@ -101,6 +101,8 @@ class UniteValeurController extends Controller
 			foreach ($niveauIds as $niveauId) {
 				foreach ($periodeIds as $periodeId) {
 					$data = $request->except([
+						'id',
+						'slug',
 						'_token',
 						'ue_id',
 						'enseignant_id',
@@ -211,6 +213,8 @@ class UniteValeurController extends Controller
 	public function update(UnitValeurRequest $request, Uv $uv)
 	{
 		$data = $request->except([
+			'id',
+			'slug',
 			'_token',
 			'ue_id',
 			'search_terms',

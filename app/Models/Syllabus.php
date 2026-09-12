@@ -34,4 +34,12 @@ class Syllabus extends Model
     {
         return $this->uniteValeur();
     }
+
+    /**
+     * Obtenir le nom pour la génération du slug
+     */
+    public function getNomAttribute(): string
+    {
+        return $this->uniteValeur ? $this->uniteValeur->nom : 'syllabus-' . $this->id;
+    }
 }
