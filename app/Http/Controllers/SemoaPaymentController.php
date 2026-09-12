@@ -84,4 +84,28 @@ class SemoaPaymentController extends Controller
             ], 400);
         }
     }
+
+    /**
+     * Liste les passerelles de paiement (gateways) enregistrées
+     */
+    public function indexGateways()
+    {
+        try {
+            $gateways = \App\Models\SemoaGateway::where('is_active', true)->get();
+            if ($gateways->isEmpty()) {
+                $this->semoaService->syncGateways();
+                $gateways = \App\Models\SemoaGateway::where('is_active', true)->get();
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $gateways
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

@@ -16,8 +16,9 @@ class UnitValeurRequest extends FormRequest
 	public function rules(): array
 	{
 		return [
-			'nom' => ['required', Rule::unique('unite_valeurs')->ignore($this->route('uv'), 'nom')],
-			'code' => ['required', Rule::unique('unite_valeurs')->ignore($this->route('uv'), 'code')],
+			'nom' => ['nullable', 'string', 'max:255'],
+			'code' => ['nullable', 'string', 'max:255'],
+			'matiere_id' => ['nullable', 'exists:matieres,id'],
 			'cm' => ['nullable', 'numeric', 'integer', 'min:1'],
 			'td' => ['nullable', 'numeric', 'integer', 'min:1'],
 			'tp' => ['nullable', 'numeric', 'integer', 'min:1'],
@@ -25,7 +26,7 @@ class UnitValeurRequest extends FormRequest
 			'coefficient' => ['nullable', 'numeric', 'integer', 'min:1'],
 			//			'annee_scolaire_id' => ['nullable', 'exists:annee_scolaire,id'],
 			'ue_id' => ['nullable', 'exists:unite_enseignements,id'],
-			'enseignant_id' => ['required'],
+			'enseignant_id' => ['nullable'],
 			// Optional weighting fields (0-100)
 			'poids_devoir' => ['nullable', 'integer', 'min:0', 'max:100'],
 			'poids_interrogation' => ['nullable', 'integer', 'min:0', 'max:100'],

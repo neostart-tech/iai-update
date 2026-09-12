@@ -47,7 +47,7 @@ class LiveKitController extends Controller
     {
         $user = $request->user() ?? auth('sanctum')->user() ?? auth()->user();
         if (!$user) {
-            return response()->json(['data' => UniteValeur::select('id', 'nom', 'libelle', 'code')->get()]);
+            return response()->json(['data' => UniteValeur::all()]);
         }
 
         $userId = $user->id ?? $user->getKey();
@@ -85,9 +85,8 @@ class LiveKitController extends Controller
             }
         }
 
-        // Si l'utilisateur n'a pas encore de matières attribuées ou si admin, retourner toutes les matières par sécurité
         if ($matieres->isEmpty()) {
-            $matieres = UniteValeur::select('id', 'nom', 'libelle', 'code')->get();
+            $matieres = UniteValeur::all();
         }
 
         return response()->json([

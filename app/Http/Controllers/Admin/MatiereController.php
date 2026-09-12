@@ -32,7 +32,6 @@ class MatiereController extends Controller
         $matiere = Matiere::create([
             'nom' => $request->nom,
             'code' => $request->code,
-            'slug' => Str::slug($request->nom) . '-' . uniqid(),
         ]);
 
         return response()->json(['data' => $matiere]);
@@ -48,7 +47,6 @@ class MatiereController extends Controller
         $matiere->update([
             'nom' => $request->nom,
             'code' => $request->code,
-            'slug' => Str::slug($request->nom) . '-' . uniqid(),
         ]);
 
         return response()->json(['data' => $matiere]);

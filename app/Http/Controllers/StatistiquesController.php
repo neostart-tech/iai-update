@@ -70,7 +70,7 @@ class StatistiquesController extends Controller
      * @param string|null $dateHeureFin (format : 'YYYY-MM-DD HH:MM:SS')
      * @return int
      */
-    public function NbreSallesUtilisees(string $dateHeureDeb = null, string $dateHeureFin = null): int
+    public function NbreSallesUtilisees(?string $dateHeureDeb = null, ?string $dateHeureFin = null): int
     {
         $now = Carbon::now();
         $start = $dateHeureDeb ? Carbon::parse($dateHeureDeb) : $now;
@@ -100,7 +100,7 @@ class StatistiquesController extends Controller
      * @param string|null $dateHeureFin (format : 'YYYY-MM-DD HH:MM:SS')
      * @return int
      */
-    public function NbreSallesDispos(string $dateHeureDeb = null, string $dateHeureFin = null): int
+    public function NbreSallesDispos(?string $dateHeureDeb = null, ?string $dateHeureFin = null): int
     {
         $anneeActiveId = AnneeScolaire::where('active', true)->value('id');
         $totalSalles = Salle::where('annee_scolaire_id', $anneeActiveId)->count();
@@ -115,7 +115,7 @@ class StatistiquesController extends Controller
      * @param int|null $anneeScolaireId (optionnel) ID de l'année scolaire. Si null, utilise l'année active.
      * @return int
      */
-    public function NbreTotalEtudiants(int $anneeScolaireId = null): int
+    public function NbreTotalEtudiants(?int $anneeScolaireId = null): int
     {
         // Si aucun ID n'est fourni, utilise l'année scolaire active
         $anneeId = $anneeScolaireId ?? AnneeScolaire::where('active', true)->value('id');
@@ -256,38 +256,50 @@ class StatistiquesController extends Controller
             });
         
         if ($periodeId) {
-            $valideesQuery->where('semestre', $periodeId); // On suppose que la colonne est 'semestre'
+            $valideesQuery->where('semestre', $periodeId);
         }
         
         $validees = $valideesQuery->count();
 
-        // 2. Taux de réussite global (moyenne des notes >= 10 sur les évaluations soumises)
-        $notesQuery = \App\Models\Note::whereHas('evaluation', function ($query) use ($anneeActiveId, $periodeId) {
-            $query->whereNotNull('correction_submission_date')
-                  ->whereHas('group', function ($q) use ($anneeActiveId) {
-                      $q->where('annee_scolaire_id', $anneeActiveId);
-                  });
-            
-            if ($periodeId) {
-                $query->where('semestre', $periodeId);
-            }
-        });
-
-        $totalNotes = $notesQuery->count();
-
-        if ($totalNotes === 0) {
-            return response()->json([
-                'reussite' => 0,
-                'validees' => $validees
-            ]);
+        // 2. Taux de réussite basés prioritairement sur les Relevés de Notes générés/calculés
+        $relevesQuery = \App\Models\ReleveNote::where('annee_scolaire_id', $anneeActiveId);
+        if ($periodeId) {
+            $relevesQuery->where('periode_id', $periodeId);
         }
 
-        $reussites = $notesQuery->where('note', '>=', 10)->count();
-        $tauxReussite = round(($reussites / $totalNotes) * 100, 1);
+        $totalReleves = $relevesQuery->count();
+
+        if ($totalReleves > 0) {
+            $reussitesReleves = (clone $relevesQuery)->where('moyenne_generale', '>=', 10)->count();
+            $tauxReussite = round(($reussitesReleves / $totalReleves) * 100, 1);
+        } else {
+            // Fallback : Calcul de la moyenne par étudiant depuis les notes d'évaluations soumises
+            $notesQuery = \App\Models\Note::whereHas('evaluation', function ($query) use ($anneeActiveId, $periodeId) {
+                $query->whereNotNull('correction_submission_date')
+                      ->whereHas('group', function ($q) use ($anneeActiveId) {
+                          $q->where('annee_scolaire_id', $anneeActiveId);
+                      });
+                
+                if ($periodeId) {
+                    $query->where('semestre', $periodeId);
+                }
+            });
+
+            $notes = $notesQuery->get();
+            if ($notes->count() > 0) {
+                $studentAverages = $notes->groupBy('etudiant_id')->map(fn($group) => $group->avg('note'));
+                $totalStudents = $studentAverages->count();
+                $reussites = $studentAverages->filter(fn($avg) => $avg >= 10)->count();
+                $tauxReussite = $totalStudents > 0 ? round(($reussites / $totalStudents) * 100, 1) : 0;
+            } else {
+                $tauxReussite = 0;
+            }
+        }
 
         return response()->json([
             'reussite' => $tauxReussite,
-            'validees' => $validees
+            'validees' => $validees,
+            'total_releves' => $totalReleves
         ]);
     }
 

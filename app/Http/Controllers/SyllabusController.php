@@ -10,12 +10,20 @@ use Illuminate\Support\Facades\DB;
 class SyllabusController extends Controller
 {
     /**
-     * Récupérer le syllabus d'une UV via son slug
+     * Récupérer le syllabus d'une UV via son slug ou l'ID de l'UV
      */
-    public function show($uvSlug)
+    public function show($identifier)
     {
-        $uv = UniteValeur::where('slug', $uvSlug)->firstOrFail();
-        $syllabus = $uv->syllabus;
+        $syllabus = Syllabus::where('slug', $identifier)->first();
+        if ($syllabus) {
+            $uv = $syllabus->uniteValeur;
+        } else {
+            $uv = UniteValeur::where('slug', $identifier)->first();
+            if (!$uv) {
+                $uv = UniteValeur::findOrFail($identifier);
+            }
+            $syllabus = $uv->syllabus;
+        }
 
         return response()->json([
             'uv' => $uv,
@@ -23,9 +31,17 @@ class SyllabusController extends Controller
         ]);
     }
 
-    public function store(Request $request, $uvSlug)
+    public function store(Request $request, $identifier)
     {
-        $uv = UniteValeur::where('slug', $uvSlug)->firstOrFail();
+        $syllabus = Syllabus::where('slug', $identifier)->first();
+        if ($syllabus) {
+            $uv = $syllabus->uniteValeur;
+        } else {
+            $uv = UniteValeur::where('slug', $identifier)->first();
+            if (!$uv) {
+                $uv = UniteValeur::findOrFail($identifier);
+            }
+        }
 
         $request->validate([
             'description' => 'nullable|string',
@@ -40,7 +56,6 @@ class SyllabusController extends Controller
         $syllabus = Syllabus::updateOrCreate(
             ['unite_valeur_id' => $uv->id],
             [
-                'slug' => $uv->slug,
                 'description' => $request->description,
                 'objectifs' => $request->objectifs,
                 'competences' => $request->competences,
@@ -60,7 +75,7 @@ class SyllabusController extends Controller
     /**
      * Upload de fichiers pour le syllabus
      */
-    public function uploadFile(Request $request, $uvSlug)
+    public function uploadFile(Request $request, $identifier)
     {
         $request->validate([
             'file' => 'required|file|max:10240', // 10MB max
