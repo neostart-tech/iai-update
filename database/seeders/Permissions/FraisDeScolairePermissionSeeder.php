@@ -12,28 +12,17 @@ class FraisDeScolairePermissionSeeder extends Seeder
 
 	public function run(): void
 	{
-		// Create
-		Permission::create([
-			'nom' => 'Ajouter un enregistrement de payement de frais de scolarité',
-			'description' => 'Ajouter un enregistrement de payement de frais de scolarité'
-		]);
+		$permissions = [
+			['nom' => 'Ajouter un frais scolaire', 'description' => 'Ajouter un frais scolaire'],
+			['nom' => 'Voir la liste des frais scolaire', 'description' => 'Voir la liste des frais scolaire'],
+			['nom' => 'Voir les emploi du temp de sa salle', 'description' => 'Voir les emploi du temp de sa salle'],
+			['nom' => 'Voir un frais scolaire', 'description' => 'Ajouter un frais scolaire'],
+			['nom' => 'Modifier un frais scolaire', 'description' => 'Ajouter un frais scolaire'],
+			['nom' => 'Supprimer un frais scolaire', 'description' => 'Supprimer un frais scolaire'],
+		];
 
-		// Read
-		Permission::create([
-			'nom' => 'Voir les enregistrements de payement de frais de scolarité',
-			'description' => 'Voir les enregistrements de payement de frais de scolarité'
-		]);
-
-		// Read
-		Permission::create([
-			'nom' => 'Voir ses enregistrements de payement de frais de scolarité',
-			'description' => 'Voir ses enregistrements de payement de frais de scolarité'
-		]);
-
-		// Read
-		Permission::create([
-			'nom' => 'Voir un enregistrement de payement de frais de scolarité',
-			'description' => 'Ajouter un enregistrement de payement de frais de scolarité'
-		]);
+		foreach ($permissions as $p) {
+			Permission::firstOrCreate(['nom' => $p['nom']], $p);
+		}
 	}
 }

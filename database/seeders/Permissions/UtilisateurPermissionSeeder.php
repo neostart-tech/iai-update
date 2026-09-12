@@ -12,34 +12,17 @@ class UtilisateurPermissionSeeder extends Seeder
 
 	public function run(): void
 	{
-		// Create
-		Permission::create([
-			'nom' => 'Ajouter un utilisateur',
-			'description' => 'Ajouter un utilisateur'
-		]);
+		$permissions = [
+			['nom' => 'Ajouter un utilisateur', 'description' => 'Ajouter un utilisateur'],
+			['nom' => 'Voir la liste des utilisateurs', 'description' => 'Voir la liste des utilisateurs'],
+			['nom' => 'Voir les emploi du temp de sa salle', 'description' => 'Voir les emploi du temp de sa salle'],
+			['nom' => 'Voir un utilisateur', 'description' => 'Ajouter un utilisateur'],
+			['nom' => 'Modifier un utilisateur', 'description' => 'Ajouter un utilisateur'],
+			['nom' => 'Supprimer un utilisateur', 'description' => 'Supprimer un utilisateur'],
+		];
 
-		// Read
-		Permission::create([
-			'nom' => 'Voir un utilisateur',
-			'description' => 'Voir un utilisateur'
-		]);
-
-		// Read
-		Permission::create([
-			'nom' => 'Voir tous les utilisateurs',
-			'description' => 'Voir tous les utilisateurs'
-		]);
-
-		// Update
-		Permission::create([
-			'nom' => 'Modifier un utilisateur',
-			'description' => 'Ajouter un utilisateur'
-		]);
-
-		// Delete
-		Permission::create([
-			'nom' => 'Supprimer un utilisateur',
-			'description' => 'Supprimer un utilisateur'
-		]);
+		foreach ($permissions as $p) {
+			Permission::firstOrCreate(['nom' => $p['nom']], $p);
+		}
 	}
 }

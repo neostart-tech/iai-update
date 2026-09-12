@@ -12,34 +12,17 @@ class SiteVitrineConfigPermissionSeeder extends Seeder
 
 	public function run(): void
 	{
-		// Create
-		Permission::create([
-			'nom' => 'Ajouter un élément au site publique',
-			'description' => 'Ajouter un élément au site publique'
-		]);
+		$permissions = [
+			['nom' => 'Ajouter une configuration de site vitrine', 'description' => 'Ajouter une configuration de site vitrine'],
+			['nom' => 'Voir la liste des configurations de site vitrine', 'description' => 'Voir la liste des configurations de site vitrine'],
+			['nom' => 'Voir les emploi du temp de sa salle', 'description' => 'Voir les emploi du temp de sa salle'],
+			['nom' => 'Voir une configuration de site vitrine', 'description' => 'Ajouter une configuration de site vitrine'],
+			['nom' => 'Modifier une configuration de site vitrine', 'description' => 'Ajouter une configuration de site vitrine'],
+			['nom' => 'Supprimer une configuration de site vitrine', 'description' => 'Supprimer une configuration de site vitrine'],
+		];
 
-		// Read
-		Permission::create([
-			'nom' => 'Voir les éléments du site publique',
-			'description' => 'Voir les éléments du site publique'
-		]);
-
-		// Read
-		Permission::create([
-			'nom' => 'Voir un élément au site publique',
-			'description' => 'Ajouter un élément au site publique'
-		]);
-
-		// Update
-		Permission::create([
-			'nom' => 'Modifier un élément au site publique',
-			'description' => 'Ajouter un élément au site publique'
-		]);
-
-		// Delete
-		Permission::create([
-			'nom' => 'Supprimer un élément au site publique',
-			'description' => 'Supprimer un élément au site publique'
-		]);
+		foreach ($permissions as $p) {
+			Permission::firstOrCreate(['nom' => $p['nom']], $p);
+		}
 	}
 }

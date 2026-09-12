@@ -12,34 +12,16 @@ class SallePermissionSeeder extends Seeder
 
 	public function run(): void
 	{
-		// Create
-		Permission::create([
-			'nom' => 'Ajouter une salle',
-			'description' => 'Ajouter une salle'
-		]);
+		$permissions = [
+			['nom' => 'Ajouter une salle', 'description' => 'Ajouter une salle'],
+			['nom' => 'Voir les salles', 'description' => 'Voir les salles'],
+			['nom' => 'Voir une salle', 'description' => 'Voir une salle'],
+			['nom' => 'Modifier une salle', 'description' => 'Modifier une salle'],
+			['nom' => 'Supprimer une salle', 'description' => 'Supprimer une salle'],
+		];
 
-		// Read
-		Permission::create([
-			'nom' => 'Voir les salles',
-			'description' => 'Voir les salles'
-		]);
-
-		// Read
-		Permission::create([
-			'nom' => 'Voir une salle',
-			'description' => 'Ajouter une salle'
-		]);
-
-		// Update
-		Permission::create([
-			'nom' => 'Modifier une salle',
-			'description' => 'Ajouter une salle'
-		]);
-
-		// Delete
-		Permission::create([
-			'nom' => 'Supprimer une salle',
-			'description' => 'Supprimer une salle'
-		]);
+		foreach ($permissions as $p) {
+			Permission::firstOrCreate(['nom' => $p['nom']], $p);
+		}
 	}
 }

@@ -12,40 +12,17 @@ class EmploiDuTempPermissionSeeder extends Seeder
 
 	public function run(): void
 	{
-		// Create
-		Permission::create([
-			'nom' => 'Ajouter un emploi du temps',
-			'description' => 'Ajouter un emploi du temps'
-		]);
+		$permissions = [
+			['nom' => 'Ajouter un emploi du temps', 'description' => 'Ajouter un emploi du temps'],
+			['nom' => 'Voir les emploi du temp', 'description' => 'Voir les emploi du temp'],
+			['nom' => 'Voir les emploi du temp de sa salle', 'description' => 'Voir les emploi du temp de sa salle'],
+			['nom' => 'Voir un emploi du temps', 'description' => 'Ajouter un emploi du temps'],
+			['nom' => 'Modifier un emploi du temps', 'description' => 'Ajouter un emploi du temps'],
+			['nom' => 'Supprimer un emploi du temps', 'description' => 'Supprimer un emploi du temps'],
+		];
 
-		// Read
-		Permission::create([
-			'nom' => 'Voir les emploi du temp',
-			'description' => 'Voir les emploi du temp'
-		]);
-
-		// Read
-		Permission::create([
-			'nom' => 'Voir les emploi du temp de sa salle',
-			'description' => 'Voir les emploi du temp de sa salle'
-		]);
-
-		// Read
-		Permission::create([
-			'nom' => 'Voir un emploi du temps',
-			'description' => 'Ajouter un emploi du temps'
-		]);
-
-		// Update
-		Permission::create([
-			'nom' => 'Modifier un emploi du temps',
-			'description' => 'Ajouter un emploi du temps'
-		]);
-
-		// Delete
-		Permission::create([
-			'nom' => 'Supprimer un emploi du temps',
-			'description' => 'Supprimer un emploi du temps'
-		]);
+		foreach ($permissions as $p) {
+			Permission::firstOrCreate(['nom' => $p['nom']], $p);
+		}
 	}
 }

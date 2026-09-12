@@ -12,40 +12,17 @@ class FicheDePresencePermissionSeeder extends Seeder
 
 	public function run(): void
 	{
-		// Create
-		Permission::create([
-			'nom' => 'Ajouter une fiche de présence',
-			'description' => 'Ajouter une fiche de présence'
-		]);
+		$permissions = [
+			['nom' => 'Ajouter une fiche de présence', 'description' => 'Ajouter une fiche de présence'],
+			['nom' => 'Voir les fiche de présence', 'description' => 'Voir les fiche de présence'],
+			['nom' => 'Voir les fiche de présence de sa salle', 'description' => 'Voir les fiche de présence de sa salle'],
+			['nom' => 'Voir une fiche de présence', 'description' => 'Ajouter une fiche de présence'],
+			['nom' => 'Modifier une fiche de présence', 'description' => 'Ajouter une fiche de présence'],
+			['nom' => 'Supprimer une fiche de présence', 'description' => 'Supprimer une fiche de présence'],
+		];
 
-		// Read
-		Permission::create([
-			'nom' => 'Voir les fiches de présence',
-			'description' => 'Voir les fiches de présence'
-		]);
-
-		// Read
-		Permission::create([
-			'nom' => 'Voir les fiches de présence de sa salle',
-			'description' => 'Voir les fiches de présence de sa salle'
-		]);
-
-		// Read
-		Permission::create([
-			'nom' => 'Voir une fiche de présence',
-			'description' => 'Ajouter une fiche de présence'
-		]);
-
-		// Update
-		Permission::create([
-			'nom' => 'Modifier une fiche de présence',
-			'description' => 'Ajouter une fiche de présence'
-		]);
-
-		// Delete
-		Permission::create([
-			'nom' => 'Supprimer une fiche de présence',
-			'description' => 'Supprimer une fiche de présence'
-		]);
+		foreach ($permissions as $p) {
+			Permission::firstOrCreate(['nom' => $p['nom']], $p);
+		}
 	}
 }
