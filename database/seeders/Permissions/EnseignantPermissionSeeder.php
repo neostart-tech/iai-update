@@ -12,34 +12,16 @@ class EnseignantPermissionSeeder extends Seeder
 
 	public function run(): void
 	{
-		// Create
-		Permission::create([
-			'nom' => 'Ajouter un membre du personnel',
-			'description' => 'Ajouter un membre du personnel'
-		]);
+		$permissions = [
+			['nom' => 'Ajouter un enseignant', 'description' => 'Ajouter un enseignant'],
+			['nom' => 'Voir les enseignants', 'description' => 'Voir les enseignants'],
+			['nom' => 'Voir un enseignant', 'description' => 'Ajouter un enseignant'],
+			['nom' => 'Modifier un enseignant', 'description' => 'Ajouter un enseignant'],
+			['nom' => 'Supprimer un enseignant', 'description' => 'Supprimer un enseignant'],
+		];
 
-		// Read
-		Permission::create([
-			'nom' => 'Voir les membres du personnel',
-			'description' => 'Voir les membres du personnel'
-		]);
-
-		// Read
-		Permission::create([
-			'nom' => 'Voir un membre du personnel',
-			'description' => 'Voir un membre du personnel'
-		]);
-
-		// Update
-		Permission::create([
-			'nom' => 'Modifier un membre du personnel',
-			'description' => 'Ajouter un membre du personnel'
-		]);
-
-		// Delete
-		Permission::create([
-			'nom' => 'Supprimer un membre du personnel',
-			'description' => 'Supprimer un membre du personnel'
-		]);
+		foreach ($permissions as $p) {
+			Permission::firstOrCreate(['nom' => $p['nom']], $p);
+		}
 	}
 }

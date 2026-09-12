@@ -9,9 +9,9 @@ class CurrentEnvSeeder extends Seeder
 {
 	public function run(): void
 	{
-		CurrentEnv::create([
-			'nom' => 'annee_scolaire_id',
-			'valeur' => 1,
-		]);
+		CurrentEnv::firstOrCreate(
+			['nom' => 'annee_scolaire_id'],
+			['valeur' => 1]
+		);
 	}
 }

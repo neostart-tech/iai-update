@@ -12,46 +12,17 @@ class NotePermissionSeeder extends Seeder
 
 	public function run(): void
 	{
-		// Create
-		Permission::create([
-			'nom' => 'Ajouter une note à un étudiant',
-			'description' => 'Ajouter une note à un étudiant'
-		]);
+		$permissions = [
+			['nom' => 'Ajouter une note', 'description' => 'Ajouter une note'],
+			['nom' => 'Voir les notes', 'description' => 'Voir les notes'],
+			['nom' => 'Voir les notes de sa salle', 'description' => 'Voir les notes de sa salle'],
+			['nom' => 'Voir une note', 'description' => 'Ajouter une note'],
+			['nom' => 'Modifier une note', 'description' => 'Ajouter une note'],
+			['nom' => 'Supprimer une note', 'description' => 'Supprimer une note'],
+		];
 
-		// Read
-		Permission::create([
-			'nom' => 'Voir les notes d\'un étudiant',
-			'description' => 'Voir les notes d\'un étudiant'
-		]);
-
-		// Read
-		Permission::create([
-			'nom' => 'Voir les notes d\'un étudiant de sa salle',
-			'description' => 'Voir les notes d\'un étudiant de sa salle'
-		]);
-
-		// Read
-		Permission::create([
-			'nom' => 'Voir une note d\'un étudiant',
-			'description' => 'Ajouter une note d\'un étudiant'
-		]);
-
-		// Update
-		Permission::create([
-			'nom' => 'Modifier une note à un étudiant',
-			'description' => 'Ajouter une note à un étudiant'
-		]);
-
-		// Update
-		Permission::create([
-			'nom' => 'Modifier la note d\'un étudiant après un certain temps',
-			'description' => 'Modifier la note d\'un étudiant après un certain temps'
-		]);
-
-		// Delete
-		Permission::create([
-			'nom' => 'Supprimer une note à un étudiant',
-			'description' => 'Supprimer une note à un étudiant'
-		]);
+		foreach ($permissions as $p) {
+			Permission::firstOrCreate(['nom' => $p['nom']], $p);
+		}
 	}
 }

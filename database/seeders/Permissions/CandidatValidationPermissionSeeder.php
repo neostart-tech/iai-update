@@ -12,40 +12,17 @@ class CandidatValidationPermissionSeeder extends Seeder
 
 	public function run(): void
 	{
-		// Create
-		Permission::create([
-			'nom' => 'Ajouter un candidat entrant',
-			'description' => 'Ajouter un candidat entrant'
-		]);
+		$permissions = [
+			['nom' => 'Ajouter un candidat entrant', 'description' => 'Ajouter un candidat entrant'],
+			['nom' => 'Voir la liste des candidats', 'description' => 'Voir la liste des candidats'],
+			['nom' => 'Voir les emploi du temp de sa salle', 'description' => 'Voir les emploi du temp de sa salle'],
+			['nom' => 'Voir un candidat entrant', 'description' => 'Ajouter un candidat entrant'],
+			['nom' => 'Modifier un candidat entrant', 'description' => 'Ajouter un candidat entrant'],
+			['nom' => 'Supprimer un candidat entrant', 'description' => 'Supprimer un candidat entrant'],
+		];
 
-		// Read
-		Permission::create([
-			'nom' => 'Voir la liste des candidats',
-			'description' => 'Voir la liste des candidats'
-		]);
-
-		// Read
-		Permission::create([
-			'nom' => 'Voir les emploi du temp de sa salle',
-			'description' => 'Voir les emploi du temp de sa salle'
-		]);
-
-		// Read
-		Permission::create([
-			'nom' => 'Voir un candidat entrant',
-			'description' => 'Ajouter un candidat entrant'
-		]);
-
-		// Update
-		Permission::create([
-			'nom' => 'Modifier un candidat entrant',
-			'description' => 'Ajouter un candidat entrant'
-		]);
-
-		// Delete
-		Permission::create([
-			'nom' => 'Supprimer un candidat entrant',
-			'description' => 'Supprimer un candidat entrant'
-		]);
+		foreach ($permissions as $p) {
+			Permission::firstOrCreate(['nom' => $p['nom']], $p);
+		}
 	}
 }
