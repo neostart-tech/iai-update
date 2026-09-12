@@ -12,11 +12,23 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
-        $schedule->command('relancer:etudiants')->daily();
+        // Relance des tranches de paiement
+        $schedule->command('relancer:etudiants')->dailyAt('07:00');
+
+        // Notification des incohérences du cahier de texte
         $schedule->command('notify:cahier-incoherences')->dailyAt('17:00');
-        $schedule->command('notifier:agenda')->everyFiveMinutes();
+
+        // Notifications de l'agenda
+        $schedule->command('notifier:agenda')->everyTenMinutes();
+
+        // Rappel des échéances de paiement
         $schedule->command('echeances:notifier')->dailyAt('08:00');
+
+        // Synchronisation des passerelles Semoa
+        $schedule->command('semoa:sync-gateways')->dailyAt('02:00');
+
+        // Synchronisation des bourses et frais
+        $schedule->command('frais:sync-scholarships')->dailyAt('03:00');
     }
 
     /**
