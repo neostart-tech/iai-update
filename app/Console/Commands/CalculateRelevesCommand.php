@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\AnneeScolaire;
+use App\Models\Etudiant;
 use App\Models\Periode;
 use App\Services\NoteCalculationService;
 use Illuminate\Console\Command;

@@ -30,11 +30,13 @@ class AgendaCommand extends Command
 
         $evenements = Agenda::where('alerte', true)
             ->whereBetween('start_time', [now(), now()->addMinutes(10)])
-            ->where('user_id',auth()->user())
+            ->whereNotNull('user_id')
             ->get();
 
         foreach ($evenements as $event) {
-            $event->user->notify(new AgendaNotification($event));
+            if ($event->user) {
+                $event->user->notify(new AgendaNotification($event));
+            }
         }
     }
 }

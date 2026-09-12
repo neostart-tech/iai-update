@@ -42,8 +42,8 @@ class RelancerEtudiants extends Command
         foreach ($etudiants as $etudiant) {
             Log::info("Traitement étudiant", ['id' => $etudiant->id, 'email' => $etudiant->email]);
             foreach ($tranches as $tranche) {
-                $dejaPaye =Paiement::where('etudiant_id', $etudiant->id)
-                    ->where('tranche_paiement_id', $tranche->id)
+                $dejaPaye = Paiement::where('etudiant_id', $etudiant->id)
+                    ->where('payable_id', $tranche->id)
                     ->sum('montant');
                 
                 Log::info("Tranche", ['tranche' => $tranche->libelle, 'dejaPaye' => $dejaPaye, 'montant' => $tranche->montant]);
