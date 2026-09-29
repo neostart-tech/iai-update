@@ -63,13 +63,13 @@ class CreatingUserBasedOnCandidatsDataJob implements ShouldQueue
 				'owner_type' => Etudiant::class,
 			];
 
-			$candidature->album->update($updatedData);
+			$candidature->album?->update($updatedData);
 
-			$candidature->responsable->update($updatedData);
+			$candidature->responsable?->update($updatedData);
 
 			// Réattribue TOUS les tuteurs/parents du candidat (pas seulement le premier)
 			// à l'étudiant nouvellement créé.
-			$candidature->tuteurs->each(fn ($tuteur) => $tuteur->update($updatedData));
+			$candidature->tuteurs()->update($updatedData);
 
 			$candidature->update([
 				'etudiant_id' => $etudiant->getAttribute('id'),

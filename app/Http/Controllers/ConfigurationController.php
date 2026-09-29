@@ -31,6 +31,14 @@ class ConfigurationController extends Controller
             ['key' => 'matricule_prefix', 'value' => 'ESC', 'type' => 'text', 'name' => 'Préfixe des matricules (ex: ESCEN, IAEC)', 'group' => 'Candidatures'],
             ['key' => 'email_domain', 'value' => 'escen.university', 'type' => 'text', 'name' => "Domaine de l'email pro (ex: escen.university)", 'group' => 'Candidatures'],
             ['key' => 'examens_uniquement', 'value' => '0', 'type' => 'boolean', 'name' => 'Ne prendre en compte que les examens pour le calcul des moyennes', 'group' => 'Pédagogie'],
+            [
+                'key' => 'rattrapage_calcul_rule',
+                'value' => 'remplacement',
+                'type' => 'select',
+                'name' => 'Règle de calcul des notes de rattrapage',
+                'group' => 'Pédagogie',
+                'options' => 'remplacement|Remplacement strict (la nouvelle note remplace l\'ancienne),meilleure|Meilleure des deux notes (la plus élevée est conservée)',
+            ],
         ];
         foreach($keys as $k) {
             if (!\App\Models\Configuration::where('key', $k['key'])->exists()) {

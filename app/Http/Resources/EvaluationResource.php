@@ -26,6 +26,8 @@ class EvaluationResource extends JsonResource
             'salle' => new SalleResource($this->resource->salle),
             'published' => $this->resource->published,
             'type' => $this->resource->type,
+            'session_type' => $this->resource->session_type,
+            'parent_id' => $this->resource->parent_id,
             'date' => $this->resource->date,
             'heure_debut' => date_format(date_create($this->resource->debut), 'h:i:s'),
             'heure_fin' => date_format(date_create($this->resource->fin), 'h:i:s'),

@@ -36,7 +36,25 @@ class NoteController extends Controller
 
 	private function generateFicheDeNote(Evaluation $evaluation): void
 	{
-		$evaluation->group->etudiants->each(function (Etudiant $etudiant) use ($evaluation) {
+		$targetStudents = $evaluation->group->etudiants;
+
+		// Si c'est un rattrapage lié à une évaluation parente, on ne prend que les étudiants ayant < 10 ou 'R'
+		if ($evaluation->session_type === 'rattrapage' && $evaluation->parent_id) {
+			$targetStudents = $targetStudents->filter(function (Etudiant $etudiant) use ($evaluation) {
+				$parentNote = Note::where('evaluation_id', $evaluation->parent_id)
+					->where('etudiant_id', $etudiant->id)
+					->first();
+				
+				// L'étudiant participe s'il n'a pas composé, s'il a eu 'R', ou si sa note est < 10
+				if (!$parentNote) return true;
+				if ($parentNote->notation === 'R') return true;
+				if ($parentNote->note !== null && $parentNote->note < 10) return true;
+				
+				return false;
+			});
+		}
+
+		$targetStudents->each(function (Etudiant $etudiant) use ($evaluation) {
 			$note = Note::where('evaluation_id', $evaluation->id)
 				->where('etudiant_id', $etudiant->id)
 				->first();

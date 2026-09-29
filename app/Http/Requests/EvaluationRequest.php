@@ -23,6 +23,8 @@ class EvaluationRequest extends FormRequest
 			'unite_valeur_id' => ['required', 'exists:unite_valeurs,slug'],
 			'niveau_id' => ['nullable', 'exists:niveaux,id'],
 			'semestre' => ['nullable', 'integer'],
+			'session_type' => ['required', 'in:normale,rattrapage'],
+			'parent_id' => ['nullable', 'exists:evaluations,id'],
 			'published' => ['nullable'],
 			'type' => ['required', Rule::enum(TypeEvaluationEnum::class)],
 			'debut' => ['required'],

@@ -277,7 +277,7 @@ trait IndexTrait
 		$dossiers = Candidature::query()
 			->whereNull('soumis_le')
 			->orderByDesc('created_at')
-			->get(['id', 'nom', 'prenom', 'email', 'tel', 'type_diplome_id', 'niveau_id', 'created_at', 'updated_at']);
+			->get(['id', 'slug', 'nom', 'prenom', 'email', 'tel', 'type_diplome_id', 'niveau_id', 'created_at', 'updated_at']);
 
 		$data = $dossiers->map(function (Candidature $c) {
 			// Étape la plus avancée atteinte, déduite des champs déjà renseignés
@@ -288,6 +288,7 @@ trait IndexTrait
 
 			return [
 				'id' => $c->id,
+				'slug' => $c->slug,
 				'nom' => $c->nom,
 				'prenom' => $c->prenom,
 				'email' => $c->email,
