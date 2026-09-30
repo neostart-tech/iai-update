@@ -606,11 +606,15 @@ class CandidatureController extends Controller
 			], 422);
 		}
 
-		if (Candidature::where('email', $request->input('email'))->exists()) {
-			return response()->json([
-				'success' => false,
-				'message' => "Vous avez déjà déposé une candidature avec cet email.",
-			], 422);
+		$existingCandidature = Candidature::where('email', $request->input('email'))->first();
+
+		if ($existingCandidature) {
+			if ($existingCandidature->soumis_le !== null) {
+				return response()->json([
+					'success' => false,
+					'message' => "Vous avez déjà déposé une candidature avec cet email.",
+				], 422);
+			}
 		}
 
 		if (Etudiant::where('email', $request->input('email'))->exists()) {
@@ -635,7 +639,7 @@ class CandidatureController extends Controller
 			'adresse' => ['nullable', 'string', 'max:255'],
 			'bp' => ['nullable', 'string', 'max:255'],
 			'fax' => ['nullable', 'string', 'max:255'],
-			'numero_bordereau' => ['nullable', 'string', 'max:50', 'unique:candidatures,numero_bordereau'],
+			'numero_bordereau' => ['nullable', 'string', 'max:50'],
 			'moyen_connaissance_id' => ['nullable', 'exists:moyens_connaissances,id'],
 			'moyen_connaissance_precision' => ['nullable', 'string', 'max:255'],
 		]);
@@ -644,18 +648,37 @@ class CandidatureController extends Controller
 			return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
 		}
 
-		$candidat = Candidature::create([
-			...$request->only([
-				'nom', 'prenom', 'nom_jeune_fille', 'genre', 'date_naissance', 'lieu_naissance',
-				'nationalite', 'tel', 'tel2', 'tel3', 'email', 'adresse', 'bp', 'fax',
-				'numero_bordereau', 'moyen_connaissance_id', 'moyen_connaissance_precision',
-			]),
-			...injectAnneeScolaireId(),
-			'concours_session_id' => \App\Models\ConcoursSession::where('annee_scolaire_id', getAnneeScolaireId())->value('id'),
-			'draft_token' => Str::random(48),
-			'password' => Hash::make(Str::random(8)),
-			'code' => fake()->unique()->numberBetween(9999, 100000),
+		if ($existingCandidature && $existingCandidature->numero_bordereau !== $request->input('numero_bordereau')) {
+			$validator->addRules(['numero_bordereau' => 'unique:candidatures,numero_bordereau']);
+			if ($validator->fails()) {
+				return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+			}
+		} elseif (!$existingCandidature) {
+			$validator->addRules(['numero_bordereau' => 'unique:candidatures,numero_bordereau']);
+			if ($validator->fails()) {
+				return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+			}
+		}
+
+		$data = $request->only([
+			'nom', 'prenom', 'nom_jeune_fille', 'genre', 'date_naissance', 'lieu_naissance',
+			'nationalite', 'tel', 'tel2', 'tel3', 'email', 'adresse', 'bp', 'fax',
+			'numero_bordereau', 'moyen_connaissance_id', 'moyen_connaissance_precision',
 		]);
+
+		if ($existingCandidature) {
+			$existingCandidature->update($data);
+			$candidat = $existingCandidature;
+		} else {
+			$candidat = Candidature::create([
+				...$data,
+				...injectAnneeScolaireId(),
+				'concours_session_id' => \App\Models\ConcoursSession::where('annee_scolaire_id', getAnneeScolaireId())->value('id'),
+				'draft_token' => Str::random(48),
+				'password' => Hash::make(Str::random(8)),
+				'code' => fake()->unique()->numberBetween(9999, 100000),
+			]);
+		}
 
 		return response()->json([
 			'success' => true,
@@ -1413,13 +1436,10 @@ class CandidatureController extends Controller
 				'owner_id' => $etudiant->id,
 				'owner_type' => Etudiant::class,
 			];
-			if ($candidature->album)
-				$candidature->album->update($updatedData);
+			$candidature->album?->update($updatedData);
 			$candidature->submittedDocuments()->update($updatedData);
-			if ($candidature->responsable)
-				$candidature->responsable->update($updatedData);
-			if ($candidature->tuteur)
-				$candidature->tuteur->update($updatedData);
+			$candidature->responsable?->update($updatedData);
+			$candidature->tuteurs()->update($updatedData);
 
 			// 8. Mise à jour finalisation candidature
 			$candidature->update([

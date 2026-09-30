@@ -81,8 +81,9 @@ class EvaluationController extends Controller
         $evaluations = Evaluation::query()
             ->with([
                 'salle:id,nom',
-                'group:id,nom',
+                'group:id,nom,niveau_id,annee_scolaire_id',
                 'group.niveau',
+                'group.filieres',
                 'matiere.matiere',
                 'fiche.surveillants',
             ])
@@ -131,6 +132,8 @@ class EvaluationController extends Controller
         $evaluation = Evaluation::create([
             ...$request->only([
                 'type',
+                'session_type',
+                'parent_id',
                 'group_id',
                 'unite_valeur_id',
                 'salle_id',
@@ -192,6 +195,8 @@ class EvaluationController extends Controller
         $evaluation->update([
             ...$request->only([
                 'type',
+                'session_type',
+                'parent_id',
                 'group_id',
                 'unite_valeur_id',
                 'salle_id',

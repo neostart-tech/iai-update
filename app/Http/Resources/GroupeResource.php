@@ -20,6 +20,7 @@ class GroupeResource extends JsonResource
             "slug" => $this->resource->slug ?? null,
             "niveau_id" => $this->resource->niveau_id ?? null,
             "filiere_id" => $this->resource->filiere_id ?? null,
+            "annee_scolaire_id" => $this->resource->annee_scolaire_id ?? null,
             "niveau" => new NiveauResource($this->resource->niveau) ?? null,
             "filieres" => FiliereResource::collection($this->resource->filieres) ?? null,
             "inscrits"=>$this->resource->etudiants_count,
