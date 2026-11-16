@@ -38,6 +38,7 @@ class EvaluationResource extends JsonResource
             'correction_end_date' => $this->resource->correction_end_date,
             'correction_submission_date' => $this->resource->correction_submission_date,
             'is_online' => $this->resource->is_online,
+            'filiere_ids' => $this->resource->filiere_ids ?? [],
             'status' => $this->computeStatus(),
 
 

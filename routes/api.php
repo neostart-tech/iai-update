@@ -67,6 +67,12 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
         }
     }
 
+    if ($user instanceof \App\Models\Etudiant) {
+        $completion = $user->checkProfilCompletion();
+        $user->setAttribute('profil_complet', $completion['est_complet']);
+        $user->setAttribute('profil_manquants', $completion['champs_manquants']);
+    }
+
     // Permissions effectives (système de permissions dynamique) : uniquement calculées
     // pour les vrais comptes User (staff/admin) — les étudiants n'ont pas ce mécanisme.
     $user->setAttribute('permissions', $user instanceof \App\Models\User ? $user->effectivePermissionSlugs() : []);

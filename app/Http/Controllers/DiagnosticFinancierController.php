@@ -124,4 +124,29 @@ class DiagnosticFinancierController extends Controller
             ], 500);
         }
     }
+
+    public function corrigerAnomalies(\Illuminate\Http\Request $request): JsonResponse
+    {
+        try {
+            $etudiantIds = $request->input('etudiant_ids');
+            if (is_numeric($etudiantIds)) {
+                $etudiantIds = [(int) $etudiantIds];
+            } elseif (!is_array($etudiantIds)) {
+                $etudiantIds = null;
+            }
+
+            $result = $this->diagnosticService->corrigerAnomalies($etudiantIds);
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$result['nb_corrigees']} dossier(s) financier(s) régularisé(s) avec succès.",
+                'data' => $result
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "Erreur lors de la régularisation : " . $e->getMessage()
+            ], 500);
+        }
+    }
 }

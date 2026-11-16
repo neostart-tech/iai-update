@@ -329,6 +329,8 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 			'inscrire-etudiant-candidature' => "Inscrire un candidat en tant qu'etudiant",
 			'payer-participation-candidature' => 'Enregistrer le paiement des frais de participation',
 			'delete-brouillon-candidature' => "Supprimer un dossier de candidature incomplet (jamais soumis)",
+			'delete-candidature' => 'Supprimer un dossier de candidature',
+			'restore-candidature' => 'Restaurer un dossier de candidature',
 			'view-candidature-dashboard' => "Voir le tableau de bord et statistiques des candidatures",
 			'afficher-dashboard-candidatures' => "Afficher le tableau de bord des candidatures",
 
@@ -536,6 +538,7 @@ class DynamicPermissionsMigrationSeeder extends Seeder
 				'reorienter-candidature', 'controler-presence-candidature',
 				'controler-admission-candidature', 'payer-participation-candidature',
 				'reply-message-contact', 'delete-message-contact', 'delete-brouillon-candidature',
+				'delete-candidature', 'restore-candidature',
 				'view-candidature-dashboard', 'afficher-dashboard-candidatures',
 			])));
 

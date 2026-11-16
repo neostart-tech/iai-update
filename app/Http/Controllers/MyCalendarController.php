@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\Admin\EmploiDuTempsResource;
-use App\Models\{Etudiant, User};
+use App\Models\{EmploiDuTemp, Etudiant, User};
 use Illuminate\Contracts\Routing\ResponseFactory;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -13,45 +13,29 @@ class MyCalendarController extends Controller
 {
 	public function __invoke(): ResponseFactory|Response|AnonymousResourceCollection
 	{
-		if ($user = Auth::user()) {
-			/**
-			 * @var User $user
-			 */
-			return EmploiDuTempsResource::collection($user->emploiDuTemps);
+		$user = Auth::user() ?? Auth::guard('etudiants')->user();
+
+		if ($user instanceof Etudiant) {
+			/** @var Etudiant $user */
+			$group = $user->group()->first() ?? $user->allEtudiantGroups()->first()?->group;
+			if (!$group) {
+				return EmploiDuTempsResource::collection(collect());
+			}
+
+			$cours = $group->emploiDuTemps()
+				->with(['uv', 'salle', 'owner'])
+				->get()
+				->filter(fn(EmploiDuTemp $c) => $user->estConcerneParCours($c))
+				->values();
+
+			return EmploiDuTempsResource::collection($cours);
 		}
 
-		if ($user = Auth::guard('etudiants')->user()) {
-			/**
-			 * @var Etudiant $user
-			 */
-			return EmploiDuTempsResource::collection($user->group->emploiDuTemps);
+		if ($user instanceof User) {
+			/** @var User $user */
+			return EmploiDuTempsResource::collection($user->emploiDuTemps);
 		}
 
 		return __500();
 	}
-	// public function __invoke(): ResponseFactory|Response|AnonymousResourceCollection
-	// {
-	// 	if ($user = Auth::user()) {
-	// 		/**
-	// 		 * @var User $user
-	// 		 */
-	// 		return EmploiDuTempsResource::collection($user->emploiDuTemps);
-	// 	}
-
-	// 	if ($user = Auth::guard('etudiants')->user()) {
-	// 		/**
-	// 		 * @var Etudiant $user
-	// 		 */
-	// 		// Récupérer le groupe actuel via la relation etudiantGroups
-	// 		$etudiantGroup = $user->etudiantGroups()->first();
-
-	// 		if ($etudiantGroup && $etudiantGroup->group) {
-	// 			return EmploiDuTempsResource::collection($etudiantGroup->group->emploiDuTemps);
-	// 		}
-
-	// 		return __500('Aucun groupe trouvé pour cet étudiant');
-	// 	}
-
-	// 	return __500();
-	// }
 }

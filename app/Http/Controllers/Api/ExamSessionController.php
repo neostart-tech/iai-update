@@ -41,35 +41,82 @@ class ExamSessionController extends Controller
             // 🔴 UTILISER UNE TRANSACTION POUR ÉVITER LES DOUBLONS
             DB::beginTransaction();
 
-            // 1️⃣ TERMINER TOUTES LES ANCIENNES SESSIONS (peu importe leur statut)
-            $terminatedCount = ExamSession::where('evaluation_id', $evaluation->id)
-                       ->where('etudiant_id', $etudiantId)
-                       ->where('status', '!=', 'termine') // Terminer celles qui ne sont pas déjà terminées
-                       ->update([
-                           'status' => 'termine',
-                           'submitted_at' => now()
-                       ]);
+            // 1️⃣ Vérifier si l'étudiant a DÉJÀ soumis cet examen (session 'termine')
+            $completedSession = ExamSession::where('evaluation_id', $evaluation->id)
+                                           ->where('etudiant_id', $etudiantId)
+                                           ->where('status', 'termine')
+                                           ->orderBy('submitted_at', 'desc')
+                                           ->first();
 
-            // 2️⃣ VÉRIFIER S'IL Y A DÉJÀ UNE SESSION (par sécurité)
-            $existingSession = ExamSession::where('evaluation_id', $evaluation->id)
-                                          ->where('etudiant_id', $etudiantId)
-                                          ->where('status', 'en_cours')
-                                          ->first();
-
-            if ($existingSession) {
+            if ($completedSession) {
                 DB::commit();
                 return response()->json([
                     'success' => true,
-                    'message' => 'Session déjà existante',
+                    'message' => 'Cet examen a déjà été soumis définitivement.',
                     'data' => [
-                        'session' => $existingSession,
+                        'session' => $completedSession,
                         'is_new' => false,
-                        'anciennes_sessions_terminees' => $terminatedCount
+                        'is_submitted' => true,
+                        'temps_restant' => 0,
+                        'token' => $completedSession->session_token
                     ]
                 ], 200);
             }
 
-            // 3️⃣ CRÉER UNE NOUVELLE SESSION
+            // 2️⃣ Vérifier s'il y a déjà une session EN COURS
+            $existingSession = ExamSession::where('evaluation_id', $evaluation->id)
+                                          ->where('etudiant_id', $etudiantId)
+                                          ->where('status', 'en_cours')
+                                          ->orderBy('created_at', 'desc')
+                                          ->first();
+
+            if ($existingSession) {
+                // Si l'évaluation est expirée dans le temps, on clôture la session
+                if ($evaluation->fin && now()->isAfter($evaluation->fin)) {
+                    $existingSession->update([
+                        'status' => 'termine',
+                        'submitted_at' => now()
+                    ]);
+                    DB::commit();
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Le temps imparti pour cet examen est expiré.',
+                        'data' => [
+                            'session' => $existingSession,
+                            'is_new' => false,
+                            'is_submitted' => true,
+                            'temps_restant' => 0,
+                            'token' => $existingSession->session_token
+                        ]
+                    ], 200);
+                }
+
+                // Rafraîchir l'activité de la session en cours
+                $existingSession->update(['last_activity_at' => now()]);
+                DB::commit();
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Session en cours récupérée',
+                    'data' => [
+                        'session' => $existingSession,
+                        'is_new' => false,
+                        'is_submitted' => false,
+                        'temps_restant' => $this->calculateTimeRemaining($evaluation),
+                        'token' => $existingSession->session_token
+                    ]
+                ], 200);
+            }
+
+            // 3️⃣ Vérifier si le délai de l'évaluation est dépassé avant de créer une session
+            if ($evaluation->fin && now()->isAfter($evaluation->fin)) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet examen est déjà terminé et clôturé.',
+                ], 403);
+            }
+
+            // 4️⃣ CRÉER UNE NOUVELLE SESSION
             $session = ExamSession::create([
                 'evaluation_id' => $evaluation->id,
                 'etudiant_id' => $etudiantId,
@@ -91,7 +138,7 @@ class ExamSessionController extends Controller
                 'data' => [
                     'session' => $session,
                     'is_new' => true,
-                    'anciennes_sessions_terminees' => $terminatedCount,
+                    'is_submitted' => false,
                     'temps_restant' => $this->calculateTimeRemaining($evaluation),
                     'token' => $session->session_token
                 ]

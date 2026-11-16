@@ -187,6 +187,14 @@ class ReinscriptionController extends Controller
                 }
             }
 
+            // 5. Synchronisation automatique des frais selon la grille officielle pour la nouvelle année
+            try {
+                $fraisService = new \App\Services\FraisEtudiantService();
+                $fraisService->synchroniserApresModificationProfil($etudiant, $targetAnnee->id);
+            } catch (\Exception $fe) {
+                \Log::warning("Synchronisation des frais lors de la réinscription de l'étudiant {$etudiant->id} : " . $fe->getMessage());
+            }
+
             DB::commit();
 
             if ($decisionType === 'reorientation') {

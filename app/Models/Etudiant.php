@@ -55,6 +55,7 @@ class Etudiant extends Authenticatable
 		'cv',
 		'advertiser_id',
 		'promotion',
+		'profil_verifie_at',
 		//		'email_verified_at'
 	];
 
@@ -62,8 +63,14 @@ class Etudiant extends Authenticatable
 
 	protected $casts = [
 		'genre' => GenreEnum::class,
-		'date_naissance' => 'datetime'
+		'date_naissance' => 'datetime',
+		'profil_verifie_at' => 'datetime',
 	];
+
+	public function profileRequests(): HasMany
+	{
+		return $this->hasMany(\App\Models\EtudiantProfileRequest::class, 'etudiant_id');
+	}
 
 	public function notes(): HasMany
 	{
@@ -226,9 +233,82 @@ public function echeances()
 	// 	return $this->groups()->latest('annee_scolaire_id');
 	// }
 
+	public function estConcerneParCours(EmploiDuTemp $cours): bool
+	{
+		$monFiliereId = $this->etudiantGroups()->first()?->filiere_id
+			?? $this->allEtudiantGroups()->first()?->filiere_id;
+
+		// 1. Si le cours cible des filières spécifiques (filiere_ids)
+		if (!empty($cours->filiere_ids) && is_array($cours->filiere_ids)) {
+			if ($monFiliereId && !in_array((int)$monFiliereId, array_map('intval', $cours->filiere_ids))) {
+				return false; // L'étudiant n'est pas dans les filières ciblées par ce cours
+			}
+		}
+
+		$matiere = $cours->uv;
+		if ($matiere) {
+			// 2. Si la matière est spécifique à une filière précise
+			if ($matiere->filiere_id) {
+				if ($monFiliereId && (int)$matiere->filiere_id !== (int)$monFiliereId) {
+					return false; // Matière d'une autre filière
+				}
+			}
+
+			// 3. Si la matière a déjà été validée (dispense d'UE / redoublement)
+			$dejaValidee = $this->uvValidations()
+				->where('unite_valeur_id', $matiere->id)
+				->where('validee', true)
+				->exists();
+
+			if ($dejaValidee) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	public function estConcerneParEvaluation(Evaluation $eval): bool
+	{
+		$monFiliereId = $this->etudiantGroups()->first()?->filiere_id
+			?? $this->allEtudiantGroups()->first()?->filiere_id;
+
+		// 1. Vérification du ciblage filières de l'évaluation
+		if (!$eval->isForFiliere($monFiliereId ? (int)$monFiliereId : null)) {
+			return false;
+		}
+
+		// 2. Si c'est un rattrapage lié à une évaluation parente
+		if ($eval->session_type === 'rattrapage' && $eval->parent_id) {
+			$parentNote = Note::where('evaluation_id', $eval->parent_id)
+				->where('etudiant_id', $this->id)
+				->first();
+
+			// Si l'étudiant a déjà obtenu >= 10 (sans mention 'R'), il a validé en session normale
+			if ($parentNote && $parentNote->note !== null && $parentNote->note >= 10 && $parentNote->notation !== 'R') {
+				return false;
+			}
+		}
+
+		// 3. Si l'étudiant a déjà validé cette matière dans son cursus (dispense)
+		if ($eval->unite_valeur_id) {
+			$dejaValidee = $this->uvValidations()
+				->where('unite_valeur_id', $eval->unite_valeur_id)
+				->where('validee', true)
+				->exists();
+
+			if ($dejaValidee && $eval->session_type !== 'normale') {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	public function emploiDuTemps()
 	{
-		return $this->group()->first()->emploiDuTemps();
+		$group = $this->group()->first() ?? $this->allEtudiantGroups()->first()?->group;
+		return $group ? $group->emploiDuTemps() : null;
 	}
 
 	public function tuteur(): MorphOne
@@ -365,6 +445,84 @@ public function echeances()
 		}
 
 		return false;
+	}
+
+	/**
+	 * Vérifie si le profil de l'étudiant et ses pièces jointes obligatoires sont complets.
+	 * Retourne ['est_complet' => bool, 'manquants' => array, 'documents_requis' => array]
+	 */
+	public function checkProfilCompletion(): array
+	{
+		$manquants = [];
+
+		// 1. Informations personnelles
+		if (empty(trim((string) $this->nom))) $manquants[] = 'nom';
+		if (empty(trim((string) $this->prenom))) $manquants[] = 'prenom';
+		if (empty($this->genre)) $manquants[] = 'genre';
+		if (empty($this->date_naissance)) $manquants[] = 'date_naissance';
+		if (empty(trim((string) $this->lieu_naissance))) $manquants[] = 'lieu_naissance';
+		if (empty(trim((string) $this->nationalite))) $manquants[] = 'nationalite';
+		if (empty(trim((string) $this->tel))) $manquants[] = 'tel';
+		if (empty(trim((string) $this->email))) $manquants[] = 'email';
+
+		// 2. Tuteur
+		$tuteur = $this->tuteur;
+		if (!$tuteur || empty(trim((string) $tuteur->nom))) $manquants[] = 'tuteur_nom';
+		if (!$tuteur || empty(trim((string) $tuteur->prenom))) $manquants[] = 'tuteur_prenom';
+		if (!$tuteur || empty(trim((string) $tuteur->tel))) $manquants[] = 'tuteur_tel';
+
+		// 3. Documents obligatoires dynamiques selon le niveau et la filière de l'année en cours
+		$anneeActiveId = function_exists('injectAnneeScolaireId') ? injectAnneeScolaireId() : null;
+		if (is_array($anneeActiveId)) {
+			$anneeActiveId = $anneeActiveId['annee_scolaire_id'] ?? null;
+		}
+		if (!$anneeActiveId && function_exists('getAnneeScolaireId')) {
+			$anneeActiveId = getAnneeScolaireId();
+		}
+
+		$dernierGroupe = $this->allEtudiantGroups()
+			->when($anneeActiveId, function ($q) use ($anneeActiveId) {
+				$q->where('annee_scolaire_id', $anneeActiveId);
+			})
+			->latest('id')
+			->first();
+
+		$docsManquants = [];
+		if ($dernierGroupe && $dernierGroupe->niveau_id) {
+			$requirements = \App\Models\DocumentRequirement::with('documentType')
+				->where('niveau_id', $dernierGroupe->niveau_id)
+				->where('is_obligatoire', true)
+				->where(function ($q) use ($dernierGroupe) {
+					$q->whereNull('filiere_id');
+					if ($dernierGroupe->filiere_id) {
+						$q->orWhere('filiere_id', $dernierGroupe->filiere_id);
+					}
+				})
+				->get();
+
+			$soumisKeys = $this->submittedDocuments()
+				->pluck('document_key')
+				->toArray();
+
+			foreach ($requirements as $req) {
+				$key = $req->documentType->document_key ?? null;
+				if ($key && !in_array($key, $soumisKeys)) {
+					$docsManquants[] = [
+						'id' => $req->id,
+						'document_key' => $key,
+						'nom_affichage' => $req->documentType->nom_affichage ?? $key,
+						'description' => $req->description,
+					];
+					$manquants[] = 'doc_' . $key;
+				}
+			}
+		}
+
+		return [
+			'est_complet' => empty($manquants),
+			'champs_manquants' => $manquants,
+			'documents_manquants' => $docsManquants,
+		];
 	}
 
 	/**

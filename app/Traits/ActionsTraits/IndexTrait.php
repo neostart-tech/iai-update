@@ -323,6 +323,294 @@ trait IndexTrait
 		return response()->json(['success' => true]);
 	}
 
+	/**
+	 * Suppression logique (Soft Delete) d'une candidature avec journalisation complète.
+	 */
+	public function destroy(Request $request, Candidature $candidature)
+	{
+		$user = $request->user();
+		$nomCandidat = trim("{$candidature->nom} {$candidature->prenom}");
+		$numDossier = $candidature->numero_dossier_affiche ?? $candidature->code ?? ('#' . $candidature->id);
+
+		// Exécution du soft delete
+		$candidature->delete();
+
+		// Journal d'activité pour traçabilité (qui, qui a été supprimé, et quand)
+		if (function_exists('activity')) {
+			activity('candidatures')
+				->performedOn($candidature)
+				->causedBy($user)
+				->withProperties([
+					'action' => 'suppression',
+					'candidature_id' => $candidature->id,
+					'nom_complet' => $nomCandidat,
+					'email' => $candidature->email,
+					'numero_dossier' => $numDossier,
+					'filiere' => $candidature->filiere?->nom,
+					'niveau' => $candidature->niveau?->libelle ?? $candidature->niveau?->nom,
+					'supprime_par' => $user ? trim("{$user->nom} {$user->prenom}") : 'Système',
+					'supprime_le' => now()->toDateTimeString(),
+				])
+				->log("Suppression (mise en corbeille) de la candidature de {$nomCandidat} ({$numDossier})");
+		}
+
+		return response()->json([
+			'success' => true,
+			'message' => "La candidature de {$nomCandidat} a été mise en corbeille avec succès.",
+		]);
+	}
+
+	/**
+	 * Suppression groupée (Soft Delete) de plusieurs candidatures avec journal d'activité.
+	 */
+	public function bulkDestroy(Request $request)
+	{
+		$request->validate([
+			'ids' => 'required|array|min:1',
+		]);
+
+		$user = $request->user();
+		$identifiers = $request->input('ids');
+
+		$candidatures = Candidature::where(function ($q) use ($identifiers) {
+			$q->whereIn('id', $identifiers)
+				->orWhereIn('slug', $identifiers);
+		})->get();
+
+		if ($candidatures->isEmpty()) {
+			return response()->json([
+				'success' => false,
+				'message' => 'Aucune candidature trouvée pour les identifiants fournis.',
+			], 404);
+		}
+
+		$deletedCount = 0;
+		$deletedDetails = [];
+
+		foreach ($candidatures as $candidature) {
+			$nomCandidat = trim("{$candidature->nom} {$candidature->prenom}");
+			$numDossier = $candidature->numero_dossier_affiche ?? $candidature->code ?? ('#' . $candidature->id);
+
+			$candidature->delete();
+			$deletedCount++;
+
+			$deletedDetails[] = [
+				'id' => $candidature->id,
+				'slug' => $candidature->slug,
+				'nom_complet' => $nomCandidat,
+				'numero_dossier' => $numDossier,
+			];
+
+			if (function_exists('activity')) {
+				activity('candidatures')
+					->performedOn($candidature)
+					->causedBy($user)
+					->withProperties([
+						'action' => 'suppression_groupee',
+						'candidature_id' => $candidature->id,
+						'nom_complet' => $nomCandidat,
+						'email' => $candidature->email,
+						'numero_dossier' => $numDossier,
+						'filiere' => $candidature->filiere?->nom,
+						'niveau' => $candidature->niveau?->libelle ?? $candidature->niveau?->nom,
+						'supprime_par' => $user ? trim("{$user->nom} {$user->prenom}") : 'Système',
+						'supprime_le' => now()->toDateTimeString(),
+					])
+					->log("Suppression groupée : mise en corbeille de la candidature de {$nomCandidat} ({$numDossier})");
+			}
+		}
+
+		if (function_exists('activity')) {
+			activity('candidatures')
+				->causedBy($user)
+				->withProperties([
+					'action' => 'suppression_groupee_summary',
+					'total_supprimes' => $deletedCount,
+					'candidats' => $deletedDetails,
+					'supprime_par' => $user ? trim("{$user->nom} {$user->prenom}") : 'Système',
+					'date' => now()->toDateTimeString(),
+				])
+				->log("Suppression groupée de {$deletedCount} candidature(s) par " . ($user ? trim("{$user->nom} {$user->prenom}") : 'Système'));
+		}
+
+		return response()->json([
+			'success' => true,
+			'message' => "{$deletedCount} candidature(s) ont été mises en corbeille avec succès.",
+			'count' => $deletedCount,
+		]);
+	}
+
+	/**
+	 * Restauration groupée de plusieurs candidatures avec journal d'activité.
+	 */
+	public function bulkRestore(Request $request)
+	{
+		$request->validate([
+			'ids' => 'required|array|min:1',
+		]);
+
+		$user = $request->user();
+		$identifiers = $request->input('ids');
+
+		$candidatures = Candidature::onlyTrashed()
+			->where(function ($q) use ($identifiers) {
+				$q->whereIn('id', $identifiers)
+					->orWhereIn('slug', $identifiers);
+			})->get();
+
+		if ($candidatures->isEmpty()) {
+			return response()->json([
+				'success' => false,
+				'message' => 'Aucune candidature trouvée dans la corbeille pour les identifiants fournis.',
+			], 404);
+		}
+
+		$restoredCount = 0;
+		$restoredDetails = [];
+
+		foreach ($candidatures as $candidature) {
+			$nomCandidat = trim("{$candidature->nom} {$candidature->prenom}");
+			$numDossier = $candidature->numero_dossier_affiche ?? $candidature->code ?? ('#' . $candidature->id);
+
+			$candidature->restore();
+			$restoredCount++;
+
+			$restoredDetails[] = [
+				'id' => $candidature->id,
+				'slug' => $candidature->slug,
+				'nom_complet' => $nomCandidat,
+				'numero_dossier' => $numDossier,
+			];
+
+			if (function_exists('activity')) {
+				activity('candidatures')
+					->performedOn($candidature)
+					->causedBy($user)
+					->withProperties([
+						'action' => 'restauration_groupee',
+						'candidature_id' => $candidature->id,
+						'nom_complet' => $nomCandidat,
+						'email' => $candidature->email,
+						'numero_dossier' => $numDossier,
+						'restaure_par' => $user ? trim("{$user->nom} {$user->prenom}") : 'Système',
+						'restaure_le' => now()->toDateTimeString(),
+					])
+					->log("Restauration groupée : rétablissement de la candidature de {$nomCandidat} ({$numDossier})");
+			}
+		}
+
+		if (function_exists('activity')) {
+			activity('candidatures')
+				->causedBy($user)
+				->withProperties([
+					'action' => 'restauration_groupee_summary',
+					'total_restaures' => $restoredCount,
+					'candidats' => $restoredDetails,
+					'restaure_par' => $user ? trim("{$user->nom} {$user->prenom}") : 'Système',
+					'date' => now()->toDateTimeString(),
+				])
+				->log("Restauration groupée de {$restoredCount} candidature(s) par " . ($user ? trim("{$user->nom} {$user->prenom}") : 'Système'));
+		}
+
+		return response()->json([
+			'success' => true,
+			'message' => "{$restoredCount} candidature(s) ont été restaurées avec succès.",
+			'count' => $restoredCount,
+		]);
+	}
+
+	/**
+	 * Liste des candidatures mises en corbeille (soft-deleted).
+	 */
+	public function corbeille(Request $request)
+	{
+		$candidatures = Candidature::onlyTrashed()
+			->with(['niveau', 'filiere', 'album'])
+			->orderByDesc('deleted_at')
+			->get();
+
+		return CandidatureResource::collection($candidatures);
+	}
+
+	/**
+	 * Restauration d'une candidature supprimée.
+	 */
+	public function restore(Request $request, $id)
+	{
+		$user = $request->user();
+
+		$candidature = Candidature::onlyTrashed()
+			->where(function ($q) use ($id) {
+				$q->where('id', $id)->orWhere('slug', $id);
+			})
+			->firstOrFail();
+
+		$nomCandidat = trim("{$candidature->nom} {$candidature->prenom}");
+		$numDossier = $candidature->numero_dossier_affiche ?? $candidature->code ?? ('#' . $candidature->id);
+
+		$candidature->restore();
+
+		if (function_exists('activity')) {
+			activity('candidatures')
+				->performedOn($candidature)
+				->causedBy($user)
+				->withProperties([
+					'action' => 'restauration',
+					'candidature_id' => $candidature->id,
+					'nom_complet' => $nomCandidat,
+					'email' => $candidature->email,
+					'numero_dossier' => $numDossier,
+					'restaure_par' => $user ? trim("{$user->nom} {$user->prenom}") : 'Système',
+					'restaure_le' => now()->toDateTimeString(),
+				])
+				->log("Restauration de la candidature de {$nomCandidat} ({$numDossier})");
+		}
+
+		return response()->json([
+			'success' => true,
+			'message' => "La candidature de {$nomCandidat} a été restaurée avec succès.",
+			'candidature' => new CandidatureResource($candidature),
+		]);
+	}
+
+	/**
+	 * Suppression définitive d'une candidature de la base de données.
+	 */
+	public function forceDelete(Request $request, $id)
+	{
+		$user = $request->user();
+
+		$candidature = Candidature::onlyTrashed()
+			->where(function ($q) use ($id) {
+				$q->where('id', $id)->orWhere('slug', $id);
+			})
+			->firstOrFail();
+
+		$nomCandidat = trim("{$candidature->nom} {$candidature->prenom}");
+		$numDossier = $candidature->numero_dossier_affiche ?? $candidature->code ?? ('#' . $candidature->id);
+
+		$candidature->forceDelete();
+
+		if (function_exists('activity')) {
+			activity('candidatures')
+				->causedBy($user)
+				->withProperties([
+					'action' => 'suppression_definitive',
+					'candidature_id' => $id,
+					'nom_complet' => $nomCandidat,
+					'numero_dossier' => $numDossier,
+					'supprime_definitivement_par' => $user ? trim("{$user->nom} {$user->prenom}") : 'Système',
+					'date' => now()->toDateTimeString(),
+				])
+				->log("Suppression définitive de la candidature de {$nomCandidat} ({$numDossier})");
+		}
+
+		return response()->json([
+			'success' => true,
+			'message' => "La candidature de {$nomCandidat} a été définitivement supprimée.",
+		]);
+	}
+
 	public function chooseClassAssignmentGroupView()
 	{
 		return response()->json([

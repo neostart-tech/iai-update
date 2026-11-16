@@ -33,9 +33,13 @@ class NotifyStudentsAboutEvaluation implements ShouldQueue
 			...injectAnneeScolaireId()
 		]);
 
-		// Envoi de notifications aux étudiants concernés
+		// Envoi de notifications aux étudiants concernés (éligibilité individuelle complète)
 		if ($this->evaluation->group?->etudiants?->isNotEmpty()) {
 			$this->evaluation->group->etudiants->each(function (Etudiant $etudiant) {
+				if (!$etudiant->estConcerneParEvaluation($this->evaluation)) {
+					return; // Étudiant non concerné : pas de notification
+				}
+
 				Notification::send(
 					$etudiant,
 					new EvaluationNotification(

@@ -32,9 +32,25 @@ class GroupController extends Controller
 
 	public function index(Request $request)
 	{
-		$anneeActiveId = getAnneeScolaireId();
+		$anneeActiveId = $request->annee_scolaire_id ?: getAnneeScolaireId();
 
-		$groups = Group::with(['filieres', 'niveau.periodes'])
+		$groups = Group::when(!$request->boolean('with_hidden') && !$request->has('is_hidden'), function ($query) use ($anneeActiveId) {
+				// Par défaut partout : ne renvoyer QUE les groupes visibles pour l'année en cours
+				$query->visibleForAnnee($anneeActiveId);
+			})
+			->when($request->has('is_hidden'), function ($query) use ($request, $anneeActiveId) {
+				$filterHidden = filter_var($request->is_hidden, FILTER_VALIDATE_BOOLEAN);
+				if ($filterHidden) {
+					$query->hiddenForAnnee($anneeActiveId);
+				} else {
+					$query->visibleForAnnee($anneeActiveId);
+				}
+			})
+			->when($request->boolean('with_hidden'), function ($query) {
+				// Permet à la page de gestion des groupes de récupérer tous les groupes (actifs et masqués)
+				$query->withoutGlobalScope('visibleForAnnee');
+			})
+			->with(['filieres', 'niveau.periodes', 'hiddenYears'])
 			->when($request->niveau_id, function ($query, $niveauId) {
 				$query->where('niveau_id', $niveauId);
 			})
@@ -51,6 +67,34 @@ class GroupController extends Controller
 			->get();
 
 		return GroupeResource::collection($groups);
+	}
+
+	public function toggleVisibility(Request $request, Group $group)
+	{
+		$anneeActiveId = $request->annee_scolaire_id ?: getAnneeScolaireId();
+
+		if (!$anneeActiveId) {
+			return __422("Aucune année scolaire active sélectionnée.");
+		}
+
+		$isHidden = $group->hiddenYears()->where('annee_scolaires.id', $anneeActiveId)->exists();
+
+		if ($isHidden) {
+			$group->hiddenYears()->detach($anneeActiveId);
+			$message = "Le groupe est désormais visible pour l'année en cours.";
+			$nowHidden = false;
+		} else {
+			$group->hiddenYears()->attach($anneeActiveId);
+			$message = "Le groupe a été masqué pour l'année en cours.";
+			$nowHidden = true;
+		}
+
+		return response()->json([
+			'success' => true,
+			'message' => $message,
+			'is_hidden' => $nowHidden,
+			'group' => new GroupeResource($group->load(['filieres', 'niveau', 'hiddenYears'])),
+		]);
 	}
 
 	public function store(Request $request)

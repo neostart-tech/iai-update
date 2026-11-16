@@ -146,6 +146,7 @@ class EvaluationController extends Controller
                 'duration_minutes',
                 'published',
                 'correction_end_date',
+                'filiere_ids',
             ]),
             ...injectAnneeScolaireId(),
         ]);
@@ -209,6 +210,7 @@ class EvaluationController extends Controller
                 'duration_minutes',
                 'published',
                 'correction_end_date',
+                'filiere_ids',
             ]),
         ]);
 
@@ -369,12 +371,19 @@ class EvaluationController extends Controller
         }
 
         $groupIds = $activeGroup->getAttribute('group_id');
+        $studentFiliereId = $activeGroup->getAttribute('filiere_id');
+
         $evaluations = Evaluation::where('group_id', $groupIds)
             ->with(['salle', 'group'])
             ->where('is_online', true)
             ->where('published', true)
             ->orderBy('date', 'asc')
             ->get();
+
+        // Filtrer selon l'éligibilité individuelle complète de l'étudiant
+        $evaluations = $evaluations->filter(function ($ev) use ($user) {
+            return $user->estConcerneParEvaluation($ev);
+        })->values();
 
         return EvaluationResource::collection($evaluations);
     }

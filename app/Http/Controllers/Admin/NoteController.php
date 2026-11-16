@@ -38,6 +38,18 @@ class NoteController extends Controller
 	{
 		$targetStudents = $evaluation->group->etudiants;
 
+		// Filtrer par filières ciblées si spécifiées
+		if (!empty($evaluation->filiere_ids) && is_array($evaluation->filiere_ids)) {
+			$targetedFiliereIds = array_map('intval', $evaluation->filiere_ids);
+			$targetStudents = $targetStudents->filter(function (Etudiant $etudiant) use ($targetedFiliereIds) {
+				$fid = $etudiant->pivot?->filiere_id;
+				if (!$fid && $etudiant->dernier_groupe) {
+					$fid = $etudiant->dernier_groupe->pivot?->filiere_id ?? $etudiant->dernier_groupe->filiere_id;
+				}
+				return $fid ? in_array((int) $fid, $targetedFiliereIds) : false;
+			});
+		}
+
 		// Si c'est un rattrapage lié à une évaluation parente, on ne prend que les étudiants ayant < 10 ou 'R'
 		if ($evaluation->session_type === 'rattrapage' && $evaluation->parent_id) {
 			$targetStudents = $targetStudents->filter(function (Etudiant $etudiant) use ($evaluation) {

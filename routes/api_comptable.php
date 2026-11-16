@@ -51,6 +51,7 @@ Route::group([],function () {
         Route::get('/diagnostic/anomalies', [\App\Http\Controllers\DiagnosticFinancierController::class, 'index']);
         Route::post('/diagnostic/changer-mode-formation', [\App\Http\Controllers\DiagnosticFinancierController::class, 'changerModeFormation']);
         Route::post('/diagnostic/changer-mode-formation-masse', [\App\Http\Controllers\DiagnosticFinancierController::class, 'changerModeFormationMasse']);
+        Route::post('/diagnostic/corriger-anomalies', [\App\Http\Controllers\DiagnosticFinancierController::class, 'corrigerAnomalies']);
 	});
 
 
@@ -69,6 +70,8 @@ Route::group([],function () {
 		Route::post('duplicate', 'duplicate')->name('duplicate')->middleware('can:duplicate-frais-scolarite');
 		Route::put('update/{id}', 'update')->name('update')->middleware('can:update-frais-scolarite');
 		Route::delete('destroy/{id}', 'destroy')->name('destroy')->middleware('can:delete-frais-scolarite');
+		Route::post('{id}/synchroniser-echeances', 'synchroniserEcheances')->name('synchroniser-echeances');
+		Route::post('synchroniser-toutes-echeances', 'synchroniserToutesEcheances')->name('synchroniser-toutes-echeances');
 	});
 
 

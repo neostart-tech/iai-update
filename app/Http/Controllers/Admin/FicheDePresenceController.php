@@ -94,6 +94,18 @@ class FicheDePresenceController extends Controller
 
 		$controllable = $fiche->controllable;
 		$etudiants = $controllable->group->etudiants;
+
+		// Si le cours ou l'évaluation cible des filières spécifiques, filtrer la liste d'appel
+		if (!empty($controllable->filiere_ids) && is_array($controllable->filiere_ids)) {
+			$targetedFiliereIds = array_map('intval', $controllable->filiere_ids);
+			$etudiants = $etudiants->filter(function ($etudiant) use ($targetedFiliereIds) {
+				$fid = $etudiant->pivot?->filiere_id
+					?? $etudiant->etudiantGroups()->first()?->filiere_id
+					?? $etudiant->allEtudiantGroups()->first()?->filiere_id;
+				return $fid && in_array((int)$fid, $targetedFiliereIds);
+			})->values();
+		}
+
 		$type = $controllable::class === Evaluation::class ? 'une évaluation' : 'un cours';
 
 

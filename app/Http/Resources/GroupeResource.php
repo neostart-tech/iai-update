@@ -24,7 +24,9 @@ class GroupeResource extends JsonResource
             "niveau" => new NiveauResource($this->resource->niveau) ?? null,
             "filieres" => FiliereResource::collection($this->resource->filieres) ?? null,
             "inscrits"=>$this->resource->etudiants_count,
-            
+            "is_hidden" => $this->resource->isHiddenForAnnee(
+                $request->annee_scolaire_id ?: (function_exists('getAnneeScolaireId') ? getAnneeScolaireId() : null)
+            ),
         ];
     }
 }

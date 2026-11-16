@@ -35,12 +35,6 @@ class UserRequest extends FormRequest
 			'cv_document' => ['nullable', 'file', 'mimes:pdf,doc,docx', 'max:5120'],
 		];
 
-		// Si la nationalité est Togo, le NIF devient obligatoire
-		if ($this->input('nationalite') === 'Togo') {
-			$rules['nif'] = ['required', 'string', 'max:50', 'unique:users,nif'];
-			$rules['nif_document'] = ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'];
-		}
-
 		return $rules;
 	}
 
