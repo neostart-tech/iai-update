@@ -71,6 +71,7 @@ class CandidatureResource extends JsonResource
             'filiere' => $this->resource->filiere ? new FiliereResource($this->resource->filiere) : null,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+            'deleted_at' => $this->deleted_at,
             'acceptation_date' => $this->acceptation_date,
             'end_accessibility_date' => $this->end_accessibility_date,
             'album' => $this->resource->album ? new AlbumResource($this->resource->album) : null,

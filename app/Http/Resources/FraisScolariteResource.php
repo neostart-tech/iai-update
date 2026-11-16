@@ -23,6 +23,7 @@ class FraisScolariteResource extends JsonResource
             "mode_formation" => $this->resource->mode_formation,
             "description" => $this->resource->description,
             "frequence" => $this->resource->frequence,
+            "date_debut" => $this->resource->date_debut ? \Carbon\Carbon::parse($this->resource->date_debut)->format('Y-m-d') : null,
             "filiere" => new FiliereResource($this->resource->filiere),
             'tranches' => TranchePaiementResource::collection(
                 $this->whenLoaded('tranchepaiement')

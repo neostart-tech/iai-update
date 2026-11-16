@@ -232,8 +232,21 @@ class EtudiantSituationService
             return (float) $fraisEtudiant->montant_apres_bourse;
         }
 
+        // Fallback dynamique si l'étudiant n'a pas encore de contrat spécifique
+        $groupe = $etudiant->etudiantGroups->first();
+        if ($groupe && $groupe->niveau_id) {
+            $genreVal = ($etudiant->genre instanceof \BackedEnum) ? $etudiant->genre->value : ($etudiant->genre ?? 'Tous');
+            $modeVal = ($groupe->mode_formation instanceof \BackedEnum) ? $groupe->mode_formation->value : ($groupe->mode_formation ?? 'Présentiel');
+            $frais = FraisScolarite::getFraisForEtudiant($groupe->niveau_id, $genreVal, $groupe->filiere_id, $this->anneeScolaireId, $modeVal);
+            if ($frais) {
+                return (float) $frais->montant;
+            }
+        }
+
+
         return 0;
     }
+
 
     /**
      * Calcule le montant total payé par un étudiant
@@ -334,11 +347,12 @@ class EtudiantSituationService
             // Tranches standard
             $groupe = $etudiant->etudiantGroups->first();
             if ($groupe && $groupe->niveau_id) {
-                $fraisScolarite = FraisScolarite::where('niveau_id', $groupe->niveau_id)
-                    ->where('annee_scolaire_id', $this->anneeScolaireId)
-                    ->first();
+                $genreVal = ($etudiant->genre instanceof \BackedEnum) ? $etudiant->genre->value : ($etudiant->genre ?? 'Tous');
+                $modeVal = ($groupe->mode_formation instanceof \BackedEnum) ? $groupe->mode_formation->value : ($groupe->mode_formation ?? 'Présentiel');
+                $fraisScolarite = FraisScolarite::getFraisForEtudiant($groupe->niveau_id, $genreVal, $groupe->filiere_id, $this->anneeScolaireId, $modeVal);
 
                 if ($fraisScolarite) {
+
                     $echeances = $fraisScolarite->tranchepaiement->map(function($tranche) use ($etudiant, $paiementsValides) {
                         // Filtrer les paiements pour cette tranche spécifique
                         $paiementsTranche = $paiementsValides->filter(function($p) use ($tranche) {

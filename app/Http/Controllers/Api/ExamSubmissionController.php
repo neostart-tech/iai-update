@@ -146,6 +146,11 @@ class ExamSubmissionController extends Controller
             $etudiantId = $request->etudiant_id;
             $questionId = $request->question_id;
 
+            // 🔴 Sécurité : Empêcher toute modification si l'examen est déjà soumis ou expiré
+            if ($error = $this->checkCanSubmit($evaluation, $etudiantId)) {
+                return $error;
+            }
+
             // Vérifier que la question appartient bien à l'examen
             $question = ExamQuestion::find($questionId);
             $part = $question->part;
@@ -221,6 +226,13 @@ class ExamSubmissionController extends Controller
             
             $etudiantId = $request->etudiant_id;
             $questionId = $request->question_id;
+
+            // 🔴 Sécurité : Empêcher toute modification si l'examen est déjà soumis ou expiré
+            if ($error = $this->checkCanSubmit($evaluation, $etudiantId)) {
+                DB::rollBack();
+                return $error;
+            }
+
             $question = ExamQuestion::with('options')->find($questionId);
 
             // Vérifier que la question appartient à l'évaluation
@@ -304,13 +316,12 @@ class ExamSubmissionController extends Controller
                          ->whereNull('submitted_at')
                          ->update(['submitted_at' => now()]);
 
-            // Marquer la session comme terminée
+            // Marquer toutes les sessions de cet étudiant comme terminées
             ExamSession::where('evaluation_id', $evaluation->id)
                       ->where('etudiant_id', $etudiantId)
-                      ->where('status', 'en_cours')
                       ->update([
                           'status' => 'termine',
-                          'submitted_at' => now()
+                          'submitted_at' => DB::raw('COALESCE(submitted_at, NOW())')
                       ]);
 
             DB::commit();
@@ -839,6 +850,13 @@ class ExamSubmissionController extends Controller
         try {
             DB::beginTransaction();
             $evaluation = Evaluation::where('slug', $evaluationId)->firstOrFail();
+
+            // 🔴 Sécurité : Empêcher toute modification si l'examen est déjà soumis ou expiré
+            if ($error = $this->checkCanSubmit($evaluation, (int) $request->etudiant_id)) {
+                DB::rollBack();
+                return $error;
+            }
+
             $submission = ExamSubmission::updateOrCreate(
                 ['evaluation_id' => $evaluation->id, 'etudiant_id' => $request->etudiant_id, 'question_id' => $request->question_id],
                 ['reponse' => $request->reponse, 'submitted_at' => now(), 'auto_saved_at' => now(), 'ip_address' => $request->ip(), 'user_agent' => $request->userAgent()]
@@ -897,5 +915,35 @@ class ExamSubmissionController extends Controller
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Vérifie si l'étudiant a le droit d'enregistrer ou de modifier des réponses.
+     * Bloque immédiatement si la copie a déjà été soumise ou si le temps est écoulé.
+     */
+    private function checkCanSubmit(Evaluation $evaluation, int $etudiantId): ?JsonResponse
+    {
+        // 1. Vérifier si l'étudiant a déjà une session marquée comme 'termine'
+        $sessionTerminee = ExamSession::where('evaluation_id', $evaluation->id)
+            ->where('etudiant_id', $etudiantId)
+            ->where('status', 'termine')
+            ->exists();
+
+        if ($sessionTerminee) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Votre copie a déjà été soumise définitivement. Aucune modification n\'est autorisée.'
+            ], 403);
+        }
+
+        // 2. Vérifier si la date de fin de l'examen est dépassée
+        if ($evaluation->fin && now()->isAfter($evaluation->fin)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Le délai imparti pour cet examen est expiré. Vous ne pouvez plus enregistrer de réponse.'
+            ], 403);
+        }
+
+        return null;
     }
 }

@@ -860,6 +860,9 @@ class PaiementEtudiantService
             // Vérifier que le montant ne dépasse pas le reste à payer global ou de l'élément
             if ($naturePaiement === 'scolarite') {
                 $infos = $this->getInfosPaiement($etudiantId, $anneeScolaireId);
+                if (!empty($infos['anomalie']['has_anomalie'])) {
+                    throw new Exception("Paiement bloqué : Une incohérence financière a été détectée sur ce dossier. Veuillez régulariser l'anomalie dans le module Diagnostic Financier avant d'enregistrer un paiement.");
+                }
                 $resteGlobalScolarite = $infos['total']['reste_a_payer'] ?? 0;
 
                 if ($resteGlobalScolarite <= 0) {

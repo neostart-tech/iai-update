@@ -285,7 +285,8 @@ class ActivityDescriber
 		}
 
 		try {
-			$model = $modelClass::find($id);
+			$query = method_exists($modelClass, 'withTrashed') ? $modelClass::withTrashed() : $modelClass::query();
+			$model = $query->find($id);
 			if (!$model) {
 				return null;
 			}

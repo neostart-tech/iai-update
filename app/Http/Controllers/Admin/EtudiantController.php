@@ -29,22 +29,59 @@ class EtudiantController extends Controller
     private const COUPON = 'coupons';
     public function index(Request $request)
     {
-        $anneeActiveId = $request->get('annee_scolaire_id') ?: injectAnneeScolaireId()['annee_scolaire_id'] ?? getAnneeScolaireId();
+        $anneeParam = $request->get('annee_scolaire_id');
+        if (!is_numeric($anneeParam)) {
+            $anneeParam = null;
+        }
+        $anneeActiveId = $anneeParam ?: (injectAnneeScolaireId()['annee_scolaire_id'] ?? getAnneeScolaireId());
 
-        $etudiants = Etudiant::whereHas('allEtudiantGroups', function ($q) use ($anneeActiveId, $request) {
+        $query = Etudiant::query();
 
-            $q->where('annee_scolaire_id', $anneeActiveId);
-        })->with([
+        if ($anneeActiveId) {
+            $query->whereHas('allEtudiantGroups', function ($q) use ($anneeActiveId) {
+                $q->where('annee_scolaire_id', $anneeActiveId);
+            });
+        }
+
+        $query->with([
             'allEtudiantGroups' => function ($q) use ($anneeActiveId) {
-                $q->where('annee_scolaire_id', $anneeActiveId)
-                    ->latest('id');
+                if ($anneeActiveId) {
+                    $q->where('annee_scolaire_id', $anneeActiveId);
+                }
+                $q->latest('id');
             },
             'allEtudiantGroups.group',
             'allEtudiantGroups.filiere',
             'allEtudiantGroups.niveau',
             'submittedDocuments',
             'fraisEtudiant',
-        ])->orderBy('nom')->orderBy('prenom')->get();
+        ])->orderBy('nom')->orderBy('prenom');
+
+        if ($request->has('limit') && is_numeric($request->get('limit'))) {
+            $query->limit((int) $request->get('limit'));
+        }
+
+        $etudiants = $query->get();
+
+        // Fallback si aucun étudiant n'a de groupe dans l'année active par défaut
+        if ($etudiants->isEmpty() && !$request->filled('annee_scolaire_id')) {
+            $fallbackQuery = Etudiant::with([
+                'allEtudiantGroups' => function ($q) {
+                    $q->latest('id');
+                },
+                'allEtudiantGroups.group',
+                'allEtudiantGroups.filiere',
+                'allEtudiantGroups.niveau',
+                'submittedDocuments',
+                'fraisEtudiant',
+            ])->orderBy('nom')->orderBy('prenom');
+
+            if ($request->has('limit') && is_numeric($request->get('limit'))) {
+                $fallbackQuery->limit((int) $request->get('limit'));
+            }
+
+            $etudiants = $fallbackQuery->get();
+        }
 
         return EtudiantRessource::collection($etudiants);
 

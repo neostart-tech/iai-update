@@ -30,7 +30,9 @@ class EvaluationRequest extends FormRequest
 			'debut' => ['required'],
 			'fin' => ['required'],
 			'date' => ['required', 'date'],
-			'correction_end_date' => ['nullable', 'date', 'after:now']
+			'correction_end_date' => ['nullable', 'date', 'after:now'],
+			'filiere_ids' => ['nullable', 'array'],
+			'filiere_ids.*' => ['integer', 'exists:filieres,id']
 		];
 	}
 

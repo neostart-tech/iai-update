@@ -49,7 +49,29 @@ class Evaluation extends Model
         'date' => 'date',
         'correction_end_date' => 'datetime',
         'correction_submission_date' => 'datetime',
+        'filiere_ids' => 'array',
     ];
+
+    public function setFiliereIdsAttribute($value)
+    {
+        $this->attributes['filiere_ids'] = is_array($value) ? json_encode(array_values(array_map('intval', $value))) : (is_string($value) ? $value : null);
+    }
+
+    public function getFiliereIdsAttribute($value)
+    {
+        if (is_array($value)) return $value;
+        if (empty($value)) return [];
+        return is_string($value) ? (json_decode($value, true) ?? []) : [];
+    }
+
+    public function isForFiliere(?int $filiereId): bool
+    {
+        $fIds = $this->filiere_ids;
+        if (empty($fIds) || !is_array($fIds)) {
+            return true; // Tronc commun : tout le groupe participe
+        }
+        return $filiereId ? in_array((int)$filiereId, array_map('intval', $fIds)) : false;
+    }
 
     public function hasSlugBaseKeyProvider(): bool
     {

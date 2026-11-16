@@ -89,8 +89,15 @@ class FraisEtudiantService
                 ]
             );
 
-            // 5. Générer l'échéancier si nécessaire
-            if ($fraisEtudiant->wasRecentlyCreated || $fraisEtudiant->echeances()->count() == 0) {
+            // 5. Générer l'échéancier si nécessaire (nouveau contrat, aucun échéancier ou montant modifié)
+            $montantEcheancesActuel = (float) $fraisEtudiant->echeances()->sum('montant');
+            if (
+                $fraisEtudiant->wasRecentlyCreated || 
+                $fraisEtudiant->echeances()->count() == 0 || 
+                $fraisEtudiant->wasChanged('montant_apres_bourse') || 
+                $fraisEtudiant->wasChanged('frais_scolarite_id') ||
+                abs($montantEcheancesActuel - (float) $montantNet) > 1
+            ) {
                 $this->generateEcheancierFromFraisScolarite($fraisEtudiant, $fraisBase);
             }
 
@@ -356,5 +363,100 @@ class FraisEtudiantService
 
             return $fraisEtudiant;
         });
+    }
+
+    /**
+     * Synchronise les dates limites et statuts des échéances des étudiants rattachés à un FraisScolarite,
+     * sans toucher aux montants payés ni aux paiements existants.
+     */
+    public function synchroniserEcheancesDepuisFrais(FraisScolarite $frais)
+    {
+        return DB::transaction(function () use ($frais) {
+            $tranches = $frais->tranchepaiement()->orderBy('id')->get();
+            if ($tranches->isEmpty()) {
+                return ['etudiants_synchronises' => 0, 'echeances_mises_a_jour' => 0];
+            }
+
+            $contrats = FraisEtudiant::where('frais_scolarite_id', $frais->id)->get();
+            $etudiantsSync = 0;
+            $echeancesMaj = 0;
+
+            foreach ($contrats as $fe) {
+                $echeances = $fe->echeances()->orderBy('ordre')->orderBy('id')->get();
+
+                if ($echeances->isEmpty()) {
+                    $this->generateEcheancierFromFraisScolarite($fe, $frais);
+                    $etudiantsSync++;
+                    $echeancesMaj += $tranches->count();
+                    continue;
+                }
+
+                $updatedForStudent = false;
+                foreach ($echeances as $index => $echeance) {
+                    if (isset($tranches[$index])) {
+                        $tranche = $tranches[$index];
+                        $dateLimite = $tranche->date_limite;
+
+                        // Recalculer le statut sans toucher au montant payé
+                        $nouveauStatut = $echeance->statut;
+                        if ($echeance->montant_paye >= $echeance->montant && $echeance->montant > 0) {
+                            $nouveauStatut = 'paye';
+                        } elseif ($echeance->montant_paye > 0) {
+                            $nouveauStatut = 'partiel';
+                        } elseif (\Carbon\Carbon::parse($dateLimite)->isPast()) {
+                            $nouveauStatut = 'en_retard';
+                        } else {
+                            $nouveauStatut = 'en_attente';
+                        }
+
+                        $echeance->update([
+                            'date_limite' => $dateLimite,
+                            'libelle' => $tranche->libelle,
+                            'statut' => $nouveauStatut,
+                        ]);
+
+                        $echeancesMaj++;
+                        $updatedForStudent = true;
+                    }
+                }
+
+                if ($updatedForStudent) {
+                    $fe->updateStatut();
+                    $etudiantsSync++;
+                }
+            }
+
+            return [
+                'etudiants_synchronises' => $etudiantsSync,
+                'echeances_mises_a_jour' => $echeancesMaj,
+            ];
+        });
+    }
+
+    /**
+     * Synchronise les échéances de tous les frais configurés pour l'année scolaire active.
+     */
+    public function synchroniserToutesEcheancesAnnee($anneeScolaireId = null)
+    {
+        $anneeId = $anneeScolaireId ?? \App\Models\AnneeScolaire::where('active', true)->value('id');
+        $fraisList = FraisScolarite::withoutGlobalScopes()
+            ->where('annee_scolaire_id', $anneeId)
+            ->get();
+
+        $totalEtudiants = 0;
+        $totalEcheances = 0;
+
+        foreach ($fraisList as $frais) {
+            $res = $this->synchroniserEcheancesDepuisFrais($frais);
+            $totalEtudiants += $res['etudiants_synchronises'];
+            $totalEcheances += $res['echeances_mises_a_jour'];
+        }
+
+        return [
+            'annee_scolaire_id' => $anneeId,
+            'frais_traites' => $fraisList->count(),
+            'total_etudiants' => $totalEtudiants,
+            'total_echeances' => $totalEcheances,
+        ];
     }
 }

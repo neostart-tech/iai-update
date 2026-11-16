@@ -61,4 +61,9 @@ class AnneeScolaire extends Model
 		)->withPivot('date_rentree')
 			->withTimestamps();
 	}
+
+	public function calendrierRentrees()
+	{
+		return $this->hasMany(CalendrierRentree::class);
+	}
 }

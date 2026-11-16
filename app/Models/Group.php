@@ -25,6 +25,18 @@ class Group extends Model
 
 	public $timestamps = false;
 
+	protected static function booted()
+	{
+		static::addGlobalScope('visibleForAnnee', function (Builder $builder) {
+			$anneeId = function_exists('getAnneeScolaireId') ? getAnneeScolaireId() : null;
+			if ($anneeId) {
+				$builder->whereDoesntHave('hiddenYears', function (Builder $q) use ($anneeId) {
+					$q->where('annee_scolaires.id', $anneeId);
+				});
+			}
+		});
+	}
+
 	protected $fillable = [
 		'nom',
 		'slug',
@@ -90,12 +102,52 @@ class Group extends Model
 		return $this->hasMany(UniteValeur::class);
 	}
 
+	public function hiddenYears(): BelongsToMany
+	{
+		return $this->belongsToMany(AnneeScolaire::class, 'group_hidden_years', 'group_id', 'annee_scolaire_id')
+			->withTimestamps();
+	}
 
+	public function isHiddenForAnnee(?int $anneeId = null): bool
+	{
+		$anneeId = $anneeId ?: (function_exists('getAnneeScolaireId') ? getAnneeScolaireId() : null);
+		if (!$anneeId) {
+			return false;
+		}
 
+		if ($this->relationLoaded('hiddenYears')) {
+			return $this->hiddenYears->contains('id', $anneeId);
+		}
 
-	//	public function etudiantsNotFromThisGroup()
-	//	{
-	//		return $this->belongsToMany(Etudiant::class)
-	//		->wherePivot()
-	//	}
+		return \Illuminate\Support\Facades\DB::table('group_hidden_years')
+			->where('group_id', $this->id)
+			->where('annee_scolaire_id', $anneeId)
+			->exists();
+	}
+
+	public function scopeVisibleForAnnee(Builder $query, ?int $anneeId = null): Builder
+	{
+		$anneeId = $anneeId ?: (function_exists('getAnneeScolaireId') ? getAnneeScolaireId() : null);
+		if (!$anneeId) {
+			return $query;
+		}
+
+		return $query->withoutGlobalScope('visibleForAnnee')
+			->whereDoesntHave('hiddenYears', function (Builder $q) use ($anneeId) {
+				$q->where('annee_scolaires.id', $anneeId);
+			});
+	}
+
+	public function scopeHiddenForAnnee(Builder $query, ?int $anneeId = null): Builder
+	{
+		$anneeId = $anneeId ?: (function_exists('getAnneeScolaireId') ? getAnneeScolaireId() : null);
+		if (!$anneeId) {
+			return $query->withoutGlobalScope('visibleForAnnee')->whereRaw('1 = 0');
+		}
+
+		return $query->withoutGlobalScope('visibleForAnnee')
+			->whereHas('hiddenYears', function (Builder $q) use ($anneeId) {
+				$q->where('annee_scolaires.id', $anneeId);
+			});
+	}
 }

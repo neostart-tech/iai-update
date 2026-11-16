@@ -155,25 +155,11 @@ class UserController extends Controller
 			'nif' => 'nullable|string|max:50|unique:users,nif',
 			'supervisor_type' => 'required|in:non_surveillant,interne,externe',
 			'biographie' => 'nullable|string',
-			'identity_document' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
+			'identity_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
 			'nif_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
 			'diploma_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
 			'cv_document' => 'nullable|file|mimes:pdf,doc,docx|max:5120',
 		]);
-
-		// Validation conditionnelle pour le NIF si Togolais
-		if ($validated['nationalite'] === 'Togo') {
-			if (empty($validated['nif'])) {
-				return response()->json([
-					'errors' => ['nif' => ['Le numéro NIF est obligatoire pour les professeurs togolais.']]
-				], 422);
-			}
-			if (!$request->hasFile('nif_document')) {
-				return response()->json([
-					'errors' => ['nif_document' => ['Le justificatif du NIF est obligatoire pour les professeurs togolais.']]
-				], 422);
-			}
-		}
 
 		$clearPassword = 'password';
 

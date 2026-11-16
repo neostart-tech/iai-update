@@ -30,8 +30,33 @@ class EmploiDuTemp extends Model
 	protected $casts = [
 		'debut' => 'datetime',
 		'fin' => 'datetime',
-		'type_programme' => TypeProgrammeEnum::class
+		'type_programme' => TypeProgrammeEnum::class,
+		'filiere_ids' => 'array',
 	];
+
+	public function setFiliereIdsAttribute($value)
+	{
+		$this->attributes['filiere_ids'] = is_array($value) ? json_encode(array_values(array_map('intval', $value))) : (is_string($value) ? $value : null);
+	}
+
+	public function getFiliereIdsAttribute($value)
+	{
+		if (is_null($value)) return null;
+		if (is_array($value)) return $value;
+		$decoded = json_decode($value, true);
+		return is_array($decoded) ? $decoded : [];
+	}
+
+	public function isForFiliere(?int $filiereId): bool
+	{
+		if (empty($this->filiere_ids)) {
+			return true;
+		}
+		if (!$filiereId) {
+			return false;
+		}
+		return in_array($filiereId, array_map('intval', $this->filiere_ids), true);
+	}
 
 	/**
 	 * Relation : Une programmation d'emploi du temps peut être liée à une matière

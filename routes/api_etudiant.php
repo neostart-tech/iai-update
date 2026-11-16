@@ -36,6 +36,9 @@ Route::prefix('espace-etudiant')->name('api.etudiants.')->group(function () {
                 Route::get('mes-fichiers', 'myFiles')->name('my-files');
                 Route::get('mon-compte', 'myAccount')->name('my-account');
                 Route::get('mes-payements', 'myPayment')->name('my-payment');
+                Route::get('profil-completion', 'getProfilCompletion')->name('profil-completion');
+                Route::post('profil-completion', 'updateMonProfil')->name('profil-completion.update');
+                Route::post('confirmer-profil-correct', 'confirmerProfilCorrect')->name('confirmer-profil-correct');
             });
         });
 

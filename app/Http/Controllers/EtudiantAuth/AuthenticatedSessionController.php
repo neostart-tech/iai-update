@@ -75,6 +75,10 @@ class AuthenticatedSessionController extends Controller
             $user->setRelation('roles', collect([$studentRole]));
         }
 
+        $completion = $user->checkProfilCompletion();
+        $user->setAttribute('profil_complet', $completion['est_complet']);
+        $user->setAttribute('profil_manquants', $completion['champs_manquants']);
+
         return response()->json([
             'message' => 'Connexion réussie.',
             'user' => $user,

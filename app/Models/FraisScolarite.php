@@ -20,6 +20,7 @@ class FraisScolarite extends Model
     protected $casts = [
         'genre' => GenreEnum::class,
         'mode_formation' => ModeFormationEnum::class,
+        'date_debut' => 'date',
     ];
 
     public function anneeScolaire()
@@ -62,59 +63,59 @@ class FraisScolarite extends Model
             ->where('annee_scolaire_id', $anneeTargetId)
             ->where('niveau_id', $niveauId);
 
-        // 1. Recherche précise : Filière + Genre + Mode
-        $result = (clone $query);
+        // Si une filière spécifique est demandée, on la cherche en priorité
         if ($filiereId) {
-            $result->where('filiere_id', $filiereId);
-        } else {
-            $result->whereNull('filiere_id');
+            $filiereQuery = (clone $query)->where('filiere_id', $filiereId);
+
+            // 1. Filière + Genre exact + Mode exact
+            $res = (clone $filiereQuery)
+                ->where('genre', $genre)
+                ->where('mode_formation', $modeFormation)
+                ->first();
+            if ($res) return $res;
+
+            // 2. Filière + Genre 'Tous'/null + Mode exact
+            $res = (clone $filiereQuery)
+                ->where(function($q) {
+                    $q->where('genre', 'Tous')->orWhereNull('genre');
+                })
+                ->where('mode_formation', $modeFormation)
+                ->first();
+            if ($res) return $res;
+
+            // 3. Filière + Genre exact + Mode 'Tous'/null
+            $res = (clone $filiereQuery)
+                ->where('genre', $genre)
+                ->where(function($q) {
+                    $q->where('mode_formation', 'Tous')->orWhereNull('mode_formation');
+                })
+                ->first();
+            if ($res) return $res;
+
+            // 4. Filière + Genre 'Tous'/null + Mode 'Tous'/null
+            $res = (clone $filiereQuery)
+                ->where(function($q) {
+                    $q->where('genre', 'Tous')->orWhereNull('genre');
+                })
+                ->where(function($q) {
+                    $q->where('mode_formation', 'Tous')->orWhereNull('mode_formation');
+                })
+                ->first();
+            if ($res) return $res;
         }
-        $res = $result->where('genre', $genre)
-                      ->where('mode_formation', $modeFormation)
-                      ->first();
+
+        // Fallback sans filière (filiere_id IS NULL)
+        $globalQuery = (clone $query)->whereNull('filiere_id');
+
+        // 5. Sans filière + Genre exact + Mode exact
+        $res = (clone $globalQuery)
+            ->where('genre', $genre)
+            ->where('mode_formation', $modeFormation)
+            ->first();
         if ($res) return $res;
 
-        // 2. Fallback : Filière + Genre + Mode "Tous"
-        $result = (clone $query);
-        if ($filiereId) {
-            $result->where('filiere_id', $filiereId);
-        } else {
-            $result->whereNull('filiere_id');
-        }
-        $res = $result->where('genre', $genre)
-                      ->where('mode_formation', 'Tous')
-                      ->first();
-        if ($res) return $res;
-
-        // 3. Fallback : Filière + Genre "Tous" + Mode spécifique
-        $result = (clone $query);
-        if ($filiereId) {
-            $result->where('filiere_id', $filiereId);
-        } else {
-            $result->whereNull('filiere_id');
-        }
-        $res = $result->where('genre', 'Tous')
-                      ->where('mode_formation', $modeFormation)
-                      ->first();
-        if ($res) return $res;
-
-        // 4. Fallback : Filière + Genre "Tous" + Mode "Tous"
-        $result = (clone $query);
-        if ($filiereId) {
-            $result->where('filiere_id', $filiereId);
-        } else {
-            $result->whereNull('filiere_id');
-        }
-        $res = $result->where('genre', 'Tous')
-                      ->where('mode_formation', 'Tous')
-                      ->first();
-        if ($res) return $res;
-
-        // 5. Fallback : Niveau + Mode spécifique + Sans filière (on ignore le genre strict)
-        $res = self::withoutGlobalScopes()
-            ->where('annee_scolaire_id', $anneeTargetId)
-            ->where('niveau_id', $niveauId)
-            ->whereNull('filiere_id')
+        // 6. Sans filière + Genre 'Tous'/null + Mode exact
+        $res = (clone $globalQuery)
             ->where(function($q) {
                 $q->where('genre', 'Tous')->orWhereNull('genre');
             })
@@ -122,19 +123,28 @@ class FraisScolarite extends Model
             ->first();
         if ($res) return $res;
 
-        // 6. Fallback final sur niveau + Mode compatible (strictement Présentiel/En ligne ou Tous)
-        $res = self::withoutGlobalScopes()
-            ->where('annee_scolaire_id', $anneeTargetId)
-            ->where('niveau_id', $niveauId)
-            ->whereNull('filiere_id')
+        // 7. Sans filière + Genre exact + Mode 'Tous'/null
+        $res = (clone $globalQuery)
+            ->where('genre', $genre)
+            ->where(function($q) {
+                $q->where('mode_formation', 'Tous')->orWhereNull('mode_formation');
+            })
+            ->first();
+        if ($res) return $res;
+
+        // 8. Sans filière + Genre 'Tous'/null + Mode 'Tous'/null
+        $res = (clone $globalQuery)
             ->where(function($q) {
                 $q->where('genre', 'Tous')->orWhereNull('genre');
             })
-            ->where(function($q) use ($modeFormation) {
-                $q->where('mode_formation', $modeFormation)->orWhere('mode_formation', 'Tous');
+            ->where(function($q) {
+                $q->where('mode_formation', 'Tous')->orWhereNull('mode_formation');
             })
             ->first();
+        if ($res) return $res;
 
-        return $res;
+        // 9. Dernier recours : n'importe quel frais du niveau pour cette année
+        return (clone $query)->first();
     }
 }
+

@@ -36,6 +36,12 @@ class AuthServiceProvider extends ServiceProvider
         // assignées aux rôles de l'utilisateur en base. Retourner null laisse la main
         // aux Gate::define()/Policies explicites (ex: manage-gallery ci-dessus).
         Gate::before(function (User $user, string $ability) {
+            $adminSlugs = ['directeur-general', 'directeur-general-adjoint', 'responsable-du-site', 'admin', 'informaticien'];
+            $userRoleSlugs = $user->roles->pluck('slug')->all();
+            if (!empty(array_intersect($adminSlugs, $userRoleSlugs))) {
+                return true;
+            }
+
             return $user->hasPermissionSlug($ability) ? true : null;
         });
     }

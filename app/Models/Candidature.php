@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany, HasOne, MorphOne};
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
@@ -26,7 +27,7 @@ use Illuminate\Support\Str;
 // #[ScopedBy(CurrentAnneeScolaireScope::class)]
 class Candidature extends Authenticatable
 {
-	use \Laravel\Sanctum\HasApiTokens, Notifiable, HasFactory, ModelsSlugKeyTrait, GenerateUniqueSlugTrait, UserIdentityTrait, LogsActivityWithDefaults;
+	use \Laravel\Sanctum\HasApiTokens, Notifiable, HasFactory, ModelsSlugKeyTrait, GenerateUniqueSlugTrait, UserIdentityTrait, LogsActivityWithDefaults, SoftDeletes;
 
 	protected $guarded = false;
 

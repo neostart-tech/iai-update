@@ -15,19 +15,19 @@ class DiagnosticFinancierService
         $anneeId = getAnneeScolaireId();
         $results = [];
 
-        // 1. Calcul via logique Dashboard
-        $etudiantsDash = Etudiant::whereHas('etudiantGroups', function($q) use ($anneeId) {
+        // Récupérer uniquement les étudiants rattachés à l'année scolaire active (inscrits ou avec contrat)
+        $etudiants = Etudiant::whereHas('allEtudiantGroups', function($q) use ($anneeId) {
+            $q->where('annee_scolaire_id', $anneeId);
+        })->orWhereHas('fraisEtudiant', function($q) use ($anneeId) {
             $q->where('annee_scolaire_id', $anneeId);
         })->get();
 
+        // 1. Calcul via logique Dashboard
         $totalDash = 0;
-        foreach ($etudiantsDash as $etudiant) {
+        foreach ($etudiants as $etudiant) {
             $montant = $this->getMontantDash($etudiant, $anneeId);
             $totalDash += $montant;
-            $groupe = $etudiant->etudiantGroups()->where('annee_scolaire_id', $anneeId)->first();
-            if (!$groupe) {
-                $groupe = $etudiant->etudiantGroups()->latest('id')->first();
-            }
+            $groupe = $etudiant->allEtudiantGroups()->where('annee_scolaire_id', $anneeId)->first();
             $modeFormation = ($groupe && $groupe->mode_formation instanceof \UnitEnum) 
                                 ? $groupe->mode_formation->value 
                                 : ($groupe->mode_formation ?? 'Présentiel');
@@ -40,28 +40,13 @@ class DiagnosticFinancierService
         }
 
         // 2. Calcul via logique Situation
-        $etudiantsSit = Etudiant::all();
         $totalSit = 0;
-        foreach ($etudiantsSit as $etudiant) {
+        foreach ($etudiants as $etudiant) {
             $sitInfo = $this->getMontantSitInfo($etudiant, $anneeId);
             $montant = $sitInfo['montant'];
             $totalSit += $montant;
             $results[$etudiant->id]['sit'] = $montant;
             $results[$etudiant->id]['tarif_existant'] = $sitInfo['tarif_existant'];
-            if(!isset($results[$etudiant->id]['nom'])) {
-                $groupe = $etudiant->etudiantGroups()->where('annee_scolaire_id', $anneeId)->first();
-                if (!$groupe) {
-                    $groupe = $etudiant->etudiantGroups()->latest('id')->first();
-                }
-                $modeFormation = ($groupe && $groupe->mode_formation instanceof \UnitEnum) 
-                                    ? $groupe->mode_formation->value 
-                                    : ($groupe->mode_formation ?? 'Présentiel');
-
-                $results[$etudiant->id]['nom'] = $etudiant->nom . ' ' . $etudiant->prenom;
-                $results[$etudiant->id]['slug'] = $etudiant->slug;
-                $results[$etudiant->id]['mode_formation'] = $modeFormation;
-                $results[$etudiant->id]['niveau'] = $groupe?->niveau?->libelle ?? 'Non assigné';
-            }
         }
 
         // 3. Comparaison
@@ -145,10 +130,7 @@ class DiagnosticFinancierService
     }
 
     public function getMontantSitInfo($etudiant, $anneeId) {
-        $groupe = $etudiant->etudiantGroups()->where('annee_scolaire_id', $anneeId)->first();
-        if (!$groupe) {
-            $groupe = $etudiant->etudiantGroups()->latest('id')->first();
-        }
+        $groupe = $etudiant->allEtudiantGroups()->where('annee_scolaire_id', $anneeId)->first();
         if (!$groupe || !$groupe->niveau_id) {
             return ['montant' => 0, 'tarif_existant' => false];
         }
@@ -280,34 +262,49 @@ class DiagnosticFinancierService
     }
 
     /**
-     * Corrige automatiquement toutes les anomalies de tarif detectees.
+     * Corrige automatiquement les anomalies de tarif detectees.
+     * Si des IDs sont passes, corrige uniquement ces etudiants, sinon corrige toutes les anomalies du diagnostic.
      */
-    public function corrigerAnomalies()
+    public function corrigerAnomalies(?array $etudiantIds = null)
     {
-        $diagnostic = $this->detecterAnomaliesTarif();
         $corriges = 0;
         $erreurs = [];
-
+        $anneeId = getAnneeScolaireId();
         $fraisService = new \App\Services\FraisEtudiantService();
 
-        foreach ($diagnostic['anomalies'] as $anomalie) {
+        if (!empty($etudiantIds)) {
+            $targetIds = $etudiantIds;
+        } else {
+            // Utiliser comparerCalculs pour être 100% cohérent avec l'affichage de la page Diagnostic
+            $diagnostic = $this->comparerCalculs();
+            $targetIds = array_column($diagnostic['details'], 'id');
+        }
+
+        foreach ($targetIds as $etudiantId) {
             try {
-                $etudiant = Etudiant::find($anomalie['etudiant_id']);
+                $etudiant = Etudiant::find($etudiantId);
                 if ($etudiant) {
-                    $fraisService->synchroniserApresModificationProfil($etudiant);
-                    $corriges++;
+                    $res = $fraisService->synchroniserApresModificationProfil($etudiant, $anneeId);
+                    if ($res) {
+                        $corriges++;
+                    } else {
+                        $erreurs[] = [
+                            'etudiant_id' => $etudiantId,
+                            'nom' => $etudiant->nom . ' ' . $etudiant->prenom,
+                            'erreur' => "Aucun tarif officiel n'est configuré dans la grille pour ce profil.",
+                        ];
+                    }
                 }
             } catch (\Exception $e) {
                 $erreurs[] = [
-                    'etudiant_id' => $anomalie['etudiant_id'],
-                    'nom' => $anomalie['nom'],
+                    'etudiant_id' => $etudiantId,
                     'erreur' => $e->getMessage(),
                 ];
             }
         }
 
         return [
-            'nb_anomalies_detectees' => $diagnostic['nb_anomalies'],
+            'nb_anomalies_detectees' => count($targetIds),
             'nb_corrigees' => $corriges,
             'nb_erreurs' => count($erreurs),
             'erreurs' => $erreurs,

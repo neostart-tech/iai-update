@@ -114,7 +114,8 @@ class FraisScolariteController extends Controller
             'genre' => 'nullable',
             'mode_formation' => 'nullable|string',
             "description" => 'nullable',
-            "frequence" => "nullable|in:annuel,trimestriel,bimestriel" // Nouvelle option
+            "frequence" => "nullable|in:annuel,trimestriel,bimestriel",
+            "date_debut" => "nullable|date"
         ]);
 
         $anneeCourante = AnneeScolaire::courante();
@@ -135,12 +136,24 @@ class FraisScolariteController extends Controller
     public function update(Request $request, $frais)
     {
         $frais = FraisScolarite::findOrFail($frais);
+        $request->validate([
+            'niveau_id' => 'required',
+            'filiere_id' => 'nullable',
+            'montant' => 'required|numeric|min:1000',
+            'genre' => 'nullable',
+            'mode_formation' => 'nullable|string',
+            'description' => 'nullable',
+            'frequence' => 'nullable|in:annuel,trimestriel,bimestriel',
+            'date_debut' => 'nullable|date',
+        ]);
+
         $frais->update($request->except(['existingTranches']));
 
-        if ($request->frequence) {
+        $freqToUse = $request->frequence ?: $frais->frequence;
+        if ($freqToUse) {
             // Supprimer les anciennes tranches avant de régénérer
             $frais->tranchepaiement()->delete();
-            $this->generateAutoTranches($frais, $request->frequence, $frais->anneeScolaire);
+            $this->generateAutoTranches($frais, $freqToUse, $frais->anneeScolaire);
         }
 
         return new FraisScolariteResource($frais->load('tranchepaiement'));
@@ -152,7 +165,30 @@ class FraisScolariteController extends Controller
     private function generateAutoTranches($frais, $frequency, $anneeScolaire = null)
     {
         $targetAnnee = $anneeScolaire ?? AnneeScolaire::where('active', true)->first();
-        $dateDebut = $targetAnnee && $targetAnnee->date_debut ? Carbon::parse($targetAnnee->date_debut) : Carbon::now();
+
+        // Détermination intelligente de la date de rentrée :
+        // 1. Dérogation manuelle spécifique sur ce frais (si renseignée)
+        // 2. Calendrier académique centralisé de l'année scolaire (Niveau / Filière)
+        // 3. Date de rentrée spécifique de la filière pour cette année
+        // 4. Date générale de début de l'année scolaire
+        // 5. Date du jour en dernier recours
+        $dateDebut = null;
+        if (!empty($frais->date_debut)) {
+            $dateDebut = Carbon::parse($frais->date_debut);
+        } elseif ($targetAnnee && $frais->niveau_id) {
+            $dateDebut = \App\Models\CalendrierRentree::resolveDateRentree($targetAnnee->id, $frais->niveau_id, $frais->filiere_id);
+        }
+
+        if (!$dateDebut && $frais->filiere && method_exists($frais->filiere, 'dateDebutAnnee') && $targetAnnee) {
+            $filiereDate = $frais->filiere->dateDebutAnnee($targetAnnee);
+            if ($filiereDate) {
+                $dateDebut = Carbon::parse($filiereDate);
+            }
+        }
+
+        if (!$dateDebut) {
+            $dateDebut = $targetAnnee && $targetAnnee->date_debut ? Carbon::parse($targetAnnee->date_debut) : Carbon::now();
+        }
         
         $nbTranches = match($frequency) {
             'annuel' => 1,
@@ -184,6 +220,33 @@ class FraisScolariteController extends Controller
                 'status' => true
             ]);
         }
+    }
+
+    /**
+     * Synchronise les échéances des étudiants associés à cette grille de frais
+     */
+    public function synchroniserEcheances($id, \App\Services\FraisEtudiantService $service)
+    {
+        $frais = FraisScolarite::with('tranchepaiement')->findOrFail($id);
+        $res = $service->synchroniserEcheancesDepuisFrais($frais);
+
+        return response()->json([
+            'message' => "Échéances synchronisées avec succès pour {$res['etudiants_synchronises']} étudiant(s).",
+            'data' => $res,
+        ]);
+    }
+
+    /**
+     * Synchronise les échéances de tous les étudiants de l'année scolaire active
+     */
+    public function synchroniserToutesEcheances(\App\Services\FraisEtudiantService $service)
+    {
+        $res = $service->synchroniserToutesEcheancesAnnee();
+
+        return response()->json([
+            'message' => "Synchronisation globale terminée : {$res['total_etudiants']} étudiant(s) et {$res['total_echeances']} échéance(s) mis à jour.",
+            'data' => $res,
+        ]);
     }
 
     public function destroy($id)

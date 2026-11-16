@@ -46,6 +46,7 @@ use App\Http\Controllers\Admin\{
 use App\Http\Controllers\Admin\ClassCommitteeController;
 use App\Http\Controllers\CarteEtudiantController;
 use App\Http\Controllers\AnneeScolaireController;
+use App\Http\Controllers\CalendrierRentreeController;
 use App\Http\Controllers\Admin\EvaluationRoomController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Models\AnneeScolaire;
@@ -285,6 +286,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('export/etude-dossier', 'exportEtudeDossierExcel')->name('export.etude-dossier');
         Route::get('liste-des-rejets', 'liste_des_rejets')->name('index.rejections');
         Route::get('dossiers-incomplets', 'listeDossiersIncomplets')->name('index.incomplets');
+        Route::get('corbeille', 'corbeille')->name('corbeille')->middleware('can:delete-candidature');
+        Route::post('bulk-delete', 'bulkDestroy')->name('bulk-destroy')->middleware('can:delete-candidature');
+        Route::post('bulk-restore', 'bulkRestore')->name('bulk-restore')->middleware('can:restore-candidature');
+        Route::post('{id}/restaurer', 'restore')->name('restore')->middleware('can:restore-candidature');
+        Route::delete('{id}/force-delete', 'forceDelete')->name('force-delete')->middleware('can:delete-candidature');
+        Route::delete('{candidature}', 'destroy')->name('destroy')->middleware('can:delete-candidature');
         Route::delete('{candidature}/supprimer-brouillon', 'supprimerBrouillon')->name('delete-brouillon')->middleware('can:delete-brouillon-candidature');
         Route::get('{candidature}/evaluer', 'show')->name('show');
         Route::get('choix-de-groupe', 'chooseClassAssignmentGroupView')->name('choose-class-assignment-group-view');
@@ -317,6 +324,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{id}/activate', 'activer')->name('activer')->middleware('can:update-annee-scolaire');
         Route::put('{id}/desactivate', 'desactiver')->name('desactiver')->middleware('can:update-annee-scolaire');
         Route::put('{annee}/update', 'update')->name('update')->middleware('can:update-annee-scolaire');
+    });
+
+    Route::controller(CalendrierRentreeController::class)->prefix('annee-scolaire/{anneeId}/calendrier')->name('annee.calendrier.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/save', 'save')->name('save')->middleware('can:update-annee-scolaire');
+        Route::delete('/{entryId}', 'destroyEntry')->name('destroy')->middleware('can:update-annee-scolaire');
     });
 
     Route::controller(FraisInscriptionController::class)->prefix('frais-inscription')->name('frais-inscription.')->group(function () {
@@ -388,6 +401,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('{group}/emploi-du-temps', 'updateCalendar')->name('update-calendar')->middleware('can:update-groupe');
         Route::post('ajouter', 'store')->name('store')->middleware('can:create-groupe');
         Route::post('assign-delegue', 'assignDelegue')->name('assign-delegue')->middleware('can:update-groupe');
+        Route::post('{group}/toggle-visibility', 'toggleVisibility')->name('toggle-visibility')->middleware('can:update-groupe');
         Route::post('{group}/attribution-aux-etudiants-enregistrement', 'storeGroupAssignment')->name('store-attribution')->middleware('can:update-groupe');
         Route::delete('{groupe}/supprimer', 'destroy')->name('delete')->middleware('can:delete-groupe');
     });
@@ -744,4 +758,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/livekit/toggle-student-access', [\App\Http\Controllers\Api\LiveKitController::class, 'toggleStudentAccess']);
     Route::get('/livekit/rooms', [\App\Http\Controllers\Api\LiveKitController::class, 'getActiveRooms']);
     Route::post('/livekit/rooms', [\App\Http\Controllers\Api\LiveKitController::class, 'createRoom']);
+
+    // Validation des profils étudiants par l'administration (informaticien, DG, DGA, etc.)
+    Route::controller(\App\Http\Controllers\Admin\EtudiantProfileValidationController::class)
+        ->prefix('demandes-profil-etudiant')
+        ->name('admin.demandes-profil.')
+        ->group(function () {
+            Route::get('', 'index')->name('index');
+            Route::get('{demande}', 'show')->name('show');
+            Route::post('{demande}/valider', 'valider')->name('valider');
+            Route::post('{demande}/rejeter', 'rejeter')->name('rejeter');
+        });
 });

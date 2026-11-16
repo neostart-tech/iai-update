@@ -39,14 +39,45 @@ class EmploiDuTempController extends Controller
 			->exists();
 	}
 
-	private function hasGroupOverlap(int $groupId, Carbon $debut, Carbon $fin, ?int $excludeId = null): bool
+	private function hasGroupOverlap(int $groupId, Carbon $debut, Carbon $fin, ?int $excludeId = null, ?array $filiereIds = null): bool
 	{
-		return EmploiDuTemp::query()
+		$existingCourses = EmploiDuTemp::query()
 			->where('group_id', $groupId)
 			->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
 			->where('debut', '<', $fin)
 			->where('fin', '>', $debut)
-			->exists();
+			->get();
+
+		if ($existingCourses->isEmpty()) {
+			return false;
+		}
+
+		// Si le cours à programmer ne spécifie aucune filière (null ou vide),
+		// il concerne TOUT le groupe. Dès qu'il y a un autre cours en face, c'est un conflit.
+		$isNewWholeGroup = empty($filiereIds);
+
+		foreach ($existingCourses as $existing) {
+			$existingFiliereIds = $existing->filiere_ids;
+			$isExistingWholeGroup = empty($existingFiliereIds);
+
+			// Si au moins un des deux cours concerne tout le groupe, conflit immédiat
+			if ($isNewWholeGroup || $isExistingWholeGroup) {
+				return true;
+			}
+
+			// Les deux cours ciblent des filières spécifiques : on vérifie l'intersection
+			$shared = array_intersect(
+				array_map('intval', (array)$filiereIds),
+				array_map('intval', (array)$existingFiliereIds)
+			);
+
+			if (!empty($shared)) {
+				return true; // Au moins une filière en commun => conflit d'étudiants
+			}
+		}
+
+		// Aucune filière en commun entre les cours se déroulant à cette heure
+		return false;
 	}
 
 	// public function store(Request $request): Response|ResponseFactory|EmploiDuTempsResource
@@ -163,6 +194,8 @@ class EmploiDuTempController extends Controller
 			'salle' => ['required'],
 			'teacher' => ['required'],
 			'details' => ['nullable'],
+			'filiere_ids' => ['nullable', 'array'],
+			'filiere_ids.*' => ['integer'],
 
 			// RÉCURRENCE
 			'recurrence_type' => ['nullable', Rule::in(['aucune', 'hebdomadaire', 'quotidienne'])],
@@ -206,12 +239,16 @@ class EmploiDuTempController extends Controller
 				->value('id');
 			if (!$groupId) return __422('Groupe invalide.');
 
-			$uvId = UniteValeur::where('id', intval($request->uv_id))
-				->orWhereHas('matiere', function($q) use ($request) {
-					$q->where('slug', $request->uv_id)
-					  ->orWhere('code', 'LIKE', '%' . $request->uv_id . '%')
-					  ->orWhere('nom', 'LIKE', '%' . $request->uv_id . '%');
-				})->value('id');
+			$uvId = null;
+			if (is_numeric($request->uv_id)) {
+				$uvId = UniteValeur::where('id', intval($request->uv_id))->value('id');
+			}
+			if (!$uvId) {
+				$uvId = UniteValeur::where('slug', $request->uv_id)
+					->orWhere('code', 'LIKE', '%' . $request->uv_id . '%')
+					->orWhere('nom', 'LIKE', '%' . $request->uv_id . '%')
+					->value('id');
+			}
 			if (!$uvId) return __422('Unité de valeur invalide.');
 
 			$ownerId = User::where('slug', $request->teacher)
@@ -228,7 +265,12 @@ class EmploiDuTempController extends Controller
 				return __422("L'enseignant sélectionné est déjà occupé sur cette plage horaire.");
 			}
 
-			if ($this->hasGroupOverlap($groupId, $debut, $fin)) {
+			$filiereIds = $request->input('filiere_ids');
+			if (is_array($filiereIds) && empty($filiereIds)) {
+				$filiereIds = null;
+			}
+
+			if ($this->hasGroupOverlap($groupId, $debut, $fin, null, $filiereIds)) {
 				return __422("Ce groupe d'étudiants a déjà un cours programmé sur cette plage horaire.");
 			}
 
@@ -244,6 +286,7 @@ class EmploiDuTempController extends Controller
 				'uv_id' => $uvId,
 				'type_programme' => $request->enum('type', TypeProgrammeEnum::class),
 				'group_id' => $groupId,
+				'filiere_ids' => $filiereIds,
 				'salle_id' => $salleId,
 				'owner_id' => $ownerId,
 				'owner_type' => User::class,
@@ -500,6 +543,8 @@ class EmploiDuTempController extends Controller
 
 			'type' => ['nullable', Rule::enum(TypeProgrammeEnum::class)],
 			'details' => ['nullable'],
+			'filiere_ids' => ['nullable', 'array'],
+			'filiere_ids.*' => ['integer'],
 
 			// RÉCURRENCE
 			'recurrence_type' => ['nullable', Rule::in(['aucune', 'hebdomadaire', 'quotidienne'])],
@@ -540,12 +585,16 @@ class EmploiDuTempController extends Controller
 		}
 
 		if ($request->filled('uv_id')) {
-			$uvId = UniteValeur::where('id', intval($request->uv_id))
-				->orWhereHas('matiere', function($q) use ($request) {
-					$q->where('slug', $request->uv_id)
-					  ->orWhere('code', 'LIKE', '%' . $request->uv_id . '%')
-					  ->orWhere('nom', 'LIKE', '%' . $request->uv_id . '%');
-				})->value('id');
+			$uvId = null;
+			if (is_numeric($request->uv_id)) {
+				$uvId = UniteValeur::where('id', intval($request->uv_id))->value('id');
+			}
+			if (!$uvId) {
+				$uvId = UniteValeur::where('slug', $request->uv_id)
+					->orWhere('code', 'LIKE', '%' . $request->uv_id . '%')
+					->orWhere('nom', 'LIKE', '%' . $request->uv_id . '%')
+					->value('id');
+			}
 
 			if (!$uvId) return __422('Unité de valeur invalide.');
 
@@ -628,11 +677,19 @@ class EmploiDuTempController extends Controller
 			return __422("L'enseignant est déjà occupé sur cette plage horaire.");
 		}
 
+		if ($request->has('filiere_ids')) {
+			$filiereIdsInput = $request->input('filiere_ids');
+			$payload['filiere_ids'] = (is_array($filiereIdsInput) && empty($filiereIdsInput)) ? null : $filiereIdsInput;
+		}
+
+		$filiereIdsToCheck = array_key_exists('filiere_ids', $payload) ? $payload['filiere_ids'] : $edt->filiere_ids;
+
 		if ($this->hasGroupOverlap(
 			$payload['group_id'] ?? $edt->group_id,
 			$debutToCheck,
 			$finToCheck,
-			$edt->id
+			$edt->id,
+			$filiereIdsToCheck
 		)) {
 			return __422("Ce groupe a déjà un cours programmé sur cette plage horaire.");
 		}
@@ -726,8 +783,16 @@ class EmploiDuTempController extends Controller
 			return response(['available' => false, 'message' => "L'enseignant est déjà occupé sur cette plage horaire."]);
 		}
 
-		if ($groupId && $this->hasGroupOverlap($groupId, $debut, $fin, $excludeId)) {
-			return response(['available' => false, 'message' => 'Ce groupe a déjà un cours sur cette plage horaire.']);
+		$filiereIds = $request->input('filiere_ids');
+		if (is_string($filiereIds)) {
+			$filiereIds = json_decode($filiereIds, true);
+		}
+		if (is_array($filiereIds)) {
+			$filiereIds = array_filter(array_map('intval', $filiereIds));
+		}
+
+		if ($groupId && $this->hasGroupOverlap($groupId, $debut, $fin, $excludeId, $filiereIds)) {
+			return response(['available' => false, 'message' => 'Ce groupe (ou cette filière) a déjà un cours sur cette plage horaire.']);
 		}
 
 		return response([

@@ -60,6 +60,7 @@ class EmploiDuTempsResource extends JsonResource
                 'plageHoraire' => $this->getPlageHoraire(),
                 'is_controllable' => false,
                 'control_url' => '',
+                'filiere_ids' => $this->resource->filiere_ids ?? [],
                 'recurrence_type' => $this->resource->recurrence_type ?? null,
                 'recurrence_days' => $this->resource->recurrence_days ?? null,
             ];
@@ -111,6 +112,7 @@ class EmploiDuTempsResource extends JsonResource
             'is_controllable' => ($this->isAdministrationMember()
                 && now()->isBetween($this->resource->debut, $this->resource->fin)
             ),
+            'filiere_ids' => $this->resource->filiere_ids ?? [],
             'recurrence_type' => $this->resource->recurrence_type ?? null,
             'recurrence_days' => $this->resource->recurrence_days ?? null,
             // 'control_url' => route('admin.fiches.make', $this->getRightFiche()),
